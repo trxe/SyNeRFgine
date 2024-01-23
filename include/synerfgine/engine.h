@@ -10,21 +10,26 @@
 
 #include <tiny-cuda-nn/multi_stream.h>
 
+#include <filesystem>
 #include <vector>
 
 namespace sng {
+
+namespace fs = std::filesystem;
 
 class Engine {
 public:
     Engine();
     void init(int res_width, int res_height);
     bool frame();
+	void load_file(const fs::path& path);
     void redraw_next_frame() { is_dirty = true; }
     ~Engine();
 
 private:
     bool is_dirty = true;
     SyntheticWorld m_syn_world;
+    NerfWorld m_nerf_world;
     Display m_display;
     std::vector<CudaDevice> m_devices;
     StreamAndEvent m_stream;

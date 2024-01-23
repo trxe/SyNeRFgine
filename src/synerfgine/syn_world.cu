@@ -129,13 +129,13 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
             dt = t;
             normal = triangles[k].normal();
         }
-        if (i == n_elements / 2) {
-            printf("ro: [%f, %f, %f]; rd: [%f, %f, %f]; t: [%f]\n", ro.r, ro.b, ro.g, rd.r, rd.b, rd.g, t);
-            printf("TRI: [%f, %f, %f], [%f, %f, %f], [%f, %f, %f]\n", 
-                triangles[k].a.r, triangles[k].a.b, triangles[k].a.g,
-                triangles[k].b.r, triangles[k].b.b, triangles[k].b.g,
-                triangles[k].c.r, triangles[k].c.b, triangles[k].c.g);
-        }
+        // if (i == n_elements / 2) {
+        //     printf("ro: [%f, %f, %f]; rd: [%f, %f, %f]; t: [%f]\n", ro.r, ro.b, ro.g, rd.r, rd.b, rd.g, t);
+        //     printf("TRI: [%f, %f, %f], [%f, %f, %f], [%f, %f, %f]\n", 
+        //         triangles[k].a.r, triangles[k].a.b, triangles[k].a.g,
+        //         triangles[k].b.r, triangles[k].b.b, triangles[k].b.g,
+        //         triangles[k].c.r, triangles[k].c.b, triangles[k].c.g);
+        // }
     }
 
     // depth[i] = max(10.0 - dt, 0.0);
@@ -210,10 +210,6 @@ __global__ void debug_triangle_vertices(const uint32_t n_elements, const Triangl
         tri->a.r, tri->a.g, tri->a.b,
         tri->b.r, tri->b.g, tri->b.b,
         tri->c.r, tri->c.g, tri->c.b);
-    // printf("%i: pos [%f %f %f], dir [%f %f %f]\n", i, 
-    //     ray_origins[i].r, ray_origins[i].g, ray_origins[i].b, 
-    //     ray_directions[i].r, ray_directions[i].g, ray_directions[i].b
-    // );
 }
 
 }

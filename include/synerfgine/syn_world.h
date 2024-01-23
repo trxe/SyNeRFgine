@@ -34,11 +34,11 @@ public:
 
 private:
     ivec2 m_resolution;
+    Camera m_camera;
     void draw_object_async(CudaDevice& device, VirtualObject& vo);
     // std::vector<Light> m_lights;
     std::unordered_map<std::string, VirtualObject> m_objects;
     // std::vector<Camera> m_cameras;
-    Camera m_camera;
 };
 
 }
