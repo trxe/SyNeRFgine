@@ -1,7 +1,17 @@
+#include <neural-graphics-primitives/nerf_loader.h>
+
 #include <synerfgine/cuda_helpers.h>
 #include <synerfgine/engine.h>
 
+#include <zstr.hpp>
+#include <fmt/core.h>
+
+#include <fstream>
+
 namespace sng {
+
+json reload_network_from_file(const fs::path& path, bool& is_snapshot);
+ngp::NerfDataset load_training_data(const fs::path& path, bool& is_training_data_available);
 
 Engine::Engine() {
     m_devices.emplace_back(find_cuda_device(), true);
@@ -19,7 +29,25 @@ void Engine::init(int res_width, int res_height) {
 }
 
 void Engine::load_file(fs::path path) {
-    m_nerf_world.load_network(path);
+	if (fs::exists(path)) {
+		tlog::error() << "File '" << path.string() << "' does not exist.";
+		return;
+	}
+
+    bool is_snapshot;
+	nlohmann::json info = reload_network_from_file(path, is_snapshot);
+
+	if (is_snapshot) {
+		m_nerf_world.load_snapshot(info);
+	} else {
+		// is training data.
+		try {
+			m_nerf_world.load_training_data(info);
+		} catch (const std::exception& e) {
+			tlog::error() << "Data at " << path.string() << "is neither snapshot nor training data.";
+			return;
+		}
+	}
 }
 
 bool Engine::frame() {
@@ -64,6 +92,49 @@ Engine::~Engine() {
     for (auto&& device : m_devices) {
         device.clear();
     }
+}
+
+// returns the json
+json reload_network_from_file(const fs::path& path, bool& is_snapshot) {
+	is_snapshot = equals_case_insensitive(path.extension().string(), "msgpack") || equals_case_insensitive(path.extension().string(), "ingp");
+
+	if (!fs::exists(path)) {
+        std::string msg = "Network path does not exist: " + path.string();
+		throw std::runtime_error(msg);
+	}
+
+	auto network_config_path{path};
+	if (network_config_path.empty() || !fs::exists(network_config_path)) {
+		throw std::runtime_error{fmt::format("Network {} '{}' does not exist.", is_snapshot ? "snapshot" : "config", network_config_path.string())};
+	}
+
+	tlog::info() << "Loading network " << (is_snapshot ? "snapshot" : "config") << " from: " << network_config_path;
+
+	json result{};
+	if (is_snapshot) {
+		std::ifstream f{native_string(network_config_path.string()), std::ios::in | std::ios::binary};
+		if (equals_case_insensitive(network_config_path.extension().string(), "ingp")) {
+			// zstr::ifstream applies zlib compression.
+			zstr::istream zf{f};
+			result = json::from_msgpack(zf);
+		} else {
+			result = json::from_msgpack(f);
+		}
+		// we assume parent pointers are already resolved in snapshots.
+	} else if (equals_case_insensitive(network_config_path.extension().string(), "json")) {
+		throw std::runtime_error{fmt::format("Loading network from json file {} not supported.", network_config_path.string())};
+	}
+
+	return result;
+}
+
+// returns the NerfDataset
+ngp::NerfDataset load_training_data(const fs::path& path, bool& is_training_data_available) {
+	if (!fs::exists(path)) {
+		throw std::runtime_error{fmt::format("Data path '{}' does not exist.", path.string())};
+	}
+	std::vector<fs::path> jsonpaths = {path};
+	return ngp::load_nerf(jsonpaths);
 }
 
 }
