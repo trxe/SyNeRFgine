@@ -1,7 +1,5 @@
 #pragma once
-#include <filesystem>
-
-namespace fs = std::filesystem;
+#include <filesystem/path.h>
 
 namespace sng {
 
@@ -11,7 +9,7 @@ public:
         if (!root_dir.empty()) {
             return root_dir;
         }
-        root_dir = fs::current_path();
+        root_dir = fs::path::getcwd();
         fs::path exists_in_root_dir = "scripts";
         for (const auto& candidate : {
             fs::path{"."}/exists_in_root_dir,
@@ -19,7 +17,7 @@ public:
             root_dir/exists_in_root_dir,
             root_dir/".."/exists_in_root_dir,
         }) {
-            if (fs::exists(candidate)) {
+            if (candidate.exists()) {
                 root_dir = candidate.parent_path();
                 break;
             }

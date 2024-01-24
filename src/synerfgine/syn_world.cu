@@ -1,11 +1,11 @@
 #include <synerfgine/syn_world.h>
 
 #include <tiny-cuda-nn/common.h>
-#include <filesystem>
+#include <filesystem/path.h>
 
 namespace sng {
 
-namespace fs = std::filesystem;
+namespace fs = filesystem;
 using namespace tcnn;
 using ngp::GLTexture;
 
@@ -86,10 +86,10 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
 void SyntheticWorld::create_object(const std::string& filename) {
     size_t k = 0;
     fs::path fp = fs::path(filename.c_str());
-    std::string name = fp.filename().string();
+    std::string name = fp.filename();
     while (m_objects.count(name)) {
         ++k;
-        name = fp.filename().string() + " " + std::to_string(k);
+        name = fp.filename() + " " + std::to_string(k);
     }
     m_objects.insert({name, load_virtual_obj(filename.c_str(), name)});
 }

@@ -1,6 +1,5 @@
 #pragma once
 #include <fstream>
-#include <filesystem>
 #include <string>
 #include <memory>
 #include <vector>
@@ -11,6 +10,7 @@
 #include <tinyobjloader/tiny_obj_loader.h>
 
 #include <neural-graphics-primitives/triangle.cuh>
+#include <filesystem/path.h>
 
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/multi_stream.h>
@@ -19,8 +19,8 @@
 namespace sng {
 
 using namespace tcnn;
-namespace fs = std::filesystem;
 using ngp::Triangle;
+namespace fs = filesystem;
 
 constexpr float MIN_DIST = -1000.0;
 constexpr float MAX_DIST = 1000.0;
@@ -40,7 +40,7 @@ public:
 
 private:
     std::string name;
-    fs::path file_path;
+    filesystem::path file_path;
     vec3 pos;
     vec3 rot;
     vec3 center;

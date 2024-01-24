@@ -38,6 +38,7 @@
 #include <filesystem/directory.h>
 #include <filesystem/path.h>
 
+// YOU CAN ONLY INCLUDE THIS ONCE IN THE WHOLE PROJECT
 #include <zstr.hpp>
 
 #include <fstream>

@@ -15,7 +15,7 @@ bool NerfWorld::handle(CudaDevice& device, const ivec2& resolution) {
 
 void NerfWorld::load_snapshot(const nlohmann::json& config, const fs::path& data_path = {}) {
 	using namespace ngp;
-	if (!data_path.empty() && fs::exists(data_path)) {
+	if (!data_path.empty() && data_path.exists()) {
 		m_data_path = data_path;
 	}
 

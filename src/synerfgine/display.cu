@@ -92,7 +92,7 @@ void Ui::init_imgui(GLFWwindow* m_glfw_window) {
 	// Instead, we would like to place imgui.ini in the directory that instant-ngp project
 	// resides in.
 	static std::string ini_filename;
-	ini_filename = (Utils::get_root_dir()/"imgui.ini").string();
+	ini_filename = (Utils::get_root_dir()/"imgui.ini").str();
 	io.IniFilename = ini_filename.c_str();
 
 	// New ImGui event handling seems to make camera controls laggy if input trickling is true.

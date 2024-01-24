@@ -3,10 +3,11 @@
 #include <synerfgine/cuda_helpers.h>
 #include <synerfgine/engine.h>
 
-#include <zstr.hpp>
 #include <fmt/core.h>
-
 #include <fstream>
+
+// YOU CAN ONLY INCLUDE THIS ONCE IN THE WHOLE PROJECT
+#include <zstr.hpp>
 
 namespace sng {
 
@@ -28,9 +29,10 @@ void Engine::init(int res_width, int res_height) {
 	});
 }
 
-void Engine::load_file(fs::path path) {
-	if (fs::exists(path)) {
-		tlog::error() << "File '" << path.string() << "' does not exist.";
+void Engine::load_file(const std::string& str_path) {
+	fs::path path{str_path};
+	if (path.exists()) {
+		tlog::error() << "File '" << path.str() << "' does not exist.";
 		return;
 	}
 
@@ -38,13 +40,13 @@ void Engine::load_file(fs::path path) {
 	nlohmann::json info = reload_network_from_file(path, is_snapshot);
 
 	if (is_snapshot) {
-		m_nerf_world.load_snapshot(info);
+		m_nerf_world.load_snapshot(info, path);
 	} else {
 		// is training data.
 		try {
-			m_nerf_world.load_training_data(info);
+			// m_nerf_world.load_training_data(info);
 		} catch (const std::exception& e) {
-			tlog::error() << "Data at " << path.string() << "is neither snapshot nor training data.";
+			tlog::error() << "Data at " << path.str() << "is neither snapshot nor training data.";
 			return;
 		}
 	}
@@ -95,25 +97,26 @@ Engine::~Engine() {
 }
 
 // returns the json
-json reload_network_from_file(const fs::path& path, bool& is_snapshot) {
-	is_snapshot = equals_case_insensitive(path.extension().string(), "msgpack") || equals_case_insensitive(path.extension().string(), "ingp");
+json reload_network_from_file(const filesystem::path& path, bool& is_snapshot) {
+	namespace fs = filesystem;
+	is_snapshot = equals_case_insensitive(path.extension(), "msgpack") || equals_case_insensitive(path.extension(), "ingp");
 
-	if (!fs::exists(path)) {
-        std::string msg = "Network path does not exist: " + path.string();
+	if (!path.exists()) {
+        std::string msg = "Network path does not exist: " + path.str();
 		throw std::runtime_error(msg);
 	}
 
 	auto network_config_path{path};
-	if (network_config_path.empty() || !fs::exists(network_config_path)) {
-		throw std::runtime_error{fmt::format("Network {} '{}' does not exist.", is_snapshot ? "snapshot" : "config", network_config_path.string())};
+	if (network_config_path.empty() || !network_config_path.exists()) {
+		throw std::runtime_error{fmt::format("Network {} '{}' does not exist.", is_snapshot ? "snapshot" : "config", network_config_path.str())};
 	}
 
 	tlog::info() << "Loading network " << (is_snapshot ? "snapshot" : "config") << " from: " << network_config_path;
 
 	json result{};
 	if (is_snapshot) {
-		std::ifstream f{native_string(network_config_path.string()), std::ios::in | std::ios::binary};
-		if (equals_case_insensitive(network_config_path.extension().string(), "ingp")) {
+		std::ifstream f{native_string(network_config_path.str()), std::ios::in | std::ios::binary};
+		if (equals_case_insensitive(network_config_path.extension(), "ingp")) {
 			// zstr::ifstream applies zlib compression.
 			zstr::istream zf{f};
 			result = json::from_msgpack(zf);
@@ -121,8 +124,8 @@ json reload_network_from_file(const fs::path& path, bool& is_snapshot) {
 			result = json::from_msgpack(f);
 		}
 		// we assume parent pointers are already resolved in snapshots.
-	} else if (equals_case_insensitive(network_config_path.extension().string(), "json")) {
-		throw std::runtime_error{fmt::format("Loading network from json file {} not supported.", network_config_path.string())};
+	} else if (equals_case_insensitive(network_config_path.extension(), "json")) {
+		throw std::runtime_error{fmt::format("Loading network from json file {} not supported.", network_config_path.str())};
 	}
 
 	return result;
@@ -130,11 +133,12 @@ json reload_network_from_file(const fs::path& path, bool& is_snapshot) {
 
 // returns the NerfDataset
 ngp::NerfDataset load_training_data(const fs::path& path, bool& is_training_data_available) {
-	if (!fs::exists(path)) {
-		throw std::runtime_error{fmt::format("Data path '{}' does not exist.", path.string())};
+	if (!path.exists()) {
+		throw std::runtime_error{fmt::format("Data path '{}' does not exist.", path.str())};
 	}
-	std::vector<fs::path> jsonpaths = {path};
-	return ngp::load_nerf(jsonpaths);
+	std::vector<filesystem::path> jsonpaths = {path.str()};
+	auto nerf_t = ngp::load_nerf(jsonpaths);
+	return nerf_t;
 }
 
 }

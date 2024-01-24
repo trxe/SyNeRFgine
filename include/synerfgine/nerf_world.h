@@ -1,10 +1,10 @@
 #pragma once
 
+
 #include <synerfgine/camera.h>
 #include <synerfgine/cuda_helpers.h>
 
 #include <neural-graphics-primitives/common.h>
-#include <neural-graphics-primitives/common_host.h>
 #include <neural-graphics-primitives/common_device.cuh>
 #include <neural-graphics-primitives/nerf.h>
 #include <neural-graphics-primitives/nerf_loader.h>
@@ -19,13 +19,14 @@
 
 #include <json/json.hpp>
 
-#include <filesystem>
+#include <filesystem/path.h>
+
 #include <memory>
 
 namespace sng {
 
 using namespace tcnn;
-namespace fs = std::filesystem;
+namespace fs = filesystem;
 using NerfNet = ngp::NerfNetwork<tcnn::network_precision_t>;
 using json = nlohmann::json;
 
@@ -37,7 +38,7 @@ public:
     // NerfWorld();
     bool handle(CudaDevice& device, const ivec2& resolution);
     void load_snapshot(const nlohmann::json& config, const fs::path& data_path);
-    void load_training_data(const nlohmann::json& config);
+    // void load_training_data(const nlohmann::json& config);
     const Camera& camera() { return m_camera; }
     Camera& mut_camera() { return m_camera; }
 

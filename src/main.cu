@@ -12,15 +12,14 @@
  *  @author Thomas Müller, NVIDIA
  */
 
+#include <neural-graphics-primitives/common_host.h>
 #include <neural-graphics-primitives/testbed.h>
+
 #include <synerfgine/engine.h>
 
 #include <tiny-cuda-nn/common.h>
 
 #include <args/args.hxx>
-
-#include <filesystem/path.h>
-#include <filesystem>
 
 using namespace args;
 using namespace ngp;
@@ -150,8 +149,9 @@ int main_func(const std::vector<std::string>& arguments) {
 		tlog::warning() << "The '--mode' argument is no longer in use. It has no effect. The mode is automatically chosen based on the scene.";
 	}
 
-	Testbed testbed;
 	sng::Engine engine;
+	/*
+	Testbed testbed;
 
 	for (auto file : get(files)) {
 		testbed.load_file(file);
@@ -168,6 +168,7 @@ int main_func(const std::vector<std::string>& arguments) {
 	}
 
 	testbed.m_train = !no_train_flag;
+	*/
 
 #ifdef NGP_GUI
 	bool gui = !no_gui_flag;
@@ -178,21 +179,23 @@ int main_func(const std::vector<std::string>& arguments) {
 	try {
 		if (gui) {
 			// testbed.load_file(fs::path("../data/nerf/fox/base.ingp"));
-			engine.load_file(fs::path("../data/nerf/fox/base.ingp"));
+			// engine.load_file("../data/nerf/fox/base.ingp");
 			// testbed.init_window(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080);
 			engine.init(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080);
 		}
 
+		/*
 		if (vr_flag) {
 			testbed.init_vr();
 		}
+		*/
 
 		// Render/training loop
 		// while (testbed.frame()) {
 		while (engine.frame()) {
-			if (!gui) {
-				tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
-			}
+			// if (!gui) {
+			// 	tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
+			// }
 		}
 	} catch (const std::runtime_error& e) {
 		tlog::error(e.what());

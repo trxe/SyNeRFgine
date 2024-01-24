@@ -6,23 +6,22 @@
 #include <synerfgine/nerf_world.h>
 #include <synerfgine/syn_world.h>
 
+#include <neural-graphics-primitives/common.h>
+#include <neural-graphics-primitives/common_host.h>
 #include <neural-graphics-primitives/render_buffer.h>
 
 #include <tiny-cuda-nn/multi_stream.h>
 
-#include <filesystem>
 #include <vector>
 
 namespace sng {
-
-namespace fs = std::filesystem;
 
 class Engine {
 public:
     Engine();
     void init(int res_width, int res_height);
     bool frame();
-	void load_file(const fs::path& path);
+	void load_file(const std::string& str_path);
     void redraw_next_frame() { is_dirty = true; }
     ~Engine();
 

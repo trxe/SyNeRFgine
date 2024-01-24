@@ -3,7 +3,6 @@
 #include <tinylogger/tinylogger.h>
 
 #include <iostream>
-#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -29,19 +28,19 @@ VirtualObject::VirtualObject(const char* fp, const std::string& name)
 	std::string warn;
 	std::string err;
 
-	std::ifstream f{file_path.string(), std::ios::in | std::ios::binary};
+	std::ifstream f{file_path.str(), std::ios::in | std::ios::binary};
 	if (f.fail()) {
 		err = "File not found";
 	}
 	bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, &f);
 
 	if (!warn.empty()) {
-		tlog::warning() << warn << " while loading '" << file_path.c_str() << "'";
+		tlog::warning() << warn << " while loading '" << file_path.str().c_str() << "'";
 	}
 
 	if (!err.empty()) {
 		std::string error = "Error loading: {";
-		error.append(file_path.string());
+		error.append(file_path.str());
 		error.append("} : {");
 		error.append(err);
 		error.append("}");
@@ -50,7 +49,7 @@ VirtualObject::VirtualObject(const char* fp, const std::string& name)
 
 	std::vector<vec3> result;
 
-	tlog::success() << "Loaded mesh \"" << file_path.c_str() << "\" file with " << shapes.size() << " shapes.";
+	tlog::success() << "Loaded mesh \"" << file_path.str().c_str() << "\" file with " << shapes.size() << " shapes.";
 	
 	vec3 center{0.0};
 	uint32_t tri_count = 0;
