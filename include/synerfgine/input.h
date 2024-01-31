@@ -14,13 +14,3 @@
 #	include <GLFW/glfw3native.h>
 #	include <cuda_gl_interop.h>
 #endif
-
-namespace sng {
-
-// class InputHandler {
-// public:
-//     // InputHandler();
-//     bool handle() { return true; }
-// };
-
-}

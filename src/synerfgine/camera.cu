@@ -71,12 +71,12 @@ bool Camera::handle_mouse_drag() {
 	}
 
 	// Right held
-	if (ImGui::GetIO().MouseDown[1]) {
-		mat3 rot = rotation_from_angles(-rel * 2.0f * PI());
-		// MOVING LIGHT SOURCE
-		// m_slice_plane_z += -rel.y * m_bounding_radius;
-		m_sun.pos = transpose(rot) * m_sun.pos;
-	}
+	// if (ImGui::GetIO().MouseDown[1]) {
+	// 	mat3 rot = rotation_from_angles(-rel * 2.0f * PI());
+	// 	// MOVING LIGHT SOURCE
+	// 	// m_slice_plane_z += -rel.y * m_bounding_radius;
+	// 	m_sun.pos = transpose(rot) * m_sun.pos;
+	// }
 
 	// Middle pressed
 	// if (ImGui::GetIO().MouseClicked[2]) {
@@ -308,8 +308,6 @@ __global__ void init_rays_cam(
 	if (idx > n_elements) {
 		return;
 	}
-
-	// printf("DIR %i %i %i %i\n", x, y, resolution.x, resolution.y); 
 
 	if (plane_z < 0) {
 		aperture_size = 0.0;

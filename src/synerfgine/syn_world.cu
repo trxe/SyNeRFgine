@@ -53,6 +53,12 @@ SyntheticWorld::SyntheticWorld() {
 	m_render_buffer->disable_dlss();
 }
 
+bool SyntheticWorld::handle_user_input(const ivec2& resolution) {
+    m_is_dirty = m_camera.handle_user_input() & m_is_dirty;
+    m_is_dirty = m_sun.handle_user_input(resolution) & m_is_dirty;
+    return m_is_dirty;
+}
+
 bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     auto stream = device.stream();
     device.render_buffer_view().clear(stream);
@@ -77,7 +83,6 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     for (auto& vo_kv : m_objects) {
         auto& vo = vo_kv.second;
-        std::cerr << vo_kv.first << std::endl;
         changed_depth = changed_depth & vo.update_triangles(stream);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
         draw_object_async(device, vo);
@@ -110,7 +115,7 @@ void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtua
         cam.gpu_positions(),
         cam.gpu_directions(),
         virtual_object.gpu_triangles(),
-        cam.sun(),
+        m_sun,
         // device.render_buffer_view().frame_buffer, 
         // device.render_buffer_view().depth_buffer
         m_render_buffer_view.frame_buffer, 
@@ -206,7 +211,7 @@ void SyntheticWorld::imgui(float frame_time) {
 		ImGui::Text("View Dir: %f, %f, %f", rd.r, rd.g, rd.b);
 		rd = camera().look_at();
 		ImGui::Text("Look At: %f, %f, %f", rd.r, rd.g, rd.b);
-		rd = camera().sun_pos();
+		rd = m_sun.pos;
 		ImGui::Text("Sun Pos: %f, %f, %f", rd.r, rd.g, rd.b);
 		float fps = !frame_time ? std::numeric_limits<float>::max() : (1000.0f / frame_time);
 		ImGui::Text("Frame: %.2f ms (%.1f FPS)", frame_time, fps);

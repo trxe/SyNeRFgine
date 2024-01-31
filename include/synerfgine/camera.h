@@ -53,8 +53,6 @@ public:
 	vec3 view_up() const { return m_camera[1]; }
 	vec3 view_side() const { return m_camera[0]; }
 	vec2 relative_focal_length() const { return m_relative_focal_length; }
-	vec3 sun_pos() const { return m_sun.pos; }
-	Light sun() const { return m_sun; }
 	void set_default_matrix(const mat4x3& matrix);
 	void set_view_dir(const vec3& dir);
 	float fov() const ;
@@ -85,11 +83,6 @@ private:
 	bool handle_mouse_wheel();
 	float get_depth_from_renderbuffer(const CudaRenderBuffer& render_buffer, const vec2& uv);
 
-	// mat4x3 m_camera = transpose(mat3x4{
-	// 	1.0f, 0.0f, 0.0f, 0.5f,
-	// 	0.0f, -1.0f, 0.0f, 0.5f,
-	// 	0.0f, 0.0f, -1.0f, 0.5f
-	// });
 	mat4x3 m_default_camera{transpose(mat3x4{
 		1.0f, 0.0f, 0.0f, 0.0f,
 		0.0f, 1.0f, 0.0f, 2.0f,
@@ -104,7 +97,6 @@ private:
 	float m_bounding_radius = camera_default::bounding_radius;
 	float m_exposure = camera_default::exposure;
 
-    // GPUMemory<mat4x3> gpu_camera;
 	vec2 m_relative_focal_length{1.0f, 1.0f};
 	float m_drag_depth = 1.0f;
 
@@ -114,7 +106,7 @@ private:
 
     // CudaRenderBuffer* p_render_buffer;
 
-    Light m_sun;
+    // Light m_sun;
 
     ivec2 m_resolution;
     GPUMemory<vec3> m_gpu_positions;

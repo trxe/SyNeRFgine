@@ -23,6 +23,7 @@ class Display;
 class SyntheticWorld {
 public:
     SyntheticWorld();
+    bool handle_user_input(const ivec2& resolution);
     bool handle(CudaDevice& device, const ivec2& resolution);
     void create_object(const std::string& filename);
     void imgui(float frame_time);
@@ -33,14 +34,21 @@ public:
     inline const Camera& camera() { return m_camera; }
     inline Camera& mut_camera() { return m_camera; }
 
+	inline vec3 sun_pos() const { return m_sun.pos; }
+	inline Light sun() const { return m_sun; }
+
 private:
     friend class sng::Display;
+	bool handle_user_input();
     void draw_object_async(CudaDevice& device, VirtualObject& vo);
-    // std::vector<Light> m_lights;
     std::unordered_map<std::string, VirtualObject> m_objects;
-    // std::vector<Camera> m_cameras;
+
     Camera m_camera;
     mat4x3 m_last_camera;
+    Light m_sun;
+    bool m_is_dirty;
+
+    // std::vector<Light> m_lights;
 
     // Buffers and resolution
 	std::shared_ptr<GLTexture> m_rgba_render_textures;

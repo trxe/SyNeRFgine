@@ -33,7 +33,7 @@ bool Engine::frame() {
 
     SyncedMultiStream synced_streams{m_stream.get(), 2};
     std::vector<std::future<void>> futures(2);
-    m_syn_world.mut_camera().handle_user_input();
+    m_syn_world.handle_user_input(m_display.get_window_res());
 
     futures[0] = device.enqueue_task([this, &device, stream=synced_streams.get(0)]() {
         std::shared_ptr<CudaRenderBuffer> render_buffer = m_syn_world.render_buffer();
@@ -42,7 +42,6 @@ bool Engine::frame() {
         m_syn_world.handle(device, m_display.get_window_res());
     });
 
-	auto& testbed = *m_testbed;
     futures[1] = device.enqueue_task([this, &device, stream=synced_streams.get(1)]() {
         std::shared_ptr<CudaRenderBuffer> render_buffer = m_nerf_world.render_buffer();
         auto device_guard = use_device(stream, *render_buffer, device);
