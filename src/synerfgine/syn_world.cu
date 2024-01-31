@@ -1,7 +1,24 @@
+#include <synerfgine/cuda_helpers.h>
 #include <synerfgine/syn_world.h>
 
 #include <tiny-cuda-nn/common.h>
+#include <iostream>
 #include <filesystem>
+
+#ifdef NGP_GUI
+#	include <imgui/backends/imgui_impl_glfw.h>
+#	include <imgui/backends/imgui_impl_opengl3.h>
+#	include <imgui/imgui.h>
+#	include <imguizmo/ImGuizmo.h>
+#	ifdef _WIN32
+#		include <GL/gl3w.h>
+#	else
+#		include <GL/glew.h>
+#	endif
+#	include <GLFW/glfw3.h>
+#	include <GLFW/glfw3native.h>
+#	include <cuda_gl_interop.h>
+#endif
 
 namespace sng {
 
@@ -10,6 +27,8 @@ using namespace tcnn;
 using ngp::GLTexture;
 
 static bool is_first = true;
+
+__global__ void init_buffer(const uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth);
 
 __global__ void debug_paint(const uint32_t n_elements, const uint32_t width, const uint32_t height, 
     vec4* __restrict__ rgba, float* __restrict__ depth);
@@ -25,61 +44,46 @@ __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width,
 __global__ void debug_triangle_vertices(const uint32_t n_elements, const Triangle* __restrict__ triangles,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions);
 
-__global__ void debug_rt(const uint32_t n_elements, const uint32_t width, const uint32_t height, 
-    const vec3 ro, const mat4 obj_to_world, const mat4 world_to_cam, 
-    const uint32_t tri_count, const Triangle* __restrict__ triangles, 
-    vec4* __restrict__ rgba, float* __restrict__ depth);
+SyntheticWorld::SyntheticWorld() {
+	m_rgba_render_textures = std::make_shared<GLTexture>();
+	m_depth_render_textures = std::make_shared<GLTexture>();
+
+	m_render_buffer = std::make_shared<CudaRenderBuffer>(m_rgba_render_textures, m_depth_render_textures);
+    m_render_buffer_view = m_render_buffer->view();
+	m_render_buffer->disable_dlss();
+}
 
 bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     auto stream = device.stream();
     device.render_buffer_view().clear(stream);
-    m_resolution = resolution;
+    if (resolution != m_resolution) {
+        m_resolution = resolution;
+        m_rgba_render_textures->resize(resolution, 4);
+        m_depth_render_textures->resize(resolution, 1);
+        m_render_buffer->resize(resolution);
+        m_render_buffer_view = m_render_buffer->view();
+    }
 
     auto& cam = m_camera;
+    auto cam_matrix = cam.get_matrix();
     cam.set_resolution(m_resolution);
+    
+    auto device_guard = use_device(stream, *m_render_buffer, device);
     cam.generate_rays_async(device);
+    bool changed_depth = cam_matrix == m_last_camera;
+    // m_render_buffer->clear_frame(stream);
+    auto n_elements = m_resolution.x * m_resolution.y;
+    linear_kernel(init_buffer, 0, stream, n_elements, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     for (auto& vo_kv : m_objects) {
         auto& vo = vo_kv.second;
-        if (is_first) {
-            const std::string& name = vo_kv.first;
-            uint32_t tri_count = static_cast<uint32_t>(m_objects.at(name).cpu_triangles().size());
-            cudaStream_t one_timer;
-            CUDA_CHECK_THROW(cudaStreamCreate(&one_timer));
-            linear_kernel(debug_triangle_vertices, 0, one_timer, tri_count, 
-                m_objects.at(name).gpu_triangles(), cam.gpu_positions(), cam.gpu_directions());
-            CUDA_CHECK_THROW(cudaStreamSynchronize(one_timer));
-            is_first = false;
-        }
+        std::cerr << vo_kv.first << std::endl;
+        changed_depth = changed_depth & vo.update_triangles(stream);
+        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
         draw_object_async(device, vo);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-        {
-            const std::string& name = vo_kv.first;
-            uint32_t tri_count = static_cast<uint32_t>(m_objects.at(name).cpu_triangles().size());
-            auto n_elements = m_resolution.x * m_resolution.y;
-            // linear_kernel(debug_rt, 0, stream, n_elements,
-            //     m_resolution.x, 
-            //     m_resolution.y, 
-            //     cam.m_world_to_cam[3],
-            //     mat4::identity(),
-            //     cam.m_world_to_cam,
-            //     tri_count,
-            //     m_objects.at(name).gpu_triangles(),
-            //     device.render_buffer_view().frame_buffer, 
-            //     device.render_buffer_view().depth_buffer);
-        }
     }
-    // {
-    //     auto n_elements = m_resolution.x * m_resolution.y;
-    //     linear_kernel(debug_draw_rays, 0, stream, n_elements,
-    //         m_resolution.x, 
-    //         m_resolution.y, 
-    //         cam.gpu_positions(),
-    //         cam.gpu_directions(),
-    //         device.render_buffer_view().frame_buffer, 
-    //         device.render_buffer_view().depth_buffer);
-    //     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-    // }
+    m_last_camera = cam_matrix;
     return true;
 }
 
@@ -107,8 +111,11 @@ void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtua
         cam.gpu_directions(),
         virtual_object.gpu_triangles(),
         cam.sun(),
-        device.render_buffer_view().frame_buffer, 
-        device.render_buffer_view().depth_buffer);
+        // device.render_buffer_view().frame_buffer, 
+        // device.render_buffer_view().depth_buffer
+        m_render_buffer_view.frame_buffer, 
+        m_render_buffer_view.depth_buffer
+        );
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }
 
@@ -117,24 +124,18 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
     vec4* __restrict__ rgba, float* __restrict__ depth) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
-    rgba[i] = vec4(vec3(0.0), 1.0);
-    depth[i] = ngp::MAX_RT_DIST;
+    // rgba[i] = vec4(vec3(0.0), 1.0);
+    // depth[i] = ngp::MAX_RT_DIST;
     vec3 rd = ray_directions[i];
     vec3 ro = ray_origins[i];
-    float dt = ngp::MAX_RT_DIST;
+    vec4 local_color;
+    float dt = depth[i];
     vec3 normal;
     for (size_t k = 0; k < tri_count; ++k) {
         float t = triangles[k].ray_intersect(ro, rd);
         if (t < dt && t > ngp::MIN_RT_DIST) {
             dt = t;
             normal = triangles[k].normal();
-        }
-        if (i == n_elements / 2) {
-            printf("ro: [%f, %f, %f]; rd: [%f, %f, %f]; t: [%f]\n", ro.r, ro.b, ro.g, rd.r, rd.b, rd.g, t);
-            printf("TRI: [%f, %f, %f], [%f, %f, %f], [%f, %f, %f]\n", 
-                triangles[k].a.r, triangles[k].a.b, triangles[k].a.g,
-                triangles[k].b.r, triangles[k].b.b, triangles[k].b.g,
-                triangles[k].c.r, triangles[k].c.b, triangles[k].c.g);
         }
     }
 
@@ -144,41 +145,76 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
         vec3 to_sun = normalize(sun.pos - ro);
         // FOR DIFFUSE ONLY, NO AMBIENT / SPEC
         float ndotv = dot(normal, to_sun);
-        rgba[i] = vec4(ndotv * vec3(1.0, 0.2, 0.0), 1.0);
-    } else {
-        rgba[i] = vec4(vec3(0.0), 1.0);
+        local_color = vec4(ndotv * vec3(1.0, 0.2, 0.0), 1.0);
     }
+    if (depth[i] > dt) {
+        rgba[i] = local_color;
+        depth[i] = dt;
+    }
+    // if (dt != ngp::MAX_RT_DIST && i % 100000 == 0) {
+    //     printf("SYN: %d: %f\n", i, dt);
+    // }
 }
 
-__global__ void debug_rt(const uint32_t n_elements, const uint32_t width, const uint32_t height, 
-    const vec3 ro, const mat4 obj_to_world, const mat4 world_to_cam, 
-    const uint32_t tri_count, const Triangle* __restrict__ triangles, 
-    vec4* __restrict__ rgba, float* __restrict__ depth) {
-	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
-	if (i >= n_elements) return;
-    float x = (float)(i % width) / (float)width - 0.5;
-    float y = (float)(i / height) / (float)height - 0.5;
-    vec3 rd = normalize(vec3(x, y, 1.0));
-    float dt = ngp::MAX_RT_DIST;
-    vec3 new_ro = ro;
-    for (size_t k = 0; k < tri_count; ++k) {
-        Triangle tri = triangles[k];
-        tri.a = (world_to_cam * obj_to_world * vec4(tri.a, 1.0)).xyz();
-        tri.b = (world_to_cam * obj_to_world * vec4(tri.b, 1.0)).xyz();
-        tri.c = (world_to_cam * obj_to_world * vec4(tri.c, 1.0)).xyz();
-        float t = tri.ray_intersect(ro, rd);
-        if (t < dt && t > ngp::MIN_RT_DIST) {
-            dt = t;
-            new_ro = ro + rd * t;
-        }
-    }
-    depth[i] = max(10.0 - dt, 0.0);
-    if (dt < ngp::MAX_RT_DIST) {
-        rgba[i] = vec4(vec3(depth[i]), 1.0);
-        printf("I: %i\n", i);
-    } else {
-        rgba[i] = vec4(vec3(0.0), 1.0);
-    }
+void SyntheticWorld::imgui(float frame_time) {
+	static std::string imgui_error_string = "";
+
+	if (ImGui::Begin("Load Virtual Object")) {
+		ImGui::Text("Add Virtual Object (.obj only)");
+		ImGui::InputText("##PathFile", sng::virtual_object_fp, 1024);
+		ImGui::SameLine();
+		static std::string vo_path_load_error_string = "";
+		if (ImGui::Button("Load")) {
+			try {
+				create_object(sng::virtual_object_fp);
+			} catch (const std::exception& e) {
+				ImGui::OpenPopup("Virtual object path load error");
+				vo_path_load_error_string = std::string{"Failed to load object path: "} + e.what();
+			}
+		}
+		if (ImGui::BeginPopupModal("Virtual object path load error", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+			ImGui::Text("%s", vo_path_load_error_string.c_str());
+			if (ImGui::Button("OK", ImVec2(120, 0))) {
+				ImGui::CloseCurrentPopup();
+			}
+			ImGui::EndPopup();
+		}
+		if (ImGui::CollapsingHeader("Virtual Objects", ImGuiTreeNodeFlags_DefaultOpen)) {
+			auto& objs = objects();
+			std::string to_remove;
+			size_t k = 0;
+			for (auto& vo : objs) {
+				std::string delete_button_name = std::to_string(k) + ". Delete ";
+				delete_button_name.append(vo.first);
+				if (ImGui::Button(delete_button_name.c_str())) {
+					to_remove = vo.first;
+					break;
+				}
+				vo.second.imgui();
+				++k;
+			}
+			if (!to_remove.empty()) {
+				delete_object(to_remove);
+			}
+		}
+	}
+	ImGui::End();
+	if (ImGui::Begin("Camera")) {
+		auto rd = camera().view_pos();
+		ImGui::Text("View Pos: %f, %f, %f", rd.r, rd.g, rd.b);
+		rd = camera().view_dir();
+		ImGui::Text("View Dir: %f, %f, %f", rd.r, rd.g, rd.b);
+		rd = camera().look_at();
+		ImGui::Text("Look At: %f, %f, %f", rd.r, rd.g, rd.b);
+		rd = camera().sun_pos();
+		ImGui::Text("Sun Pos: %f, %f, %f", rd.r, rd.g, rd.b);
+		float fps = !frame_time ? std::numeric_limits<float>::max() : (1000.0f / frame_time);
+		ImGui::Text("Frame: %.2f ms (%.1f FPS)", frame_time, fps);
+		if (ImGui::Button("Reset Camera")) {
+			mut_camera().reset_camera();
+		}
+	}
+	ImGui::End();
 }
 
 __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width, const uint32_t height, 
@@ -214,6 +250,13 @@ __global__ void debug_triangle_vertices(const uint32_t n_elements, const Triangl
     //     ray_origins[i].r, ray_origins[i].g, ray_origins[i].b, 
     //     ray_directions[i].r, ray_directions[i].g, ray_directions[i].b
     // );
+}
+
+__global__ void init_buffer(const uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+    rgba[i] = vec4(vec3(0.0), 1.0);
+    depth[i] = ngp::MAX_RT_DIST;
 }
 
 }
