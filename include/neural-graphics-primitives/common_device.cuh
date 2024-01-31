@@ -657,6 +657,30 @@ inline NGP_HOST_DEVICE void apply_quilting(uint32_t* x, uint32_t* y, const ivec2
 	}
 }
 
+inline NGP_HOST_DEVICE float4 to_float4(const vec4& x) {
+	return {x.x, x.y, x.z, x.w};
+}
+
+inline NGP_HOST_DEVICE float3 to_float3(const vec3& x) {
+	return {x.x, x.y, x.z};
+}
+
+inline NGP_HOST_DEVICE float2 to_float2(const vec2& x) {
+	return {x.x, x.y};
+}
+
+inline NGP_HOST_DEVICE vec4 to_vec4(const float4& x) {
+	return {x.x, x.y, x.z, x.w};
+}
+
+inline NGP_HOST_DEVICE vec3 to_vec3(const float3& x) {
+	return {x.x, x.y, x.z};
+}
+
+inline NGP_HOST_DEVICE vec2 to_vec2(const float2& x) {
+	return {x.x, x.y};
+}
+
 template <typename T>
 __global__ void from_rgba32(const uint64_t num_pixels, const uint8_t* __restrict__ pixels, T* __restrict__ out, bool white_2_transparent = false, bool black_2_transparent = false, uint32_t mask_color = 0) {
 	const uint64_t i = threadIdx.x + blockIdx.x * blockDim.x;
