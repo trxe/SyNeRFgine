@@ -42,6 +42,7 @@ private:
 	bool handle_user_input();
     void draw_object_async(CudaDevice& device, VirtualObject& vo);
     std::unordered_map<std::string, VirtualObject> m_objects;
+    GPUMemory<VirtualObject*> m_objs;
 
     Camera m_camera;
     mat4x3 m_last_camera;

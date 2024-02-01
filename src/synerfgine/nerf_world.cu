@@ -80,8 +80,6 @@ bool NerfWorld::handle(sng::CudaDevice& device, const Camera& cam, const ivec2& 
     m_testbed->render_frame(stream, cam_matrix, cam_matrix, cam_matrix, screen_center, m_testbed->m_relative_focal_length,
         vec4(vec3(0.0f), 1.0f), {}, {}, visualized_dimension, *m_render_buffer);
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-    linear_kernel(debug_depth, 0, stream, n_elements, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
-    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     m_last_camera = cam_matrix;
     return true;
 }

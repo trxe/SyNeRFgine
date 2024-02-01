@@ -74,12 +74,17 @@ VirtualObject::VirtualObject(const char* fp, const std::string& name)
             triangles_cpu.push_back(triangle);
         }
     }
+	vo_material.ka = 0.2f * (attrib.colors.empty() ? colors::red : attrib.colors.front());
+	vo_material.kd = 0.8f * (attrib.colors.empty() ? colors::red : attrib.colors.front());
+	vo_material.ks = 1.0f * colors::white;
+	vo_material.n = 64.0f;
+
 	if (tri_count) center = center / (float)tri_count;
-	// bvh = TriangleBvh::make();
+	triangles_bvh = TriangleBvh::make();
 	orig_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	// cam_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
-	// bvh->build(triangles_cpu, 3);
+	triangles_bvh->build(triangles_cpu, 3);
 	// TODO: build a bvh implementation that can be updated
 }
 
