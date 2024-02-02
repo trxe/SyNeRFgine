@@ -17,12 +17,16 @@
 #endif
 
 namespace sng {
+
+namespace colors {
+vec3 red{1.0, 0.0, 0.0};
+vec3 green{0.0, 1.0, 0.0};
+vec3 blue{0.0, 0.0, 1.0};
+vec3 white{1.0, 1.0, 1.0};
+}
+
 __global__ void transform_triangles(uint32_t n_elements, const Triangle* __restrict__ orig, 
 	Triangle* __restrict__ tris, const mat4 world_matrix);
-
-VirtualObject sng::load_virtual_obj(const char* fp, const std::string& name) {
-    return VirtualObject(fp, name);
-}
 
 VirtualObject::VirtualObject(const char* fp, const std::string& name) 
     : file_path(fp), name(name), pos(0.0), rot(0.0) {
@@ -74,8 +78,8 @@ VirtualObject::VirtualObject(const char* fp, const std::string& name)
             triangles_cpu.push_back(triangle);
         }
     }
-	vo_material.ka = 0.2f * (attrib.colors.empty() ? colors::red : attrib.colors.front());
-	vo_material.kd = 0.8f * (attrib.colors.empty() ? colors::red : attrib.colors.front());
+	vo_material.ka = 0.2f * colors::red;
+	vo_material.kd = 0.8f * colors::red;
 	vo_material.ks = 1.0f * colors::white;
 	vo_material.n = 64.0f;
 
@@ -84,7 +88,7 @@ VirtualObject::VirtualObject(const char* fp, const std::string& name)
 	orig_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	// cam_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
-	triangles_bvh->build(triangles_cpu, 3);
+	triangles_bvh->build(triangles_cpu, 4);
 	// TODO: build a bvh implementation that can be updated
 }
 

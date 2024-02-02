@@ -24,17 +24,8 @@ namespace fs = std::filesystem;
 using ngp::Triangle;
 using ngp::TriangleBvh;
 
-namespace colors {
-    vec3 red{1.0, 0.0, 0.0};
-    vec3 green{0.0, 1.0, 0.0};
-    vec3 blue{0.0, 0.0, 1.0};
-    vec3 white{1.0, 1.0, 1.0};
-}
-
 constexpr float MIN_DIST = -5.0;
 constexpr float MAX_DIST = 5.0;
-
-// struct RTView;
 
 static char virtual_object_fp[1024] = "../data/obj/smallbox.obj";
 
@@ -43,12 +34,14 @@ struct Material {
     vec3 kd;
     vec3 ks;
     float n;
-}
+};
 
 class VirtualObject {
 public:
     VirtualObject(const char* fp, const std::string& name);
     ~VirtualObject();
+    VirtualObject(const VirtualObject&) = delete;
+    VirtualObject& operator=(const VirtualObject&) = delete;
     bool update_triangles(cudaStream_t stream);
     mat4 get_transform();
     Triangle* gpu_triangles();
@@ -74,8 +67,5 @@ private:
 	GPUMemory<Triangle> triangles_gpu;
 	std::unique_ptr<TriangleBvh> triangles_bvh;
 };
-
-VirtualObject load_virtual_obj(const char* fp, const std::string& name);
-// void reset_final_views(size_t n_views, std::vector<RTView>& rt_views, ivec2 resolution);
 
 }

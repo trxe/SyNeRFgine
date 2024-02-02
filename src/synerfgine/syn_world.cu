@@ -100,7 +100,7 @@ void SyntheticWorld::create_object(const std::string& filename) {
         ++k;
         name = fp.filename().string() + " " + std::to_string(k);
     }
-    m_objects.insert({name, load_virtual_obj(filename.c_str(), name)});
+    m_objects.try_emplace(name, filename.c_str(), name);
 }
 
 void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtual_object) {

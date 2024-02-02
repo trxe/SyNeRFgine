@@ -271,6 +271,7 @@ list(APPEND NGP_SOURCES
 	src/tinyexr_wrapper.cu
 	src/tinyobj_loader_wrapper.cu
 	src/triangle_bvh.cu
+	src/synerfgine/bufferset.cu
 	src/synerfgine/camera.cu
 	src/synerfgine/display.cu
 	src/synerfgine/engine.cu

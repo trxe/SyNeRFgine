@@ -1,5 +1,6 @@
 #pragma once
 
+#include <synerfgine/bufferset.cuh>
 #include <synerfgine/camera.h>
 #include <synerfgine/cuda_helpers.h>
 #include <synerfgine/light.cuh>
@@ -42,12 +43,13 @@ private:
 	bool handle_user_input();
     void draw_object_async(CudaDevice& device, VirtualObject& vo);
     std::unordered_map<std::string, VirtualObject> m_objects;
-    GPUMemory<VirtualObject*> m_objs;
+
 
     Camera m_camera;
     mat4x3 m_last_camera;
     Light m_sun;
     bool m_is_dirty;
+    BufferSet m_buffers;
 
     // std::vector<Light> m_lights;
 
