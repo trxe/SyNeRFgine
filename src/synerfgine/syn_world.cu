@@ -26,7 +26,7 @@ namespace fs = std::filesystem;
 using namespace tcnn;
 using ngp::GLTexture;
 
-static bool is_first = true;
+// static bool is_first = true;
 
 __global__ void init_buffer(const uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth);
 
@@ -43,6 +43,8 @@ __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width,
 
 __global__ void debug_triangle_vertices(const uint32_t n_elements, const Triangle* __restrict__ triangles,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions);
+
+__global__ void set_depth_buffer(const uint32_t n_elements, float* __restrict__ depth, float val);
 
 SyntheticWorld::SyntheticWorld() {
 	m_rgba_render_textures = std::make_shared<GLTexture>();
@@ -68,6 +70,7 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
         m_depth_render_textures->resize(resolution, 1);
         m_render_buffer->resize(resolution);
         m_render_buffer_view = m_render_buffer->view();
+        m_buffers.resize(resolution);
     }
 
     auto& cam = m_camera;
@@ -77,7 +80,6 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     auto device_guard = use_device(stream, *m_render_buffer, device);
     cam.generate_rays_async(device);
     bool changed_depth = cam_matrix == m_last_camera;
-    // m_render_buffer->clear_frame(stream);
     auto n_elements = m_resolution.x * m_resolution.y;
     linear_kernel(init_buffer, 0, stream, n_elements, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
@@ -85,7 +87,9 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
         auto& vo = vo_kv.second;
         changed_depth = changed_depth & vo.update_triangles(stream);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-        draw_object_async(device, vo);
+        draw_object(device, vo);
+        shade_object(device, vo);
+        // draw_object_async(device, vo);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     }
     m_last_camera = cam_matrix;
@@ -101,6 +105,29 @@ void SyntheticWorld::create_object(const std::string& filename) {
         name = fp.filename().string() + " " + std::to_string(k);
     }
     m_objects.try_emplace(name, filename.c_str(), name);
+    m_buffers.set_vos(m_objects);
+}
+
+void SyntheticWorld::draw_object(CudaDevice& device, VirtualObject& virtual_object) {
+    auto& cam = m_camera;
+    auto stream = device.stream();
+    auto n_elements = m_resolution.x * m_resolution.y;
+    uint32_t tri_count = static_cast<uint32_t>(virtual_object.cpu_triangles().size());
+    virtual_object.triangles_bvh->ray_trace_gpu(n_elements, cam.gpu_positions(), cam.gpu_directions(), m_buffers.gpu_normals(), m_render_buffer_view.depth_buffer, 
+        m_buffers.gpu_obj_ids(), m_buffers.get_obj_id(virtual_object.get_name()), virtual_object.gpu_triangles(), stream);
+    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+}
+
+void SyntheticWorld::shade_object(CudaDevice& device, VirtualObject& virtual_object) {
+    auto& cam = m_camera;
+    auto stream = device.stream();
+    auto n_elements = m_resolution.x * m_resolution.y;
+    virtual_object.triangles_bvh->shade_gpu(n_elements, cam.gpu_positions(), cam.gpu_directions(), m_buffers.gpu_normals(),
+        m_buffers.gpu_obj_ids(), m_buffers.gpu_objs(), m_buffers.gpu_bvhs(), m_buffers.gpu_materials(), 
+        m_sun, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer, m_buffers.get_obj_id(virtual_object.get_name()), m_buffers.vo_count(), stream);
+    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+    // linear_kernel(set_depth_buffer, 0, stream, n_elements, m_render_buffer_view.depth_buffer, 0.0f);
+    // CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }
 
 void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtual_object) {
@@ -262,6 +289,12 @@ __global__ void init_buffer(const uint32_t n_elements, vec4* __restrict__ rgba, 
 	if (i >= n_elements) return;
     rgba[i] = vec4(vec3(0.0), 1.0);
     depth[i] = ngp::MAX_RT_DIST;
+}
+
+__global__ void set_depth_buffer(const uint32_t n_elements, float* __restrict__ depth, float val) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+    depth[i] = val;
 }
 
 }

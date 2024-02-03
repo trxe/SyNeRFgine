@@ -100,6 +100,10 @@ Triangle* VirtualObject::gpu_triangles() {
 	return triangles_gpu.data();
 }
 
+TriangleBvhNode* VirtualObject::gpu_triangles_bvh_nodes() {
+	return triangles_bvh->nodes_gpu();
+}
+
 bool VirtualObject::update_triangles(cudaStream_t stream) {
 	if (needs_update) {
 		mat4 world_mat = get_transform();

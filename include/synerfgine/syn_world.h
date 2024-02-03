@@ -41,6 +41,8 @@ public:
 private:
     friend class sng::Display;
 	bool handle_user_input();
+    void draw_object(CudaDevice& device, VirtualObject& vo);
+    void shade_object(CudaDevice& device, VirtualObject& vo);
     void draw_object_async(CudaDevice& device, VirtualObject& vo);
     std::unordered_map<std::string, VirtualObject> m_objects;
 
