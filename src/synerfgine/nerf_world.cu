@@ -75,7 +75,6 @@ bool NerfWorld::handle(sng::CudaDevice& device, const Camera& cam, const ivec2& 
     testbed_device.set_render_buffer_view(m_render_buffer_view);
 	vec2 screen_center = cam.render_screen_center(m_testbed->m_screen_center);
     int visualized_dimension = -1;
-    // m_testbed->train_and_render(TRAIN_WITHOUT_RENDER);
     auto n_elements = product(m_resolution);
     m_testbed->render_frame(stream, cam_matrix, cam_matrix, cam_matrix, screen_center, m_testbed->m_relative_focal_length,
         vec4(vec3(0.0f), 1.0f), {}, {}, visualized_dimension, *m_render_buffer);

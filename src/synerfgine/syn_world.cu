@@ -44,6 +44,13 @@ __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width,
 __global__ void debug_triangle_vertices(const uint32_t n_elements, const Triangle* __restrict__ triangles,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions);
 
+/* To fix later*/
+// __global__ void trace_object_kernel(const uint32_t n_elements, const uint32_t tri_count, const Triangle* __restrict__ triangles, 
+//     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, vec3* __restrict__ ray_normals, vec4* __restrict__ rgba, float* __restrict__ depth);
+
+// __global__ void trace_shadows_nerf(const uint32_t n_elements, const Light sun,
+//     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_views, vec3* __restrict__ ray_normals, vec4* __restrict__ rgba, float* __restrict__ depth);
+
 __global__ void set_depth_buffer(const uint32_t n_elements, float* __restrict__ depth, float val);
 
 SyntheticWorld::SyntheticWorld() {
@@ -108,27 +115,34 @@ void SyntheticWorld::create_object(const std::string& filename) {
     m_buffers.set_vos(m_objects);
 }
 
-void SyntheticWorld::draw_object(CudaDevice& device, VirtualObject& virtual_object) {
-    auto& cam = m_camera;
-    auto stream = device.stream();
-    auto n_elements = m_resolution.x * m_resolution.y;
-    uint32_t tri_count = static_cast<uint32_t>(virtual_object.cpu_triangles().size());
-    virtual_object.triangles_bvh->ray_trace_gpu(n_elements, cam.gpu_positions(), cam.gpu_directions(), m_buffers.gpu_normals(), m_render_buffer_view.depth_buffer, 
-        m_buffers.gpu_obj_ids(), m_buffers.get_obj_id(virtual_object.get_name()), virtual_object.gpu_triangles(), stream);
-    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-}
+// void SyntheticWorld::draw_object(CudaDevice& device, VirtualObject& virtual_object) {
+//     auto& cam = m_camera;
+//     auto stream = device.stream();
+//     auto n_elements = m_resolution.x * m_resolution.y;
+//     uint32_t tri_count = static_cast<uint32_t>(virtual_object.cpu_triangles().size());
+//     virtual_object.triangles_bvh->ray_trace_gpu(n_elements, cam.gpu_positions(), cam.gpu_directions(), m_buffers.gpu_normals(), m_render_buffer_view.depth_buffer, 
+//         m_buffers.gpu_obj_ids(), m_buffers.get_obj_id(virtual_object.get_name()), virtual_object.gpu_triangles(), stream);
+//     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+// }
 
-void SyntheticWorld::shade_object(CudaDevice& device, VirtualObject& virtual_object) {
-    auto& cam = m_camera;
-    auto stream = device.stream();
-    auto n_elements = m_resolution.x * m_resolution.y;
-    virtual_object.triangles_bvh->shade_gpu(n_elements, cam.gpu_positions(), cam.gpu_directions(), m_buffers.gpu_normals(),
-        m_buffers.gpu_obj_ids(), m_buffers.gpu_objs(), m_buffers.gpu_bvhs(), m_buffers.gpu_materials(), 
-        m_sun, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer, m_buffers.get_obj_id(virtual_object.get_name()), m_buffers.vo_count(), stream);
-    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-    // linear_kernel(set_depth_buffer, 0, stream, n_elements, m_render_buffer_view.depth_buffer, 0.0f);
-    // CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-}
+// void SyntheticWorld::shade_object(CudaDevice& device, VirtualObject& virtual_object) {
+//     auto& cam = m_camera;
+//     auto stream = device.stream();
+//     auto n_elements = m_resolution.x * m_resolution.y;
+//     virtual_object.triangles_bvh->shade_gpu(n_elements, cam.gpu_positions(), cam.gpu_directions(), m_buffers.gpu_normals(),
+//         m_buffers.gpu_obj_ids(), m_buffers.gpu_objs(), m_buffers.gpu_bvhs(), m_buffers.gpu_materials(), 
+//         m_sun, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer, m_buffers.get_obj_id(virtual_object.get_name()), m_buffers.vo_count(), stream);
+//     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+//     // linear_kernel(set_depth_buffer, 0, stream, n_elements, m_render_buffer_view.depth_buffer, 0.0f);
+//     // CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+// }
+
+// void SyntheticWorld::trace_object(CudaDevice& device, VirtualObject& virtual_object) {
+//     auto& cam = m_camera;
+//     auto stream = device.stream();
+//     auto n_elements = m_resolution.x * m_resolution.y;
+//     uint32_t tri_count = static_cast<uint32_t>(virtual_object.cpu_triangles().size());
+// }
 
 void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtual_object) {
     auto& cam = m_camera;

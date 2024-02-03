@@ -805,7 +805,6 @@ __global__ void shade_gpu_kernel(const uint32_t n_elements, vec3* __restrict__ c
 	sng::Material* __restrict__ materials, vec4* __restrict__ rgba, float* __restrict__ depth, size_t vo_id, size_t vo_count, const sng::Light sun, float attenuation) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
-	if (depth[i] == std::numeric_limits<float>::max()) return;
     vec3 V = normalize(-views[i]);
 	vec3 pos = current_pos[i];
     vec3 L = normalize(sun.pos - pos);
@@ -816,11 +815,10 @@ __global__ void shade_gpu_kernel(const uint32_t n_elements, vec3* __restrict__ c
     sng::Material& mat = materials[id];
 
 	vec3 added_color = mat.ka;
-    if (shot_depth < std::numeric_limits<float>::max()) {
-		vec3 secondary = (dot(N, L) * mat.kd + pow(dot(R, V), mat.n) * mat.ks) * attenuation;
+    if (shot_depth == std::numeric_limits<float>::max()) {
+		vec3 secondary = (max(0.0f, dot(N, L)) * mat.kd + pow(max(0.0f, dot(R, V)), mat.n) * mat.ks) * attenuation;
         added_color += secondary;
     }
-	added_color = L;
 	rgba[i] = vec4(added_color, 1.0);
 }
 
