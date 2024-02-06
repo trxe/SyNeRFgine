@@ -1300,6 +1300,66 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 	}
 }
 
+__global__ void shade_kernel_nerf_shadow(
+	const uint32_t n_elements,
+	// For triangle shadow
+	vec3 sun_pos,
+	const Triangle* vo_triangles,
+	size_t vo_triangles_count,
+	// others
+	bool gbuffer_hard_edges,
+	mat4x3 camera_matrix,
+	float depth_scale,
+	vec4* __restrict__ rgba,
+	float* __restrict__ depth,
+	NerfPayload* __restrict__ payloads,
+	ERenderMode render_mode,
+	bool train_in_linear_colors,
+	vec4* __restrict__ frame_buffer,
+	float* __restrict__ depth_buffer
+) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements || render_mode == ERenderMode::Distortion) return;
+	NerfPayload& payload = payloads[i];
+
+	vec4 tmp = rgba[i];
+	if (render_mode == ERenderMode::Normals) {
+		vec3 n = normalize(tmp.xyz());
+		tmp.rgb() = (0.5f * n + 0.5f) * tmp.a;
+	} else if (render_mode == ERenderMode::Cost) {
+		float col = (float)payload.n_steps / 128;
+		tmp = {col, col, col, 1.0f};
+	} else if (gbuffer_hard_edges && render_mode == ERenderMode::Depth) {
+		tmp.rgb() = vec3(depth[i] * depth_scale);
+	} else if (gbuffer_hard_edges && render_mode == ERenderMode::Positions) {
+		vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[i];
+		tmp.rgb() = (pos - 0.5f) / 2.0f + 0.5f;
+	} else { // ERenderMode::Shade
+		vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[i];
+		vec3 dir_to_sun = sun_pos - pos;
+		float dist_to_sun = length(dir_to_sun);
+		dir_to_sun = normalize(dir_to_sun);
+		float mult = 1.0;
+		for (size_t i = 0; i < vo_triangles_count; ++i) {
+			float nearest_intersection = vo_triangles[i].ray_intersect(pos, dir_to_sun);
+			if (nearest_intersection < dist_to_sun) {
+				mult = nearest_intersection / dist_to_sun;
+			}
+		}
+		tmp.rgb() *= mult;
+	}
+
+	if (!train_in_linear_colors && (render_mode == ERenderMode::Shade || render_mode == ERenderMode::Slice)) {
+		// Accumulate in linear colors
+		tmp.rgb() = srgb_to_linear(tmp.rgb());
+	}
+
+	frame_buffer[payload.idx] = tmp + frame_buffer[payload.idx] * (1.0f - tmp.a);
+	if (render_mode != ERenderMode::Slice && tmp.a > 0.2f) {
+		depth_buffer[payload.idx] = depth[i];
+	}
+}
+
 __global__ void shade_kernel_nerf(
 	const uint32_t n_elements,
 	bool gbuffer_hard_edges,
@@ -1816,6 +1876,140 @@ void Testbed::Nerf::Training::update_extra_dims() {
 	}
 
 	CUDA_CHECK_THROW(cudaMemcpyAsync(extra_dims_gpu.data(), extra_dims_cpu.data(), extra_dims_opt.size() * n_extra_dims * sizeof(float), cudaMemcpyHostToDevice));
+}
+
+void Testbed::render_nerf_with_shadow(
+	cudaStream_t stream,
+	CudaDevice& device,
+	const CudaRenderBufferView& render_buffer,
+	const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+	const uint8_t* density_grid_bitfield,
+	const vec2& focal_length,
+	const mat4x3& camera_matrix0,
+	const mat4x3& camera_matrix1,
+	const vec4& rolling_shutter,
+	const vec2& screen_center,
+	const Foveation& foveation,
+	int visualized_dimension,
+	const std::vector<vec3> lights,
+	const Triangle* gpu_triangles,
+	size_t gpu_triangles_count
+) {
+	float plane_z = m_slice_plane_z + m_scale;
+	if (m_render_mode == ERenderMode::Slice) {
+		plane_z = -plane_z;
+	}
+
+	ERenderMode render_mode = visualized_dimension > -1 ? ERenderMode::EncodingVis : m_render_mode;
+
+	const float* extra_dims_gpu = m_nerf.get_rendering_extra_dims(stream);
+
+	NerfTracer tracer;
+
+	// Our motion vector code can't undo grid distortions -- so don't render grid distortion if DLSS is enabled.
+	// (Unless we're in distortion visualization mode, in which case the distortion grid is fine to visualize.)
+	auto grid_distortion =
+		m_nerf.render_with_lens_distortion && (!m_dlss || m_render_mode == ERenderMode::Distortion) ?
+		m_distortion.inference_view() :
+		Buffer2DView<const vec2>{};
+
+	Lens lens = m_nerf.render_with_lens_distortion ? m_nerf.render_lens : Lens{};
+
+	auto resolution = render_buffer.resolution;
+
+	tracer.init_rays_from_camera(
+		render_buffer.spp,
+		nerf_network->padded_output_width(),
+		nerf_network->n_extra_dims(),
+		render_buffer.resolution,
+		focal_length,
+		camera_matrix0,
+		camera_matrix1,
+		rolling_shutter,
+		screen_center,
+		m_parallax_shift,
+		m_snap_to_pixel_centers,
+		m_render_aabb,
+		m_render_aabb_to_local,
+		m_render_near_distance,
+		plane_z,
+		m_aperture_size,
+		foveation,
+		lens,
+		m_envmap.inference_view(),
+		grid_distortion,
+		render_buffer.frame_buffer,
+		render_buffer.depth_buffer,
+		render_buffer.hidden_area_mask ? render_buffer.hidden_area_mask->const_view() : Buffer2DView<const uint8_t>{},
+		density_grid_bitfield,
+		m_nerf.show_accel,
+		m_nerf.max_cascade,
+		m_nerf.cone_angle_constant,
+		render_mode,
+		stream
+	);
+
+	float depth_scale = 1.0f / m_nerf.training.dataset.scale;
+	bool render_2d = m_render_mode == ERenderMode::Slice || m_render_mode == ERenderMode::Distortion;
+
+	uint32_t n_hit;
+	if (render_2d) {
+		n_hit = tracer.n_rays_initialized();
+	} else {
+		n_hit = tracer.trace(
+			nerf_network,
+			m_render_aabb,
+			m_render_aabb_to_local,
+			m_aabb,
+			focal_length,
+			m_nerf.cone_angle_constant,
+			density_grid_bitfield,
+			render_mode,
+			camera_matrix1,
+			depth_scale,
+			m_visualized_layer,
+			visualized_dimension,
+			m_nerf.rgb_activation,
+			m_nerf.density_activation,
+			m_nerf.show_accel,
+			m_nerf.max_cascade,
+			m_nerf.render_min_transmittance,
+			m_nerf.glow_y_cutoff,
+			m_nerf.glow_mode,
+			extra_dims_gpu,
+			stream
+		);
+	}
+	RaysNerfSoa& rays_hit = render_2d ? tracer.rays_init() : tracer.rays_hit();
+
+	linear_kernel(shade_kernel_nerf_shadow, 0, stream,
+		n_hit,
+		lights.front(),
+		gpu_triangles,
+		gpu_triangles_count,
+		m_nerf.render_gbuffer_hard_edges,
+		camera_matrix1,
+		depth_scale,
+		rays_hit.rgba,
+		rays_hit.depth,
+		rays_hit.payload,
+		m_render_mode,
+		m_nerf.training.linear_colors,
+		render_buffer.frame_buffer,
+		render_buffer.depth_buffer
+	);
+
+	if (render_mode == ERenderMode::Cost) {
+		std::vector<NerfPayload> payloads_final_cpu(n_hit);
+		CUDA_CHECK_THROW(cudaMemcpyAsync(payloads_final_cpu.data(), rays_hit.payload, n_hit * sizeof(NerfPayload), cudaMemcpyDeviceToHost, stream));
+		CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+
+		size_t total_n_steps = 0;
+		for (uint32_t i = 0; i < n_hit; ++i) {
+			total_n_steps += payloads_final_cpu[i].n_steps;
+		}
+		tlog::info() << "Total steps per hit= " << total_n_steps << "/" << n_hit << " = " << ((float)total_n_steps/(float)n_hit);
+	}
 }
 
 void Testbed::render_nerf(

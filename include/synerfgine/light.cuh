@@ -25,6 +25,9 @@ public:
     vec3 pos;
     vec3 col;
     float intensity;
+    bool operator==(const Light& other) {
+        return other.pos == pos && other.col == col && other.intensity && intensity && other.m_fov_axis == m_fov_axis;
+    }
     bool handle_user_input(const ivec2& resolution) {
         vec2 rel = vec2{ImGui::GetIO().MouseDelta.x, ImGui::GetIO().MouseDelta.y} / (float)resolution[m_fov_axis];
         // Right held

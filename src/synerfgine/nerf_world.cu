@@ -45,10 +45,11 @@ void NerfWorld::init(Testbed* testbed) {
     m_testbed = testbed;
 }
 
-bool NerfWorld::handle(sng::CudaDevice& device, const Camera& cam, const ivec2& resolution) {
+bool NerfWorld::handle(sng::CudaDevice& device, const Camera& cam, const Light& sun, std::optional<VirtualObject>& vo, const ivec2& resolution) {
     if (!m_testbed) return false;
     auto cam_matrix = cam.get_matrix();
-    if (m_last_camera == cam_matrix) return false;
+    mat4 vo_matrix = vo.has_value() ? vo.value().get_transform() : mat4::identity();
+    if (m_last_camera == cam_matrix && m_last_sun == sun && vo_matrix == m_last_vo) return false;
 
     constexpr float pixel_ratio = 1.0f;
     float factor = std::sqrt(pixel_ratio / m_render_ms * 1000.0f / m_dynamic_res_target_fps);
@@ -67,19 +68,47 @@ bool NerfWorld::handle(sng::CudaDevice& device, const Camera& cam, const ivec2& 
         m_render_buffer_view = m_render_buffer->view();
     }
     auto stream = device.stream();
-    m_render_buffer->reset_accumulation();
-    m_render_buffer->clear_frame(stream);
-    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-    auto device_guard = use_device(stream, *m_render_buffer, device);
-    auto& testbed_device = m_testbed->m_devices.front();
+    auto& testbed_device = m_testbed->primary_device();
     testbed_device.set_render_buffer_view(m_render_buffer_view);
-	vec2 screen_center = cam.render_screen_center(m_testbed->m_screen_center);
-    int visualized_dimension = -1;
-    auto n_elements = product(m_resolution);
-    m_testbed->render_frame(stream, cam_matrix, cam_matrix, cam_matrix, screen_center, m_testbed->m_relative_focal_length,
-        vec4(vec3(0.0f), 1.0f), {}, {}, visualized_dimension, *m_render_buffer);
+    // MUST use m_testbed's sync_device!!
+    m_testbed->sync_device(*m_render_buffer, testbed_device);
+    {
+        m_render_buffer->reset_accumulation();
+        m_render_buffer->clear_frame(stream);
+        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+
+        auto device_guard = use_device(stream, *m_render_buffer, device); // underlying device is the same as testbed_device.
+        testbed_device.render_buffer_view().clear(testbed_device.stream());
+	    vec2 focal_length = m_testbed->calc_focal_length(testbed_device.render_buffer_view().resolution, 
+            m_testbed->m_relative_focal_length, m_testbed->m_fov_axis, m_testbed->m_zoom);
+        vec2 screen_center = cam.render_screen_center(m_testbed->m_screen_center);
+        int visualized_dimension = -1;
+        auto n_elements = product(m_resolution);
+        std::vector<vec3> sun_positions = {sun.pos};
+        m_testbed->render_nerf(testbed_device.stream(), testbed_device, testbed_device.render_buffer_view(), 
+            testbed_device.nerf_network(), testbed_device.data().density_grid_bitfield_ptr, 
+            focal_length, cam_matrix, cam_matrix, vec4(vec3(0.0), 1.0), screen_center, {}, visualized_dimension);
+        Triangle* vo_triangles = vo.has_value() ? vo.value().gpu_triangles() : nullptr;
+        size_t vo_count = vo.has_value() ? vo.value().cpu_triangles().size() : 0;
+        m_testbed->render_nerf_with_shadow(testbed_device.stream(), testbed_device, testbed_device.render_buffer_view(), 
+            testbed_device.nerf_network(), testbed_device.data().density_grid_bitfield_ptr, 
+            focal_length, cam_matrix, cam_matrix, vec4(vec3(0.0), 1.0), screen_center, {}, visualized_dimension, 
+            // INSERT THE SYN WORLD DATA
+            sun_positions, vo_triangles, vo_count);
+        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+        m_testbed->render_frame_epilogue(stream, cam_matrix, m_last_camera, screen_center, 
+            m_testbed->m_relative_focal_length, {}, {}, *m_render_buffer);
+
+    }
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     m_last_camera = cam_matrix;
+    m_last_sun = sun;
+    m_last_vo = vo_matrix;
+    return true;
+}
+
+bool NerfWorld::cast_shadows(sng::CudaDevice& device, const VirtualObject& vo, const Light& sun, const ivec2& view_res) {
+    if (!m_testbed) return false;
     return true;
 }
 

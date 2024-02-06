@@ -63,8 +63,8 @@ SyntheticWorld::SyntheticWorld() {
 }
 
 bool SyntheticWorld::handle_user_input(const ivec2& resolution) {
-    m_is_dirty = m_camera.handle_user_input() & m_is_dirty;
-    m_is_dirty = m_sun.handle_user_input(resolution) & m_is_dirty;
+    m_is_dirty = m_camera.handle_user_input() | m_is_dirty;
+    m_is_dirty = m_sun.handle_user_input(resolution) | m_is_dirty;
     return m_is_dirty;
 }
 
@@ -77,7 +77,7 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
         m_depth_render_textures->resize(resolution, 1);
         m_render_buffer->resize(resolution);
         m_render_buffer_view = m_render_buffer->view();
-        m_buffers.resize(resolution);
+        // m_buffers.resize(resolution);
     }
 
     auto& cam = m_camera;
@@ -90,59 +90,23 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     auto n_elements = m_resolution.x * m_resolution.y;
     linear_kernel(init_buffer, 0, stream, n_elements, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-    for (auto& vo_kv : m_objects) {
-        auto& vo = vo_kv.second;
+
+    if (m_object.has_value()) {
+        VirtualObject& vo = m_object.value();
         changed_depth = changed_depth & vo.update_triangles(stream);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-        draw_object(device, vo);
-        shade_object(device, vo);
-        // draw_object_async(device, vo);
+        draw_object_async(device, vo);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     }
+
     m_last_camera = cam_matrix;
     return true;
 }
 
 void SyntheticWorld::create_object(const std::string& filename) {
-    size_t k = 0;
-    fs::path fp = fs::path(filename.c_str());
-    std::string name = fp.filename().string();
-    while (m_objects.count(name)) {
-        ++k;
-        name = fp.filename().string() + " " + std::to_string(k);
-    }
-    m_objects.try_emplace(name, filename.c_str(), name);
-    m_buffers.set_vos(m_objects);
+    delete_object();
+    m_object.emplace(filename.c_str(), filename);
 }
-
-// void SyntheticWorld::draw_object(CudaDevice& device, VirtualObject& virtual_object) {
-//     auto& cam = m_camera;
-//     auto stream = device.stream();
-//     auto n_elements = m_resolution.x * m_resolution.y;
-//     uint32_t tri_count = static_cast<uint32_t>(virtual_object.cpu_triangles().size());
-//     virtual_object.triangles_bvh->ray_trace_gpu(n_elements, cam.gpu_positions(), cam.gpu_directions(), m_buffers.gpu_normals(), m_render_buffer_view.depth_buffer, 
-//         m_buffers.gpu_obj_ids(), m_buffers.get_obj_id(virtual_object.get_name()), virtual_object.gpu_triangles(), stream);
-//     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-// }
-
-// void SyntheticWorld::shade_object(CudaDevice& device, VirtualObject& virtual_object) {
-//     auto& cam = m_camera;
-//     auto stream = device.stream();
-//     auto n_elements = m_resolution.x * m_resolution.y;
-//     virtual_object.triangles_bvh->shade_gpu(n_elements, cam.gpu_positions(), cam.gpu_directions(), m_buffers.gpu_normals(),
-//         m_buffers.gpu_obj_ids(), m_buffers.gpu_objs(), m_buffers.gpu_bvhs(), m_buffers.gpu_materials(), 
-//         m_sun, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer, m_buffers.get_obj_id(virtual_object.get_name()), m_buffers.vo_count(), stream);
-//     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-//     // linear_kernel(set_depth_buffer, 0, stream, n_elements, m_render_buffer_view.depth_buffer, 0.0f);
-//     // CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-// }
-
-// void SyntheticWorld::trace_object(CudaDevice& device, VirtualObject& virtual_object) {
-//     auto& cam = m_camera;
-//     auto stream = device.stream();
-//     auto n_elements = m_resolution.x * m_resolution.y;
-//     uint32_t tri_count = static_cast<uint32_t>(virtual_object.cpu_triangles().size());
-// }
 
 void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtual_object) {
     auto& cam = m_camera;
@@ -157,8 +121,6 @@ void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtua
         cam.gpu_directions(),
         virtual_object.gpu_triangles(),
         m_sun,
-        // device.render_buffer_view().frame_buffer, 
-        // device.render_buffer_view().depth_buffer
         m_render_buffer_view.frame_buffer, 
         m_render_buffer_view.depth_buffer
         );
@@ -225,22 +187,11 @@ void SyntheticWorld::imgui(float frame_time) {
 			}
 			ImGui::EndPopup();
 		}
-		if (ImGui::CollapsingHeader("Virtual Objects", ImGuiTreeNodeFlags_DefaultOpen)) {
-			auto& objs = objects();
-			std::string to_remove;
-			size_t k = 0;
-			for (auto& vo : objs) {
-				std::string delete_button_name = std::to_string(k) + ". Delete ";
-				delete_button_name.append(vo.first);
-				if (ImGui::Button(delete_button_name.c_str())) {
-					to_remove = vo.first;
-					break;
-				}
-				vo.second.imgui();
-				++k;
-			}
-			if (!to_remove.empty()) {
-				delete_object(to_remove);
+		if (m_object.has_value() && ImGui::CollapsingHeader("Virtual Object", ImGuiTreeNodeFlags_DefaultOpen)) {
+            VirtualObject& obj = m_object.value();
+            obj.imgui();
+            if (ImGui::Button("Delete")) {
+				delete_object();
 			}
 		}
 	}

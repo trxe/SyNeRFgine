@@ -285,6 +285,24 @@ public:
 
 	class CudaDevice;
 
+	void render_nerf_with_shadow(
+		cudaStream_t stream,
+		CudaDevice& device,
+		const CudaRenderBufferView& render_buffer,
+		const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+		const uint8_t* density_grid_bitfield,
+		const vec2& focal_length,
+		const mat4x3& camera_matrix0,
+		const mat4x3& camera_matrix1,
+		const vec4& rolling_shutter,
+		const vec2& screen_center,
+		const Foveation& foveation,
+		int visualized_dimension,
+		const std::vector<vec3> lights,
+		const Triangle* gpu_triangles,
+		size_t gpu_triangles_count
+	);
+
 	void render_nerf(
 		cudaStream_t stream,
 		CudaDevice& device,
@@ -564,7 +582,7 @@ public:
 	ivec2 m_window_res = ivec2(0);
 	bool m_dynamic_res = true;
 	float m_dynamic_res_target_fps = 20.0f;
-	int m_fixed_res_factor = 8;
+	int m_fixed_res_factor = 64;
 	float m_scale = 1.0;
 	float m_aperture_size = 0.0f;
 	vec2 m_relative_focal_length = vec2(1.0f);

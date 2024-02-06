@@ -96,10 +96,11 @@ public:
         }
     }
 
+    std::unique_ptr<StreamAndEvent> m_stream;
+
 private:
     int m_id;
     bool m_is_primary;
-    std::unique_ptr<StreamAndEvent> m_stream;
     struct Event {
         Event() {
             CUDA_CHECK_THROW(cudaEventCreate(&event));
