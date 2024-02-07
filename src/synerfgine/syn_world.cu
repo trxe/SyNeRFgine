@@ -35,7 +35,7 @@ __global__ void debug_paint(const uint32_t n_elements, const uint32_t width, con
 
 __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width, const uint32_t height, const uint32_t tri_count,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, const Triangle* __restrict__ triangles, const Light sun,
-    vec4* __restrict__ rgba, float* __restrict__ depth);
+    vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads);
 
 __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width, const uint32_t height, 
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, 
@@ -43,13 +43,6 @@ __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width,
 
 __global__ void debug_triangle_vertices(const uint32_t n_elements, const Triangle* __restrict__ triangles,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions);
-
-/* To fix later*/
-// __global__ void trace_object_kernel(const uint32_t n_elements, const uint32_t tri_count, const Triangle* __restrict__ triangles, 
-//     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, vec3* __restrict__ ray_normals, vec4* __restrict__ rgba, float* __restrict__ depth);
-
-// __global__ void trace_shadows_nerf(const uint32_t n_elements, const Light sun,
-//     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_views, vec3* __restrict__ ray_normals, vec4* __restrict__ rgba, float* __restrict__ depth);
 
 __global__ void set_depth_buffer(const uint32_t n_elements, float* __restrict__ depth, float val);
 
@@ -60,6 +53,9 @@ SyntheticWorld::SyntheticWorld() {
 	m_render_buffer = std::make_shared<CudaRenderBuffer>(m_rgba_render_textures, m_depth_render_textures);
     m_render_buffer_view = m_render_buffer->view();
 	m_render_buffer->disable_dlss();
+    m_nerf_payloads.check_guards();
+    m_nerf_payloads.free_memory();
+    m_nerf_payloads.resize(0);
 }
 
 bool SyntheticWorld::handle_user_input(const ivec2& resolution) {
@@ -71,13 +67,14 @@ bool SyntheticWorld::handle_user_input(const ivec2& resolution) {
 bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     auto stream = device.stream();
     device.render_buffer_view().clear(stream);
+
+    auto n_elements = m_resolution.x * m_resolution.y;
     if (resolution != m_resolution) {
         m_resolution = resolution;
         m_rgba_render_textures->resize(resolution, 4);
         m_depth_render_textures->resize(resolution, 1);
         m_render_buffer->resize(resolution);
         m_render_buffer_view = m_render_buffer->view();
-        // m_buffers.resize(resolution);
     }
 
     auto& cam = m_camera;
@@ -87,7 +84,6 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     auto device_guard = use_device(stream, *m_render_buffer, device);
     cam.generate_rays_async(device);
     bool changed_depth = cam_matrix == m_last_camera;
-    auto n_elements = m_resolution.x * m_resolution.y;
     linear_kernel(init_buffer, 0, stream, n_elements, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 
@@ -103,6 +99,30 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     return true;
 }
 
+bool SyntheticWorld::shoot_network(CudaDevice& device, const ivec2& resolution, ngp::Testbed& testbed) {
+    auto stream = device.stream();
+    auto& testbed_device = testbed.primary_device();
+    auto nerf_network = testbed_device.nerf_network();
+    if (resolution != m_resolution) {
+        m_resolution = resolution;
+    }
+    {
+        auto n_elements = resolution.x * resolution.y;
+        m_nerf_payloads.resize(n_elements);
+        m_nerf_payloads.check_guards();
+    }
+
+	ngp::Testbed::NerfTracer tracer;
+    {
+        auto device_guard = use_device(stream, *m_render_buffer, device);
+        tracer.shoot_shadow_rays(m_nerf_payloads.data(), m_render_buffer_view, 
+            nerf_network, testbed_device.data().density_grid_bitfield_ptr, sun_pos(), 
+            testbed.m_nerf.max_cascade, testbed.m_render_aabb, testbed.m_render_aabb_to_local, stream);
+        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+    }
+    return true;
+}
+
 void SyntheticWorld::create_object(const std::string& filename) {
     delete_object();
     m_object.emplace(filename.c_str(), filename);
@@ -113,27 +133,30 @@ void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtua
     auto stream = device.stream();
     auto n_elements = m_resolution.x * m_resolution.y;
     uint32_t tri_count = static_cast<uint32_t>(virtual_object.cpu_triangles().size());
-    linear_kernel(gpu_draw_object, 0, stream, n_elements,
-        m_resolution.x, 
-        m_resolution.y, 
-        tri_count,
-        cam.gpu_positions(),
-        cam.gpu_directions(),
-        virtual_object.gpu_triangles(),
-        m_sun,
-        m_render_buffer_view.frame_buffer, 
-        m_render_buffer_view.depth_buffer
-        );
-    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+    {
+        m_nerf_payloads.check_guards();
+        m_nerf_payloads.resize(n_elements);
+        linear_kernel(gpu_draw_object, 0, stream, n_elements,
+            m_resolution.x, 
+            m_resolution.y, 
+            tri_count,
+            cam.gpu_positions(),
+            cam.gpu_directions(),
+            virtual_object.gpu_triangles(),
+            m_sun,
+            m_render_buffer_view.frame_buffer, 
+            m_render_buffer_view.depth_buffer,
+            m_nerf_payloads.data()
+            );
+        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+    }
 }
 
 __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width, const uint32_t height, const uint32_t tri_count,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, const Triangle* __restrict__ triangles, const Light sun,
-    vec4* __restrict__ rgba, float* __restrict__ depth) {
+    vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
-    // rgba[i] = vec4(vec3(0.0), 1.0);
-    // depth[i] = ngp::MAX_RT_DIST;
     vec3 rd = ray_directions[i];
     vec3 ro = ray_origins[i];
     vec4 local_color;
@@ -147,21 +170,37 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
         }
     }
 
-    // depth[i] = max(10.0 - dt, 0.0);
     if (dt < ngp::MAX_RT_DIST) {
         ro += rd * dt;
         vec3 to_sun = normalize(sun.pos - ro);
         // FOR DIFFUSE ONLY, NO AMBIENT / SPEC
         float ndotv = dot(normal, to_sun);
+        // TODO: material
         local_color = vec4(ndotv * vec3(1.0, 0.2, 0.0), 1.0);
     }
+    NerfPayload& payload = payloads[i];
     if (depth[i] > dt) {
         rgba[i] = local_color;
         depth[i] = dt;
+        payload.max_weight = 0.0f;
+
+        vec3 pos = ro;
+        vec3 full_dir = sun.pos - pos;
+        float n = length(full_dir);
+        payload.origin = pos;
+        payload.dir = normalize(full_dir);
+        payload.t = n;
+        payload.idx = i;
+        payload.n_steps = 0;
+        payload.alive = true;
+    } else {
+        payload.origin = vec3(0.0);
+        payload.dir = vec3(0.0);
+        payload.t = 0.0f;
+        payload.idx = i;
+        payload.n_steps = 0;
+        payload.alive = false;
     }
-    // if (dt != ngp::MAX_RT_DIST && i % 100000 == 0) {
-    //     printf("SYN: %d: %f\n", i, dt);
-    // }
 }
 
 void SyntheticWorld::imgui(float frame_time) {

@@ -55,6 +55,7 @@ template <uint32_t N_DIMS, uint32_t RANK, typename T> class TrainableBuffer;
 
 namespace sng {
 	class NerfWorld;
+	class SyntheticWorld;
 }
 
 namespace ngp {
@@ -68,6 +69,7 @@ class GLTexture;
 class Testbed {
 public:
 	friend class sng::NerfWorld;
+	friend class sng::SyntheticWorld;
 	struct Nerf;
 	Testbed(ETestbedMode mode = ETestbedMode::None);
 	~Testbed();
@@ -180,6 +182,18 @@ public:
 			uint32_t max_mip,
 			float cone_angle_constant,
 			ERenderMode render_mode,
+			cudaStream_t stream
+		);
+
+		void shoot_shadow_rays(
+			NerfPayload* shadow_payload,
+			const CudaRenderBufferView& render_buffer,
+			const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+			const uint8_t* grid,
+			const vec3& sun_pos,
+			uint32_t max_mip,
+			const BoundingBox& render_aabb,
+			const mat3& render_aabb_to_local,
 			cudaStream_t stream
 		);
 

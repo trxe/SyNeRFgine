@@ -8,9 +8,11 @@
 
 #include <neural-graphics-primitives/common_device.cuh>
 #include <neural-graphics-primitives/render_buffer.h>
+#include <neural-graphics-primitives/testbed.h>
 
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/common_host.h>
+#include <tiny-cuda-nn/gpu_memory.h>
 
 #include <optional>
 #include <vector>
@@ -19,6 +21,7 @@ namespace sng {
 
 using ngp::CudaRenderBuffer;
 using ngp::GLTexture;
+using tcnn::GPUMemory;
 
 class Display;
 
@@ -27,6 +30,7 @@ public:
     SyntheticWorld();
     bool handle_user_input(const ivec2& resolution);
     bool handle(CudaDevice& device, const ivec2& resolution);
+    bool shoot_network(CudaDevice& device, const ivec2& resolution, ngp::Testbed& testbed);
     void create_object(const std::string& filename);
     void imgui(float frame_time);
 
@@ -61,9 +65,7 @@ private:
     mat4x3 m_last_camera;
     Light m_sun;
     bool m_is_dirty;
-    // BufferSet m_buffers;
-
-    // std::vector<Light> m_lights;
+    GPUMemory<NerfPayload> m_nerf_payloads;
 
     // Buffers and resolution
 	std::shared_ptr<GLTexture> m_rgba_render_textures;

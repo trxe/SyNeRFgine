@@ -107,11 +107,6 @@ bool NerfWorld::handle(sng::CudaDevice& device, const Camera& cam, const Light& 
     return true;
 }
 
-bool NerfWorld::cast_shadows(sng::CudaDevice& device, const VirtualObject& vo, const Light& sun, const ivec2& view_res) {
-    if (!m_testbed) return false;
-    return true;
-}
-
 void NerfWorld::imgui(float frame_time) {
     m_render_ms = frame_time;
 	if (ImGui::Begin("Nerf Settings")) {

@@ -33,8 +33,8 @@ bool Engine::frame() {
     if (!m_display.begin_frame(device, is_dirty)) return false;
 
     {
-        SyncedMultiStream synced_streams{m_stream.get(), 2};
-        std::vector<std::future<void>> futures(2);
+        SyncedMultiStream synced_streams{m_stream.get(), 3};
+        std::vector<std::future<void>> futures(3);
 
         futures[0] = device.enqueue_task([this, &device, stream=synced_streams.get(0)]() {
             std::shared_ptr<CudaRenderBuffer> render_buffer = m_syn_world.render_buffer();
@@ -52,26 +52,22 @@ bool Engine::frame() {
                 m_display.get_window_res());
         });
 
+        futures[2] = device.enqueue_task([this, &device, stream=synced_streams.get(0)]() {
+            std::shared_ptr<CudaRenderBuffer> render_buffer = m_syn_world.render_buffer();
+            m_syn_world.shoot_network(device, m_display.get_window_res(), *m_testbed);
+        });
+
         if (futures[0].valid()) {
             futures[0].get();
+            if (futures[2].valid()) {
+                futures[2].get();
+            }
         }
 
         if (futures[1].valid()) {
             futures[1].get();
             m_display.present(device, m_syn_world, m_nerf_world);
             m_display.end_frame();
-        }
-    }
-
-    {
-        SyncedMultiStream synced_streams{m_stream.get(), 1};
-        std::vector<std::future<void>> futures(1);
-
-        futures[0] = device.enqueue_task([this, &device, stream=synced_streams.get(0)]() {
-        });
-
-        if (futures[0].valid()) {
-            futures[0].get();
         }
     }
 
