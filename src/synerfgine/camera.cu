@@ -107,8 +107,8 @@ bool Camera::handle_user_input() {
 	if (ImGui::IsAnyItemActive() || ImGui::GetIO().WantCaptureMouse) {
 		return false;
 	}
-	bool is_dragged = handle_mouse_drag();
 	bool is_wheeled = handle_mouse_wheel();
+	bool is_dragged = handle_mouse_drag();
 	is_buffer_outdated = true;
 	return is_dragged || is_wheeled;
 }

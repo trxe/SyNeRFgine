@@ -55,6 +55,7 @@ bool Engine::frame() {
         futures[2] = device.enqueue_task([this, &device, stream=synced_streams.get(0)]() {
             std::shared_ptr<CudaRenderBuffer> render_buffer = m_syn_world.render_buffer();
             m_syn_world.shoot_network(device, m_display.get_window_res(), *m_testbed);
+            m_syn_world.debug_visualize_pos(device, m_syn_world.sun_pos(), vec3(0.0f, 1.0f, 0.0f), 0.2f);
         });
 
         if (futures[0].valid()) {
@@ -65,10 +66,11 @@ bool Engine::frame() {
         }
 
         if (futures[1].valid()) {
-            futures[1].get();
-            m_display.present(device, m_syn_world, m_nerf_world);
-            m_display.end_frame();
+            futures[1].get(); 
         }
+
+        m_display.present(device, m_syn_world, m_nerf_world);
+        m_display.end_frame();
     }
 
     return true;

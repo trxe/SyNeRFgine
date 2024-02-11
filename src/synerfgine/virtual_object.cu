@@ -96,6 +96,10 @@ const std::vector<Triangle>& VirtualObject::cpu_triangles() {
 	return triangles_cpu;
 }
 
+vec3 VirtualObject::get_center() {
+	return center + pos;
+}
+
 Triangle* VirtualObject::gpu_triangles() {
 	return triangles_gpu.data();
 }

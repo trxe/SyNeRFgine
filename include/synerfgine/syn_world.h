@@ -31,6 +31,7 @@ public:
     bool handle_user_input(const ivec2& resolution);
     bool handle(CudaDevice& device, const ivec2& resolution);
     bool shoot_network(CudaDevice& device, const ivec2& resolution, ngp::Testbed& testbed);
+    bool debug_visualize_pos(CudaDevice& device, const vec3& pos, const vec3& col, float sphere_size = 1.0f);
     void create_object(const std::string& filename);
     void imgui(float frame_time);
 

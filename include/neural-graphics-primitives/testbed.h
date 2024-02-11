@@ -191,6 +191,7 @@ public:
 			const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
 			const uint8_t* grid,
 			const vec3& sun_pos,
+			const vec3& center_pos,
 			uint32_t max_mip,
 			const BoundingBox& render_aabb,
 			const mat3& render_aabb_to_local,

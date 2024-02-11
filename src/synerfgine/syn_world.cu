@@ -44,6 +44,9 @@ __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width,
 __global__ void debug_triangle_vertices(const uint32_t n_elements, const Triangle* __restrict__ triangles,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions);
 
+__global__ void debug_pos(const uint32_t n_elements, vec3 pos, vec3 col, float radius, vec3* __restrict__ ray_origins, 
+    vec3* __restrict__ ray_directions, vec4* __restrict__ rgba, float* __restrict__ depth);
+
 __global__ void set_depth_buffer(const uint32_t n_elements, float* __restrict__ depth, float val);
 
 SyntheticWorld::SyntheticWorld() {
@@ -59,9 +62,7 @@ SyntheticWorld::SyntheticWorld() {
 }
 
 bool SyntheticWorld::handle_user_input(const ivec2& resolution) {
-    m_is_dirty = m_camera.handle_user_input() | m_is_dirty;
-    m_is_dirty = m_sun.handle_user_input(resolution) | m_is_dirty;
-    return m_is_dirty;
+    return m_camera.handle_user_input() | m_sun.handle_user_input(resolution);
 }
 
 bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
@@ -108,19 +109,39 @@ bool SyntheticWorld::shoot_network(CudaDevice& device, const ivec2& resolution, 
     }
     {
         auto n_elements = resolution.x * resolution.y;
-        m_nerf_payloads.resize(n_elements);
         m_nerf_payloads.check_guards();
+        m_nerf_payloads.resize(n_elements);
     }
 
 	ngp::Testbed::NerfTracer tracer;
     {
         auto device_guard = use_device(stream, *m_render_buffer, device);
+        vec3 center = m_object.has_value() ? m_object.value().get_center() : vec3(0.0);
         tracer.shoot_shadow_rays(m_nerf_payloads.data(), m_render_buffer_view, 
-            nerf_network, testbed_device.data().density_grid_bitfield_ptr, sun_pos(), 
+            nerf_network, testbed_device.data().density_grid_bitfield_ptr, sun_pos(), center,
             testbed.m_nerf.max_cascade, testbed.m_render_aabb, testbed.m_render_aabb_to_local, stream);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     }
     return true;
+}
+
+bool SyntheticWorld::debug_visualize_pos(CudaDevice& device, const vec3& pos, const vec3& col, float sphere_size) {
+    auto stream = device.stream();
+    auto device_guard = use_device(stream, *m_render_buffer, device);
+    auto& cam = m_camera;
+    cam.generate_rays_async(device);
+    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+    auto n_elements = m_resolution.x * m_resolution.y;
+    linear_kernel(debug_pos, 0, stream, n_elements, 
+        pos,
+        col,
+        sphere_size,
+        cam.gpu_positions(),
+        cam.gpu_directions(),
+        m_render_buffer_view.frame_buffer,
+        m_render_buffer_view.depth_buffer
+    );
+    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }
 
 void SyntheticWorld::create_object(const std::string& filename) {
@@ -207,6 +228,8 @@ void SyntheticWorld::imgui(float frame_time) {
 	static std::string imgui_error_string = "";
 
 	if (ImGui::Begin("Load Virtual Object")) {
+		ImGui::Text("Control Virtual Light source");
+        ImGui::SliderFloat3("Light position", m_sun.pos.data(), -5.0f, 5.0);
 		ImGui::Text("Add Virtual Object (.obj only)");
 		ImGui::InputText("##PathFile", sng::virtual_object_fp, 1024);
 		ImGui::SameLine();
@@ -286,6 +309,31 @@ __global__ void debug_triangle_vertices(const uint32_t n_elements, const Triangl
     //     ray_origins[i].r, ray_origins[i].g, ray_origins[i].b, 
     //     ray_directions[i].r, ray_directions[i].g, ray_directions[i].b
     // );
+}
+
+__global__ void debug_pos(const uint32_t n_elements, vec3 pos, vec3 col, float radius, vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, vec4* __restrict__ rgba, float* __restrict__ depth) {
+    constexpr float TMIN = 0.000001;
+    constexpr float TMAX = 100000.0;
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+    vec3 ro = ray_origins[i];
+    vec3 rd = ray_directions[i];
+
+    vec3 l  = pos - ro;
+    float a = dot(rd, rd);
+    float b = 2 * dot(rd, l);
+    float c = dot(l,l) - radius * radius;
+    float det  = b * b - 4 * a * c;
+    if (det < 0) return;
+    float t = (-b - sqrt(det)) / 2;
+    if (t < TMIN) {
+        t = (-b + sqrt(det)) / 2;
+    }
+    if (t >= TMIN || t < TMAX) {
+        float ratio = t * t / length2(ro - pos);
+        rgba[i] = vec4(col * ratio, 1.0f);
+        depth[i] = t;
+    }
 }
 
 __global__ void init_buffer(const uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth) {

@@ -39,6 +39,7 @@ public:
     VirtualObject& operator=(const VirtualObject&) = delete;
     bool update_triangles(cudaStream_t stream);
     mat4 get_transform();
+    vec3 get_center();
     Triangle* gpu_triangles();
     TriangleBvhNode* gpu_triangles_bvh_nodes();
     const Material& get_material() { return vo_material; }

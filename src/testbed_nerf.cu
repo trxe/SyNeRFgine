@@ -352,7 +352,7 @@ __device__ void advance_pos_nerf_shadow(
 
 	float cone_angle = calc_cone_angle(dot(dir, camera_fwd), focal_length, cone_angle_constant);
 
-	float t = advance_n_steps(payload.t, cone_angle, ld_random_val(sample_index, payload.idx * 786433));
+	float t = advance_n_steps(0.001f, cone_angle, ld_random_val(sample_index, payload.idx * 786433));
 	t = if_unoccupied_advance_to_next_occupied_voxel(t, cone_angle, {origin, dir}, idir, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
 
 	if (t >= max_dist) {
@@ -374,10 +374,6 @@ __device__ void advance_pos_nerf(
 	uint32_t max_mip,
 	float cone_angle_constant
 ) {
-	if (!payload.alive) {
-		return;
-	}
-
 	vec3 origin = payload.origin;
 	vec3 dir = payload.dir;
 	vec3 idir = vec3(1.0f) / dir;
@@ -1468,6 +1464,7 @@ __global__ void trace_rays_towards_dir_with_payload_kernel_nerf(
 	BoundingBox render_aabb,
 	mat3 render_aabb_to_local,
 	const uint8_t* grid,
+	vec3 center_pos,
 	vec3 sun_pos,
 	NerfPayload* __restrict__ payloads,
 	vec4* __restrict__ rgba_buffer) 
@@ -1476,13 +1473,20 @@ __global__ void trace_rays_towards_dir_with_payload_kernel_nerf(
 	if (idx > n_elements) {
 		return;
 	}
-
 	NerfPayload& payload = payloads[idx];
-	advance_pos_nerf_shadow(payload, render_aabb, render_aabb_to_local, payload.dir, vec2(1.0), 
+	if (!payload.alive) return;
+
+	float max_dist = payload.t + FLT_EPSILON;
+	vec3 cam_fwd = sun_pos - center_pos;
+	advance_pos_nerf_shadow(payload, render_aabb, render_aabb_to_local, cam_fwd, vec2(1.0), 
 		sample_index, grid, 0, max_mip, cone_angle_constant);
 
+	if (!payload.alive) return;
+	// vec3 tmp_colo_debug = normalize(sun_pos - payload.origin) * 0.5f + vec3(0.5f);
+	// rgba_buffer[idx] = vec4(tmp_colo_debug, 1.0);
+
 	vec4 rgba = rgba_buffer[idx];
-	rgba_buffer[idx] = rgba * min(1.0f, payload.t / ((float)payload.n_steps + FLT_EPSILON));
+	rgba_buffer[idx] = rgba * min(1.0f, payload.t / max_dist);
 }
 
 __global__ void init_rays_with_payload_kernel_nerf(
@@ -1671,6 +1675,7 @@ void Testbed::NerfTracer::shoot_shadow_rays(
 	const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
 	const uint8_t* grid,
 	const vec3& sun_pos,
+	const vec3& center_pos,
 	uint32_t max_mip,
 	const BoundingBox& render_aabb,
 	const mat3& render_aabb_to_local,
@@ -1692,6 +1697,7 @@ void Testbed::NerfTracer::shoot_shadow_rays(
 		render_aabb,
 		render_aabb_to_local,
 		grid,
+		center_pos,
 		sun_pos,
 		shadow_payload,
 		render_buffer.frame_buffer
