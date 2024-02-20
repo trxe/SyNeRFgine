@@ -658,6 +658,10 @@ __global__ void composite_kernel_nerf(
 			// Network input contains the gradient of the network output w.r.t. input.
 			// So to compute density gradients, we need to apply the chain rule.
 			// The normal is then in the opposite direction of the density gradient (i.e. the direction of decreasing density)
+			if (i == 10000) {
+				vec3 lno = local_network_output[3];
+				printf("%f, %f, %f\n", lno[0], lno[1], lno[2]);
+			}
 			vec3 normal = -network_to_density_derivative(float(local_network_output[3]), density_activation) * warped_pos;
 			rgb = normalize(normal);
 		} else if (render_mode == ERenderMode::Positions) {
@@ -1467,12 +1471,14 @@ __global__ void trace_rays_towards_dir_with_payload_kernel_nerf(
 	vec3 center_pos,
 	vec3 sun_pos,
 	NerfPayload* __restrict__ payloads,
-	vec4* __restrict__ rgba_buffer) 
+	vec4* __restrict__ rgba_buffer,
+	float* __restrict__ shadow_coeffs)
 {
 	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
 	if (idx > n_elements) {
 		return;
 	}
+
 	NerfPayload& payload = payloads[idx];
 	if (!payload.alive) return;
 
@@ -1482,11 +1488,32 @@ __global__ void trace_rays_towards_dir_with_payload_kernel_nerf(
 		sample_index, grid, 0, max_mip, cone_angle_constant);
 
 	if (!payload.alive) return;
-	// vec3 tmp_colo_debug = normalize(sun_pos - payload.origin) * 0.5f + vec3(0.5f);
-	// rgba_buffer[idx] = vec4(tmp_colo_debug, 1.0);
+
+	shadow_coeffs[idx] = 1.0f - payload.t / max_dist;
+	__syncthreads();
+	int x = idx % resolution.x;
+	int y = idx / resolution.x;
+
+	// GAUSSIAN KERNEL
+	float PI = 3.141592f;
+	float gauss_coeff = 0.0f;
+	int kernel_size = 100;
+	float SD = 50.f;;
+	for (int i = x - kernel_size; i <= x + kernel_size; ++i) {
+		for (int j = y - kernel_size; j <= y + kernel_size; ++j) {
+			if (i >= 0 && i < resolution.x && j >= 0 && j < resolution.y) {
+				int nidx = j * resolution.x + i;
+				int dx = i - x, dy = j - y;
+				float g_coeff = exp(-(dx * dx + dy * dy)/ (2.0f * SD * SD)) / (2 * PI * SD * SD);
+				gauss_coeff += g_coeff * shadow_coeffs[nidx];
+			}
+		}
+	}
 
 	vec4 rgba = rgba_buffer[idx];
-	rgba_buffer[idx] = rgba * min(1.0f, payload.t / max_dist);
+	// rgba_buffer[idx] = rgba * min(1.0f, payload.t / max_dist);
+	rgba_buffer[idx] = rgba * max(min(1.0f, 1.0f - gauss_coeff), 0.0f);
+	// rgba_buffer[idx] = rgba * max(min(1.0f, 1.0f - gauss_coeff * 5.0f), 0.0f);
 }
 
 __global__ void init_rays_with_payload_kernel_nerf(
@@ -1672,6 +1699,7 @@ __global__ void safe_divide(const uint32_t num_elements, float* __restrict__ ino
 void Testbed::NerfTracer::shoot_shadow_rays(
 	NerfPayload* shadow_payload,
 	const CudaRenderBufferView& render_buffer,
+	float* shadow_coeffs,
 	const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
 	const uint8_t* grid,
 	const vec3& sun_pos,
@@ -1700,7 +1728,8 @@ void Testbed::NerfTracer::shoot_shadow_rays(
 		center_pos,
 		sun_pos,
 		shadow_payload,
-		render_buffer.frame_buffer
+		render_buffer.frame_buffer,
+		shadow_coeffs
 	);
 }
 

@@ -188,6 +188,7 @@ public:
 		void shoot_shadow_rays(
 			NerfPayload* shadow_payload,
 			const CudaRenderBufferView& render_buffer,
+			float* shadow_coeffs,
 			const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
 			const uint8_t* grid,
 			const vec3& sun_pos,

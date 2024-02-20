@@ -1,4 +1,5 @@
 #include <synerfgine/cuda_helpers.h>
+#include <synerfgine/material.h>
 #include <synerfgine/syn_world.h>
 
 #include <tiny-cuda-nn/common.h>
@@ -35,7 +36,7 @@ __global__ void debug_paint(const uint32_t n_elements, const uint32_t width, con
 
 __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width, const uint32_t height, const uint32_t tri_count,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, const Triangle* __restrict__ triangles, const Light sun,
-    vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads);
+    vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads, const Material material);
 
 __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width, const uint32_t height, 
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, 
@@ -111,13 +112,15 @@ bool SyntheticWorld::shoot_network(CudaDevice& device, const ivec2& resolution, 
         auto n_elements = resolution.x * resolution.y;
         m_nerf_payloads.check_guards();
         m_nerf_payloads.resize(n_elements);
+        m_shadow_coeffs.check_guards();
+        m_shadow_coeffs.resize(n_elements);
     }
 
 	ngp::Testbed::NerfTracer tracer;
     {
         auto device_guard = use_device(stream, *m_render_buffer, device);
         vec3 center = m_object.has_value() ? m_object.value().get_center() : vec3(0.0);
-        tracer.shoot_shadow_rays(m_nerf_payloads.data(), m_render_buffer_view, 
+        tracer.shoot_shadow_rays(m_nerf_payloads.data(), m_render_buffer_view, m_shadow_coeffs.data(),
             nerf_network, testbed_device.data().density_grid_bitfield_ptr, sun_pos(), center,
             testbed.m_nerf.max_cascade, testbed.m_render_aabb, testbed.m_render_aabb_to_local, stream);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
@@ -167,15 +170,15 @@ void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& virtua
             m_sun,
             m_render_buffer_view.frame_buffer, 
             m_render_buffer_view.depth_buffer,
-            m_nerf_payloads.data()
+            m_nerf_payloads.data(),
+            virtual_object.get_material()
             );
-        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     }
 }
 
 __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width, const uint32_t height, const uint32_t tri_count,
     vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, const Triangle* __restrict__ triangles, const Light sun,
-    vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads) {
+    vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads, const Material material) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
     vec3 rd = ray_directions[i];
@@ -193,11 +196,14 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
 
     if (dt < ngp::MAX_RT_DIST) {
         ro += rd * dt;
+        vec3 view_vec = normalize(ray_origins[i] - ro);
         vec3 to_sun = normalize(sun.pos - ro);
-        // FOR DIFFUSE ONLY, NO AMBIENT / SPEC
-        float ndotv = dot(normal, to_sun);
-        // TODO: material
-        local_color = vec4(ndotv * vec3(1.0, 0.2, 0.0), 1.0);
+        float NdotL = dot(normal, to_sun);
+        vec3 reflect_vec = normal * 2.0f * NdotL - to_sun;
+        float RdotV = dot(reflect_vec, view_vec);
+        vec3 primary_color = material.ka + max(0.0f, NdotL) * material.kd;
+        vec3 secondary_color =  pow(max(0.0f, RdotV), material.n) * material.ks;
+        local_color = vec4(min(vec3(1.0), primary_color + secondary_color), 1.0);
     }
     NerfPayload& payload = payloads[i];
     if (depth[i] > dt) {

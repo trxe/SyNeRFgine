@@ -67,6 +67,7 @@ private:
     Light m_sun;
     bool m_is_dirty;
     GPUMemory<NerfPayload> m_nerf_payloads;
+    GPUMemory<float> m_shadow_coeffs;
 
     // Buffers and resolution
 	std::shared_ptr<GLTexture> m_rgba_render_textures;
