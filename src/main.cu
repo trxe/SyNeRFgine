@@ -177,9 +177,9 @@ int main_func(const std::vector<std::string>& arguments) {
 	try {
 		if (gui) {
 			fs::path p = fs::path::getcwd();
-			testbed.load_snapshot(p / fs::path("../data/nerf/fox/base.ingp"));
-			testbed.init_window(width_flag ? get(width_flag) : 1280, height_flag ? get(height_flag) : 720);
-			// engine.init(width_flag ? get(width_flag) : 1280, height_flag ? get(height_flag) : 720, &testbed);
+			testbed.load_snapshot(p / fs::path("../data/nerf/low-poly-room/base.ingp"));
+			// testbed.init_window(width_flag ? get(width_flag) : 1280, height_flag ? get(height_flag) : 720);
+			engine.init(width_flag ? get(width_flag) : 1280, height_flag ? get(height_flag) : 720, &testbed);
 		}
 
 		if (vr_flag) {
@@ -187,8 +187,8 @@ int main_func(const std::vector<std::string>& arguments) {
 		}
 
 		// Render/training loop
-		while (testbed.frame()) {
-		// while (engine.frame()) {
+		// while (testbed.frame()) {
+		while (engine.frame()) {
 			if (!gui) {
 				tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 			}

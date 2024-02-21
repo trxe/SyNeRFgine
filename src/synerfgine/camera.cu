@@ -35,14 +35,19 @@ __global__ void init_rays_cam(
 );
 
 bool Camera::handle_mouse_wheel() {
-	float delta = ImGui::GetIO().MouseWheel;
-	if (delta == 0) {
+	// float delta = ImGui::GetIO().MouseWheel;
+	// if (delta == 0) {
+	// 	return false;
+	// }
+
+	if (ImGui::IsMouseDragging(0) && ImGui::IsKeyDown(ImGuiKey_LeftShift)) {
+		float delta = ImGui::GetMouseDragDelta(0).y / (float)m_resolution[m_fov_axis];
+		float scale_factor = pow(2.5f, -delta * 10.0f);
+		set_scale(m_scale * scale_factor);
+		return true;
+	} else {
 		return false;
 	}
-
-	float scale_factor = pow(1.1f, -delta);
-	set_scale(m_scale * scale_factor);
-	return true;
 }
 
 bool Camera::handle_mouse_drag() {
@@ -53,20 +58,20 @@ bool Camera::handle_mouse_drag() {
 	bool is_moved = false;
 
 	// Left held
-	if (ImGui::GetIO().MouseDown[0]) {
-        float rot_sensitivity = m_fps_camera ? 0.35f : 1.0f;
-        mat3 rot = rotation_from_angles(-rel * 2.0f * PI() * rot_sensitivity);
+	if (ImGui::GetIO().MouseDown[0] && !ImGui::IsKeyDown(ImGuiKey_LeftShift)) {
+		float rot_sensitivity = m_fps_camera ? 0.35f : 1.0f;
+		mat3 rot = rotation_from_angles(-rel * 2.0f * PI() * rot_sensitivity);
 
-        // if (m_fps_camera) {
-            rot *= mat3(m_camera);
-            m_camera = mat4x3(rot[0], rot[1], rot[2], m_camera[3]);
-        // } else {
-        //     // Turntable
-        //     auto old_look_at = look_at();
-        //     set_look_at({0.0f, 0.0f, 0.0f});
-        //     m_camera = rot * m_camera;
-        //     set_look_at(old_look_at);
-        // }
+		// if (m_fps_camera) {
+			rot *= mat3(m_camera);
+			m_camera = mat4x3(rot[0], rot[1], rot[2], m_camera[3]);
+		// } else {
+		//     // Turntable
+		//     auto old_look_at = look_at();
+		//     set_look_at({0.0f, 0.0f, 0.0f});
+		//     m_camera = rot * m_camera;
+		//     set_look_at(old_look_at);
+		// }
 		is_moved = true;
 	}
 
