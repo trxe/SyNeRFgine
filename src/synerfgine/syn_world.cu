@@ -102,6 +102,9 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
 }
 
 bool SyntheticWorld::shoot_network(CudaDevice& device, const ivec2& resolution, ngp::Testbed& testbed) {
+    if (!m_display_shadow) {
+        return false;
+    }
     auto stream = device.stream();
     auto& testbed_device = testbed.primary_device();
     auto nerf_network = testbed_device.nerf_network();
@@ -234,6 +237,10 @@ void SyntheticWorld::imgui(float frame_time) {
 	static std::string imgui_error_string = "";
 
 	if (ImGui::Begin("Load Virtual Object")) {
+        if (ImGui::RadioButton("Toggle Shadow on Virtual Object", m_display_shadow)) {
+            m_display_shadow = !m_display_shadow;
+        }
+
 		ImGui::Text("Control Virtual Light source");
         ImGui::SliderFloat3("Light position", m_sun.pos.data(), -5.0f, 5.0);
 		ImGui::Text("Add Virtual Object (.obj only)");

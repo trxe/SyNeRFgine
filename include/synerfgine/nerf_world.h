@@ -47,6 +47,8 @@ private:
     float m_render_ms{1.0};
     float m_dynamic_res_target_fps{25.0};
     int m_fixed_res_factor{36};
+    bool m_display_shadow{true};
+    bool m_is_dirty;
 
     Testbed *m_testbed;
     std::shared_ptr<GLTexture> m_rgba_render_textures;

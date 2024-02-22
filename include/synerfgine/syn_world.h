@@ -66,6 +66,7 @@ private:
     mat4x3 m_last_camera;
     Light m_sun;
     bool m_is_dirty;
+    bool m_display_shadow{true};
     GPUMemory<NerfPayload> m_nerf_payloads;
     GPUMemory<float> m_shadow_coeffs;
 

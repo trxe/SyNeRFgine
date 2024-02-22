@@ -56,6 +56,36 @@ Testbed::NetworkDims Testbed::network_dims_nerf() const {
 	return dims;
 }
 
+__device__ float median_kernel(float* __restrict__ values, ivec2 resolution, int x, int y, int kernel_size) {
+	float PI = 3.141592f;
+	float gauss_coeff = 0.0f;
+	for (int i = x - kernel_size; i <= x + kernel_size; ++i) {
+		for (int j = y - kernel_size; j <= y + kernel_size; ++j) {
+			if (i >= 0 && i < resolution.x && j >= 0 && j < resolution.y) {
+				int nidx = j * resolution.x + i;
+				gauss_coeff += values[nidx];
+			}
+		}
+	}
+	return gauss_coeff / (float)(4 * kernel_size * kernel_size);
+}
+
+__device__ float gaussian_kernel(float* __restrict__ values, ivec2 resolution, int x, int y, int kernel_size, float SD) {
+	float PI = 3.141592f;
+	float gauss_coeff = 0.0f;
+	for (int i = x - kernel_size; i <= x + kernel_size; ++i) {
+		for (int j = y - kernel_size; j <= y + kernel_size; ++j) {
+			if (i >= 0 && i < resolution.x && j >= 0 && j < resolution.y) {
+				int nidx = j * resolution.x + i;
+				int dx = i - x, dy = j - y;
+				float g_coeff = exp(-(dx * dx + dy * dy)/ (2.0f * SD * SD)) / (2 * PI * SD * SD);
+				gauss_coeff += g_coeff * values[nidx];
+			}
+		}
+	}
+	return gauss_coeff;
+}
+
 __global__ void extract_srgb_with_activation(const uint32_t n_elements,	const uint32_t rgb_stride, const float* __restrict__ rgbd, float* __restrict__ rgb, ENerfActivation rgb_activation, bool from_linear) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
@@ -1335,6 +1365,7 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 __global__ void shade_kernel_nerf_shadow(
 	const uint32_t n_elements,
 	// For triangle shadow
+	ivec2 resolution,
 	vec3 sun_pos,
 	const Triangle* vo_triangles,
 	size_t vo_triangles_count,
@@ -1372,13 +1403,24 @@ __global__ void shade_kernel_nerf_shadow(
 		float dist_to_sun = length(dir_to_sun);
 		dir_to_sun = normalize(dir_to_sun);
 		float mult = 1.0;
-		for (size_t i = 0; i < vo_triangles_count; ++i) {
-			float nearest_intersection = vo_triangles[i].ray_intersect(pos, dir_to_sun);
+		for (size_t j = 0; j < vo_triangles_count; ++j) {
+			float nearest_intersection = vo_triangles[j].ray_intersect(pos, dir_to_sun);
 			if (nearest_intersection < dist_to_sun) {
 				mult = nearest_intersection / dist_to_sun;
 			}
 		}
+		int x = (int)i % resolution.x;
+		int y = (int)i / resolution.x;
+		float tmp_depth = depth_buffer[payload.idx];
+		depth_buffer[payload.idx] = mult;
+		__syncthreads();
+		// float xmult = gaussian_kernel(depth_buffer, resolution, x, y, 2, 0.002f);
+		// if (i  % 1000 == 0) {
+		// 	printf("mult %d %f vs %f\n", i, mult, xmult);
+		// }
 		tmp.rgb() *= mult;
+		__syncthreads();
+		depth_buffer[payload.idx] = tmp_depth;
 	}
 
 	if (!train_in_linear_colors && (render_mode == ERenderMode::Shade || render_mode == ERenderMode::Slice)) {
@@ -1495,20 +1537,8 @@ __global__ void trace_rays_towards_dir_with_payload_kernel_nerf(
 	int y = idx / resolution.x;
 
 	// GAUSSIAN KERNEL
-	float PI = 3.141592f;
-	float gauss_coeff = 0.0f;
-	int kernel_size = 100;
-	float SD = 50.f;;
-	for (int i = x - kernel_size; i <= x + kernel_size; ++i) {
-		for (int j = y - kernel_size; j <= y + kernel_size; ++j) {
-			if (i >= 0 && i < resolution.x && j >= 0 && j < resolution.y) {
-				int nidx = j * resolution.x + i;
-				int dx = i - x, dy = j - y;
-				float g_coeff = exp(-(dx * dx + dy * dy)/ (2.0f * SD * SD)) / (2 * PI * SD * SD);
-				gauss_coeff += g_coeff * shadow_coeffs[nidx];
-			}
-		}
-	}
+	// float gauss_coeff = gaussian_kernel(shadow_coeffs, resolution, x, y, 100, 50.0f);
+	float gauss_coeff = median_kernel(shadow_coeffs, resolution, x, y, 100);
 
 	vec4 rgba = rgba_buffer[idx];
 	// rgba_buffer[idx] = rgba * min(1.0f, payload.t / max_dist);
@@ -2110,6 +2140,7 @@ void Testbed::render_nerf_with_shadow(
 
 	linear_kernel(shade_kernel_nerf_shadow, 0, stream,
 		n_hit,
+		render_buffer.resolution,
 		lights.front(),
 		gpu_triangles,
 		gpu_triangles_count,
