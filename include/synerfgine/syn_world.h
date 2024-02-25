@@ -3,6 +3,7 @@
 #include <synerfgine/bufferset.cuh>
 #include <synerfgine/camera.h>
 #include <synerfgine/cuda_helpers.h>
+#include <synerfgine/filters.cuh>
 #include <synerfgine/light.cuh>
 #include <synerfgine/virtual_object.h>
 
@@ -61,6 +62,10 @@ private:
     std::optional<VirtualObject> m_object;
     // std::unordered_map<std::string, VirtualObject> m_objects;
 
+    int m_kernel_size{10};
+    float m_std_dev{2.0f};
+    ImgFilters m_filter_type{ImgFilters::None};
+    bool m_show_kernel_settings{true};
 
     Camera m_camera;
     mat4x3 m_last_camera;

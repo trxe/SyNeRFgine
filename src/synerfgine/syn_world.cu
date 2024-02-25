@@ -60,6 +60,8 @@ SyntheticWorld::SyntheticWorld() {
     m_nerf_payloads.check_guards();
     m_nerf_payloads.free_memory();
     m_nerf_payloads.resize(0);
+
+    m_sun.pos = {1.027f, 3.389f, 3.803f};
 }
 
 bool SyntheticWorld::handle_user_input(const ivec2& resolution) {
@@ -125,7 +127,8 @@ bool SyntheticWorld::shoot_network(CudaDevice& device, const ivec2& resolution, 
         vec3 center = m_object.has_value() ? m_object.value().get_center() : vec3(0.0);
         tracer.shoot_shadow_rays(m_nerf_payloads.data(), m_render_buffer_view, m_shadow_coeffs.data(),
             nerf_network, testbed_device.data().density_grid_bitfield_ptr, sun_pos(), center,
-            testbed.m_nerf.max_cascade, testbed.m_render_aabb, testbed.m_render_aabb_to_local, stream);
+            testbed.m_nerf.max_cascade, testbed.m_render_aabb, testbed.m_render_aabb_to_local, 
+            m_filter_type, m_kernel_size, m_std_dev, stream);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     }
     return true;
@@ -236,57 +239,62 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
 void SyntheticWorld::imgui(float frame_time) {
 	static std::string imgui_error_string = "";
 
-	if (ImGui::Begin("Load Virtual Object")) {
+    m_camera.imgui();
+
+	if (ImGui::CollapsingHeader("Load Virtual Object", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (ImGui::RadioButton("Toggle Shadow on Virtual Object", m_display_shadow)) {
             m_display_shadow = !m_display_shadow;
         }
-
-		ImGui::Text("Control Virtual Light source");
-        ImGui::SliderFloat3("Light position", m_sun.pos.data(), -5.0f, 5.0);
-		ImGui::Text("Add Virtual Object (.obj only)");
-		ImGui::InputText("##PathFile", sng::virtual_object_fp, 1024);
-		ImGui::SameLine();
-		static std::string vo_path_load_error_string = "";
-		if (ImGui::Button("Load")) {
-			try {
-				create_object(sng::virtual_object_fp);
-			} catch (const std::exception& e) {
-				ImGui::OpenPopup("Virtual object path load error");
-				vo_path_load_error_string = std::string{"Failed to load object path: "} + e.what();
-			}
-		}
-		if (ImGui::BeginPopupModal("Virtual object path load error", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-			ImGui::Text("%s", vo_path_load_error_string.c_str());
-			if (ImGui::Button("OK", ImVec2(120, 0))) {
-				ImGui::CloseCurrentPopup();
-			}
-			ImGui::EndPopup();
-		}
-		if (m_object.has_value() && ImGui::CollapsingHeader("Virtual Object", ImGuiTreeNodeFlags_DefaultOpen)) {
-            VirtualObject& obj = m_object.value();
-            obj.imgui();
-            if (ImGui::Button("Delete")) {
-				delete_object();
-			}
+        ImGui::SetNextItemOpen(m_show_kernel_settings);
+        if (ImGui::TreeNode("Shadow Kernel")) {
+            ImGui::Combo("Filter Type", (int*)(&m_filter_type), filter_names, 
+                sizeof(filter_names) / sizeof(const char*));
+            if (m_filter_type == ImgFilters::Box || m_filter_type == ImgFilters::Gaussian) {
+                ImGui::InputInt("VO Shadow Kernel Size", &m_kernel_size);
+            }
+            if (m_filter_type == ImgFilters::Gaussian) {
+                ImGui::SliderFloat("VO Std Dev", &m_std_dev, 0.0, 100.0f);
+            }
+            m_show_kernel_settings = true;
+            ImGui::TreePop();
+        } else {
+            m_show_kernel_settings = false;
+        }
+        if (ImGui::TreeNode("Light Source")) {
+            ImGui::Text("Control Virtual Light source");
+            ImGui::SliderFloat3("Light position", m_sun.pos.data(), -5.0f, 5.0);
+            ImGui::TreePop();
+        }
+		if (ImGui::TreeNode("Virtual Object")) {
+            ImGui::Text("Add Virtual Object (.obj only)");
+            ImGui::InputText("##PathFile", sng::virtual_object_fp, 1024);
+            ImGui::SameLine();
+            static std::string vo_path_load_error_string = "";
+            if (ImGui::Button("Load")) {
+                try {
+                    create_object(sng::virtual_object_fp);
+                } catch (const std::exception& e) {
+                    ImGui::OpenPopup("Virtual object path load error");
+                    vo_path_load_error_string = std::string{"Failed to load object path: "} + e.what();
+                }
+            }
+            if (ImGui::BeginPopupModal("Virtual object path load error", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+                ImGui::Text("%s", vo_path_load_error_string.c_str());
+                if (ImGui::Button("OK", ImVec2(120, 0))) {
+                    ImGui::CloseCurrentPopup();
+                }
+                ImGui::EndPopup();
+            }
+            if (m_object.has_value()) {
+                VirtualObject& obj = m_object.value();
+                obj.imgui();
+                if (ImGui::Button("Delete")) {
+                    delete_object();
+                }
+            }
+            ImGui::TreePop();
 		}
 	}
-	ImGui::End();
-	if (ImGui::Begin("Camera")) {
-		auto rd = camera().view_pos();
-		ImGui::Text("View Pos: %f, %f, %f", rd.r, rd.g, rd.b);
-		rd = camera().view_dir();
-		ImGui::Text("View Dir: %f, %f, %f", rd.r, rd.g, rd.b);
-		rd = camera().look_at();
-		ImGui::Text("Look At: %f, %f, %f", rd.r, rd.g, rd.b);
-		rd = m_sun.pos;
-		ImGui::Text("Sun Pos: %f, %f, %f", rd.r, rd.g, rd.b);
-		float fps = !frame_time ? std::numeric_limits<float>::max() : (1000.0f / frame_time);
-		ImGui::Text("Frame: %.2f ms (%.1f FPS)", frame_time, fps);
-		if (ImGui::Button("Reset Camera")) {
-			mut_camera().reset_camera();
-		}
-	}
-	ImGui::End();
 }
 
 __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width, const uint32_t height, 

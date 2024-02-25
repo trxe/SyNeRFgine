@@ -111,16 +111,18 @@ bool NerfWorld::handle(sng::CudaDevice& device, const Camera& cam, const Light& 
 
 void NerfWorld::imgui(float frame_time) {
     m_render_ms = frame_time;
-	if (ImGui::Begin("Nerf Settings")) {
+	if (ImGui::CollapsingHeader("Nerf Settings", ImGuiTreeNodeFlags_DefaultOpen)) {
         if (ImGui::RadioButton("Toggle shadow On NeRF", m_display_shadow)) {
             m_display_shadow = !m_display_shadow;
             m_is_dirty = true;
         }
-        ImGui::Text("FPS: %.3f", 1000.0 / frame_time);
-        ImGui::SliderFloat("Target FPS: ", &m_dynamic_res_target_fps, 1, 25, "%.3f", 1.0f);
-        ImGui::SliderInt("Fixed res factor: ", &m_fixed_res_factor, 8, 64);
+        if (ImGui::TreeNode("Info")) {
+            ImGui::Text("FPS: %.3f", 1000.0 / frame_time);
+            ImGui::SliderFloat("Target FPS: ", &m_dynamic_res_target_fps, 1, 25, "%.3f", 1.0f);
+            ImGui::SliderInt("Fixed res factor: ", &m_fixed_res_factor, 8, 64);
+            ImGui::TreePop();
+        }
     }
-    ImGui::End();
 }
 
 __global__ void debug_depth(const uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth) {

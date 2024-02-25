@@ -8,6 +8,7 @@
 #include <synerfgine/display.h>
 #include <synerfgine/file.h>
 #include <synerfgine/virtual_object.h>
+#include <imgui/imgui.h>
 
 namespace sng {
 
@@ -116,8 +117,11 @@ void Ui::init_imgui(GLFWwindow* m_glfw_window) {
 }
 
 void Ui::imgui(SyntheticWorld& syn_world, NerfWorld& nerf_world, float frame_time) {
-	syn_world.imgui(frame_time);
-	nerf_world.imgui(frame_time);
+	if (ImGui::Begin("Controls")) {
+		syn_world.imgui(frame_time);
+		nerf_world.imgui(frame_time);
+		ImGui::End();
+	}
 }
 
 void Renderer::init_opengl_shaders() {
@@ -172,18 +176,6 @@ void Renderer::init_opengl_shaders() {
 			float sd = texture(syn_depth, tex_coords.xy).r;
 			vec4 nerf = texture(nerf_rgba, tex_coords.xy);
 			float nd = texture(nerf_depth, tex_coords.xy).r;
-
-			// DEBUG
-			// frag_color = vec4(0.0, 0.0, 0.0, 1.0);
-			// if (nd < max_nd) {
-			// 	frag_color += vec4(0.0, 0.0, nd, 1.0);
-			// 	gl_FragDepth = nd;
-			// }
-			// if (sd < nd) {
-			// 	frag_color += vec4(sd, 0.0, 0.0, 1.0);
-			// 	gl_FragDepth = nd;
-			// }
-			// frag_color.rgb /= 5.0;
 
 			if (sd < nd) {
 				frag_color = vec4(syn.rgb, 1.0);

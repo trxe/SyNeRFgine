@@ -40,6 +40,8 @@
 #  include <pybind11/numpy.h>
 #endif
 
+#include <synerfgine/filters.cuh>
+
 #include <thread>
 
 struct GLFWwindow;
@@ -196,6 +198,9 @@ public:
 			uint32_t max_mip,
 			const BoundingBox& render_aabb,
 			const mat3& render_aabb_to_local,
+			sng::ImgFilters filter_type,
+			int kernel_size,
+			float std_dev,
 			cudaStream_t stream
 		);
 

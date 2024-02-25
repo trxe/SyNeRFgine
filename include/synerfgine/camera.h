@@ -59,6 +59,7 @@ public:
 	void set_fov(float val) ;
 	vec2 fov_xy() const ;
 	void set_fov_xy(const vec2& val);
+	void imgui();
     void reset_camera();
 
     void set_resolution(const ivec2& resolution) { 

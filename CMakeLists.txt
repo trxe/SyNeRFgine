@@ -275,6 +275,7 @@ list(APPEND NGP_SOURCES
 	src/synerfgine/camera.cu
 	src/synerfgine/display.cu
 	src/synerfgine/engine.cu
+	src/synerfgine/filters.cu
 	src/synerfgine/nerf_world.cu
 	src/synerfgine/syn_world.cu
 	src/synerfgine/virtual_object.cu

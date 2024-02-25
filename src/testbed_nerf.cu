@@ -36,7 +36,6 @@
 #include <filesystem/directory.h>
 #include <filesystem/path.h>
 
-
 #ifdef copysign
 #undef copysign
 #endif
@@ -54,36 +53,6 @@ Testbed::NetworkDims Testbed::network_dims_nerf() const {
 	dims.n_output = 4;
 	dims.n_pos = sizeof(NerfPosition) / sizeof(float);
 	return dims;
-}
-
-__device__ float median_kernel(float* __restrict__ values, ivec2 resolution, int x, int y, int kernel_size) {
-	float PI = 3.141592f;
-	float gauss_coeff = 0.0f;
-	for (int i = x - kernel_size; i <= x + kernel_size; ++i) {
-		for (int j = y - kernel_size; j <= y + kernel_size; ++j) {
-			if (i >= 0 && i < resolution.x && j >= 0 && j < resolution.y) {
-				int nidx = j * resolution.x + i;
-				gauss_coeff += values[nidx];
-			}
-		}
-	}
-	return gauss_coeff / (float)(4 * kernel_size * kernel_size);
-}
-
-__device__ float gaussian_kernel(float* __restrict__ values, ivec2 resolution, int x, int y, int kernel_size, float SD) {
-	float PI = 3.141592f;
-	float gauss_coeff = 0.0f;
-	for (int i = x - kernel_size; i <= x + kernel_size; ++i) {
-		for (int j = y - kernel_size; j <= y + kernel_size; ++j) {
-			if (i >= 0 && i < resolution.x && j >= 0 && j < resolution.y) {
-				int nidx = j * resolution.x + i;
-				int dx = i - x, dy = j - y;
-				float g_coeff = exp(-(dx * dx + dy * dy)/ (2.0f * SD * SD)) / (2 * PI * SD * SD);
-				gauss_coeff += g_coeff * values[nidx];
-			}
-		}
-	}
-	return gauss_coeff;
 }
 
 __global__ void extract_srgb_with_activation(const uint32_t n_elements,	const uint32_t rgb_stride, const float* __restrict__ rgbd, float* __restrict__ rgb, ENerfActivation rgb_activation, bool from_linear) {
@@ -1514,7 +1483,10 @@ __global__ void trace_rays_towards_dir_with_payload_kernel_nerf(
 	vec3 sun_pos,
 	NerfPayload* __restrict__ payloads,
 	vec4* __restrict__ rgba_buffer,
-	float* __restrict__ shadow_coeffs)
+	float* __restrict__ shadow_coeffs,
+	sng::ImgFilters filter_type,
+	int kernel_size,
+	float std_dev)
 {
 	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
 	if (idx > n_elements) {
@@ -1529,21 +1501,36 @@ __global__ void trace_rays_towards_dir_with_payload_kernel_nerf(
 	advance_pos_nerf_shadow(payload, render_aabb, render_aabb_to_local, cam_fwd, vec2(1.0), 
 		sample_index, grid, 0, max_mip, cone_angle_constant);
 
-	if (!payload.alive) return;
-
 	shadow_coeffs[idx] = 1.0f - payload.t / max_dist;
 	__syncthreads();
+
+	// if (!payload.alive) return;
 	int x = idx % resolution.x;
 	int y = idx / resolution.x;
 
 	// GAUSSIAN KERNEL
-	// float gauss_coeff = gaussian_kernel(shadow_coeffs, resolution, x, y, 100, 50.0f);
-	float gauss_coeff = median_kernel(shadow_coeffs, resolution, x, y, 100);
+	float coeff = 1.0;
+	if (filter_type == sng::ImgFilters::Box) {
+		coeff = median_kernel(shadow_coeffs, resolution, x, y, kernel_size / 4, kernel_size);
+	} else if (filter_type == sng::ImgFilters::Gaussian) {
+		coeff = gaussian_kernel(shadow_coeffs, resolution, x, y, kernel_size, std_dev);
+	} else if (filter_type == sng::ImgFilters::PullPush) {
+		coeff = pull_push_kernel(shadow_coeffs, resolution, x, y);
+	} else {
+		coeff = shadow_coeffs[idx];
+	}
 
 	vec4 rgba = rgba_buffer[idx];
-	// rgba_buffer[idx] = rgba * min(1.0f, payload.t / max_dist);
-	rgba_buffer[idx] = rgba * max(min(1.0f, 1.0f - gauss_coeff), 0.0f);
-	// rgba_buffer[idx] = rgba * max(min(1.0f, 1.0f - gauss_coeff * 5.0f), 0.0f);
+	rgba_buffer[idx] = rgba * max(min(1.0f, 1.0f - coeff), 0.0f);
+
+	// if (filter_type == sng::ImgFilters::PullPush) {
+	// 	if (coeff > 0.0) {
+	// 		rgba_buffer[idx].a = min(1.0f, 1.0f - coeff);
+	// 	}
+	// 	vec4 final_color = pull_push_kernel_rgba(rgba_buffer, resolution, x, y, kernel_size);
+	// 	rgba_buffer[idx] = vec4(final_color.rgb(), 1.0);
+	// }
+	// rgba_buffer[idx] = vec4(vec3(max(min(1.0f, coeff), 0.0f)), 1.0);
 }
 
 __global__ void init_rays_with_payload_kernel_nerf(
@@ -1737,6 +1724,9 @@ void Testbed::NerfTracer::shoot_shadow_rays(
 	uint32_t max_mip,
 	const BoundingBox& render_aabb,
 	const mat3& render_aabb_to_local,
+	sng::ImgFilters filter_type,
+	int kernel_size,
+	float std_dev,
 	cudaStream_t stream
 ) {
 	auto resolution = render_buffer.resolution;
@@ -1759,7 +1749,10 @@ void Testbed::NerfTracer::shoot_shadow_rays(
 		sun_pos,
 		shadow_payload,
 		render_buffer.frame_buffer,
-		shadow_coeffs
+		shadow_coeffs,
+		filter_type,
+		kernel_size,
+		std_dev
 	);
 }
 

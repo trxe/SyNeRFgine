@@ -55,7 +55,7 @@ private:
     fs::path file_path;
     vec3 pos;
     vec3 rot;
-    float scale{1.0f};
+    float scale{0.50f};
     vec3 center;
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;

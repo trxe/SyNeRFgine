@@ -35,19 +35,14 @@ __global__ void init_rays_cam(
 );
 
 bool Camera::handle_mouse_wheel() {
-	// float delta = ImGui::GetIO().MouseWheel;
-	// if (delta == 0) {
-	// 	return false;
-	// }
-
+	bool is_moved = false;
 	if (ImGui::IsMouseDragging(0) && ImGui::IsKeyDown(ImGuiKey_LeftShift)) {
 		float delta = ImGui::GetMouseDragDelta(0).y / (float)m_resolution[m_fov_axis];
-		float scale_factor = pow(2.5f, -delta * 10.0f);
-		set_scale(m_scale * scale_factor);
-		return true;
-	} else {
-		return false;
+		// float scale_factor = pow(2.5f, -delta * 10.0f);
+		set_scale(m_scale - delta);
+		is_moved = true;
 	}
+	return is_moved;
 }
 
 bool Camera::handle_mouse_drag() {
@@ -62,35 +57,10 @@ bool Camera::handle_mouse_drag() {
 		float rot_sensitivity = m_fps_camera ? 0.35f : 1.0f;
 		mat3 rot = rotation_from_angles(-rel * 2.0f * PI() * rot_sensitivity);
 
-		// if (m_fps_camera) {
-			rot *= mat3(m_camera);
-			m_camera = mat4x3(rot[0], rot[1], rot[2], m_camera[3]);
-		// } else {
-		//     // Turntable
-		//     auto old_look_at = look_at();
-		//     set_look_at({0.0f, 0.0f, 0.0f});
-		//     m_camera = rot * m_camera;
-		//     set_look_at(old_look_at);
-		// }
+		rot *= mat3(m_camera);
+		m_camera = mat4x3(rot[0], rot[1], rot[2], m_camera[3]);
 		is_moved = true;
 	}
-
-	// Right held
-	// if (ImGui::GetIO().MouseDown[1]) {
-	// 	mat3 rot = rotation_from_angles(-rel * 2.0f * PI());
-	// 	// MOVING LIGHT SOURCE
-	// 	// m_slice_plane_z += -rel.y * m_bounding_radius;
-	// 	m_sun.pos = transpose(rot) * m_sun.pos;
-	// }
-
-	// Middle pressed
-	// if (ImGui::GetIO().MouseClicked[2]) {
-    //     if (m_render_buffer.has_value()) {
-    //         m_drag_depth = get_depth_from_renderbuffer(m_render_buffer.value(), mouse / vec2(m_resolution));
-    //     } else {
-    //         m_drag_depth = 1.0f;
-    //     }
-	// }
 
 	// Middle held
 	if (ImGui::GetIO().MouseDown[2]) {
@@ -116,6 +86,7 @@ bool Camera::handle_user_input() {
 	bool is_dragged = handle_mouse_drag();
 	is_buffer_outdated = true;
 	return is_dragged || is_wheeled;
+	// return is_dragged;
 }
 
 void Camera::generate_rays_async(CudaDevice& device) {
@@ -196,7 +167,7 @@ void Camera::set_look_at(const vec3& pos) {
 
 void Camera::set_scale(float scale) {
 	auto prev_look_at = look_at();
-	m_camera[3] = (view_pos() - prev_look_at) * (scale / m_scale) + prev_look_at;
+	m_camera[3] = m_default_camera[3] + scale * view_dir();
 	m_scale = scale;
 }
 
@@ -248,6 +219,26 @@ vec2 Camera::calc_focal_length(const ivec2& resolution, const vec2& relative_foc
 vec2 Camera::render_screen_center(const vec2& screen_center) const {
 	// see pixel_to_ray for how screen center is used; 0.5, 0.5 is 'normal'. we flip so that it becomes the point in the original image we want to center on.
 	return (0.5f - screen_center) * m_zoom + 0.5f;
+}
+
+void Camera::imgui() {
+	if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+		if (ImGui::Button("Reset Camera")) {
+			reset_camera();
+		}
+		if (ImGui::SliderFloat("Cam Scale", &m_scale, -20.0, 20.0)) {
+			set_scale(m_scale);
+		}
+		if (ImGui::TreeNode("Cam Info")) {
+			auto rd = view_pos();
+			ImGui::Text("View Pos: %f, %f, %f", rd.r, rd.g, rd.b);
+			rd = view_dir();
+			ImGui::Text("View Dir: %f, %f, %f", rd.r, rd.g, rd.b);
+			rd = look_at();
+			ImGui::Text("Look At: %f, %f, %f", rd.r, rd.g, rd.b);
+            ImGui::TreePop();
+		}
+	}
 }
 
 inline NGP_HOST_DEVICE Ray my_uv_to_ray(
@@ -321,16 +312,6 @@ __global__ void init_rays_cam(
 	vec2 pixel_offset = ld_random_pixel_offset(snap_to_pixel_centers ? 0 : sample_index);
 	vec2 uv = vec2{(float)x + pixel_offset.x, (float)y + pixel_offset.y} / vec2(resolution);
 	mat4x3 camera = get_xform_given_rolling_shutter({camera_matrix0, camera_matrix1}, rolling_shutter, uv, ld_random_val(sample_index, idx * 72239731));
-    // int xx = idx % resolution.x;
-    // int yy = idx / resolution.x;
-	// if (idx == 0) {
-	// 	printf("%f %f %f\n%f %f %f\n%f %f %f\n%f %f %f\n\n", 
-	// 		camera[0].r, camera[0].g, camera[0].b, 
-	// 		camera[1].r, camera[1].g, camera[1].b, 
-	// 		camera[2].r, camera[2].g, camera[2].b, 
-	// 		camera[3].r, camera[3].g, camera[3].b
-	// 	);
-	// }
 
 	Ray ray = uv_to_ray(
 		sample_index,
@@ -339,18 +320,7 @@ __global__ void init_rays_cam(
 		focal_length,
 		camera,
 		screen_center
-		// parallax_shift,
-		// near_distance,
-		// plane_z,
-		// aperture_size,
-		// foveation,
-		// hidden_area_mask,
-		// lens,
-		// distortion
 	);
-
-	// NerfPayload& payload = payloads[idx];
-	// payload.max_weight = 0.0f;
 
 	depth_buffer[idx] = MAX_DEPTH();
 
@@ -390,28 +360,9 @@ __global__ void init_rays_cam(
 
 	ray.d = normalize(ray.d);
 
-	// if (envmap) {
-	// 	frame_buffer[idx] = read_envmap(envmap, ray.d);
-	// }
-
-	// float t = fmaxf(render_aabb.ray_intersect(render_aabb_to_local * ray.o, render_aabb_to_local * ray.d).x, 0.0f) + 1e-6f;
-
-	// if (!render_aabb.contains(render_aabb_to_local * ray(t))) {
-    //     positions[idx] = ray.o;
-	// 	// payload.origin = ray.o;
-	// 	// payload.alive = false;
-	// 	return;
-	// }
-
     positions[idx] = ray.o;
     directions[idx] = ray.d;
 	frame_buffer[idx] = vec4(abs(normalize(ray.d)), 1.0);
-	// payload.origin = ray.o;
-	// payload.dir = ray.d;
-	// payload.t = t;
-	// payload.idx = idx;
-	// payload.n_steps = 0;
-	// payload.alive = true;
 }
 
 }
