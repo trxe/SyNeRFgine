@@ -31,12 +31,10 @@ struct HitRecord {
 struct Material {
 public:
     __host__ virtual ~Material() {}
-    __host__ Material* get_device() { return device; }
     __host__ virtual Material* copy_to_gpu() const = 0;
+    __device__ virtual void test() const = 0;
     __device__ virtual bool scatter(
         const Ray& r_in, const HitRecord& rec, vec3& attenuation, Ray& scattered, curandState& rand) const = 0;
-protected:
-    Material* device{nullptr};
 };
 
 struct LambertianMaterial : public Material {
@@ -45,10 +43,18 @@ struct LambertianMaterial : public Material {
     
     __host__ virtual ~LambertianMaterial() { cudaFree(device); }
 
+    __device__ void test() const override {
+      printf("material %f %f %f\n", albedo.r, albedo.g, albedo.b);
+    }
+
     __host__ virtual Material* copy_to_gpu() const override {
-		CUDA_CHECK_THROW(cudaMalloc((void**)&device, sizeof(LambertianMaterial)));
-		CUDA_CHECK_THROW(cudaMemcpy(device, this, sizeof(LambertianMaterial), cudaMemcpyHostToDevice));
-		return device;
+      LambertianMaterial *tmp;
+      tmp = new LambertianMaterial(albedo);
+      memcpy(tmp, this, sizeof(LambertianMaterial));
+
+      CUDA_CHECK_THROW(cudaMalloc((void**)&device, sizeof(LambertianMaterial)));
+      CUDA_CHECK_THROW(cudaMemcpy(device, this, sizeof(LambertianMaterial), cudaMemcpyHostToDevice));
+      return device;
     }
 
     __device__ bool scatter(const Ray& r_in, const HitRecord& rec, vec3& attenuation, Ray& scattered, curandState& rand) const override {
@@ -61,6 +67,7 @@ struct LambertianMaterial : public Material {
 
   private:
     vec3 albedo;
+    LambertianMaterial* device{nullptr};
 };
 
 }

@@ -11,7 +11,7 @@
     "cmake.debugConfig": {
         "args": [
             "--snapshot",
-            "..\\extra_data\\nerf360\\kitchen\\35000.msgpack",
+            "..\\extra_data\\nerf360\\garden\\35000.msgpack",
             "--virtual",
             "..\\scripts\\virtual_desc\\box.json",
             "--width",
@@ -23,6 +23,7 @@
     "files.associations": {
         "filesystem": "cpp",
         "chrono": "cpp",
-        "xstring": "cpp"
+        "xstring": "cpp",
+        "vector": "cpp"
     },
 }

@@ -1839,9 +1839,13 @@ void Testbed::hybrid_render_nerf(
 		Buffer2DView<const vec2>{};
 
 	Lens lens = m_nerf.render_with_lens_distortion ? m_nerf.render_lens : Lens{};
+	auto guard = device.device_guard();
+	device.wait_for(stream);
+	auto res = render_buffer.resolution;
 
+	m_virtual_world.resize(res.x, res.y);
 	m_virtual_world.init_rays(
-		device.stream(), 
+		stream,
 		render_buffer.spp,
 		render_buffer.resolution,
 		focal_length,
@@ -1850,16 +1854,18 @@ void Testbed::hybrid_render_nerf(
 		screen_center,
 		rolling_shutter,
 		m_parallax_shift,
+		m_render_aabb,
+		m_render_aabb_to_local,
 		m_snap_to_pixel_centers,
 		m_render_near_distance,
 		m_slice_plane_z,
 		m_aperture_size,
-		foveation,
+	foveation,
 		lens,
-		render_buffer.hidden_area_mask->const_view(),
+		render_buffer.hidden_area_mask ? render_buffer.hidden_area_mask->const_view() : Buffer2DView<const uint8_t>{},
 		grid_distortion);
 
-	m_virtual_world.render(device.stream(), device.render_buffer_view(),
+	m_virtual_world.render(stream, device.render_buffer_view(),
 		focal_length, camera_matrix0, camera_matrix1, 
 		rolling_shutter, screen_center, foveation, 
 		visualized_dimension);

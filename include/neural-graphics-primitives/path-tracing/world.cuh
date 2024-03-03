@@ -17,20 +17,14 @@
 #include <tinylogger/tinylogger.h>
 #include <neural-graphics-primitives/path-tracing/hittable_list.cuh>
 #include <neural-graphics-primitives/render_buffer.h>
-#include <neural-graphics-primitives/nerf_device.cuh>
+#include <neural-graphics-primitives/bounding_box.cuh>
 
 namespace ngp {
 namespace pt {
 
 namespace fs = filesystem;
 
-__global__ void pt_trace(
-    uint32_t n_elements, 
-    ivec2 resolution, 
-    vec4* __restrict__ frame_buffer,
-    NerfPayload* __restrict__ payloads
-);
-
+__global__ void pt_debug_mat(Material* d_mat);
 __global__ void init_rays_world_kernel_nerf(
 	uint32_t sample_index,
 	ivec2 resolution,
@@ -40,6 +34,8 @@ __global__ void init_rays_world_kernel_nerf(
 	vec4 rolling_shutter,
 	vec2 screen_center,
 	vec3 parallax_shift,
+    ngp::BoundingBox render_aabb,
+    mat3 render_aabb_to_local,
 	bool snap_to_pixel_centers,
 	float near_distance,
 	float plane_z,
@@ -129,6 +125,8 @@ struct World {
         const vec4& rolling_shutter,
         const vec2& screen_center,
         const vec3& parallax_shift,
+        const ngp::BoundingBox& render_aabb,
+        const mat3& render_aabb_to_local,
         const bool& snap_to_pixel_centers,
         const float& near_distance,
         const float& plane_z,
@@ -175,13 +173,14 @@ private:
                 vec3 albedo { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
                 w_materials.emplace_back(std::make_shared<LambertianMaterial>(albedo));
                 h_material_list.push_back(w_materials.back()->copy_to_gpu());
+                pt_debug_mat<<<1,1>>>(h_material_list.back());
+                CUDA_CHECK_THROW(cudaDeviceSynchronize());
             } else {
                 throw std::runtime_error(fmt::format("Material type {} not supported", type_str));
             }
         }
         CUDA_CHECK_THROW(cudaMalloc(&w_material_gpu, h_material_list.size() * sizeof(Material*)));
         CUDA_CHECK_THROW(cudaMemcpy(w_material_gpu, h_material_list.data(), h_material_list.size(), cudaMemcpyHostToDevice));
-        // Material mat;
     }
 
     void init_objs(const nlohmann::json& all_config) {

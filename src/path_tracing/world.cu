@@ -5,16 +5,20 @@ namespace pt {
 
 using ngp::Ray;
 
-// __global__ void pt_debug_world_triangles(uint32_t n_elements, Tri* triangles) {
-//     uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
-//     if (idx >= n_elements) return;
-//     Tri& triangle = triangles[idx];
-//     printf("triangle %d: %d [%f, %f, %f], [%f, %f, %f], [%f, %f, %f]\n", 
-//         idx, triangle.material_idx,
-//         triangle.point[0].x, triangle.point[0].y, triangle.point[0].z, 
-//         triangle.point[1].x, triangle.point[1].y, triangle.point[1].z, 
-//         triangle.point[2].x, triangle.point[2].y, triangle.point[2].z);
-// }
+__global__ void pt_debug_world_triangles(uint32_t n_elements, Tri* triangles) {
+    uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx >= n_elements) return;
+    Tri& triangle = triangles[idx];
+    printf("triangle %d: %d [%f, %f, %f], [%f, %f, %f], [%f, %f, %f]\n", 
+        idx, triangle.material_idx,
+        triangle.point[0].x, triangle.point[0].y, triangle.point[0].z, 
+        triangle.point[1].x, triangle.point[1].y, triangle.point[1].z, 
+        triangle.point[2].x, triangle.point[2].y, triangle.point[2].z);
+}
+
+__global__ void pt_debug_mat(Material* d_mat) {
+  d_mat->test();
+}
 
 __global__ void pt_reset_buffers(uint32_t n_elements, 
     vec3* __restrict__ beta,
@@ -49,27 +53,37 @@ __global__ void pt_debug_fb(uint32_t n_elements, ivec2 resolution, vec4* __restr
     float y = (float)(idx / resolution.x) / (float) resolution.y;
     frame_buffer[idx] = vec4{x, y, 0.0f, 1.0f};
 }
+
 __global__ void pt_trace_once(uint32_t n_elements, 
 	ivec2 resolution, 
 	vec4* __restrict__ frame_buffer,
 	uint32_t material_count,
-	Material** w_material_gpu,
+	Material** __restrict__ w_material_gpu,
 	uint32_t hittable_count,
-	Hittable** w_hittable_gpu,
-	Ray* rays,
-	HitRecord* hit_records
+	Hittable** __restrict__ w_hittable_gpu,
+	Ray* __restrict__ rays,
+	HitRecord* __restrict__ hit_records
 ) {
     uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= n_elements) return;
+	vec3 rgb{};
 	Ray& ray = rays[idx];
 	HitRecord& rec = hit_records[idx];
-	vec3 rgb{};
-	for (size_t t = 0; t < hittable_count; ++t) {
-		Hittable* hittable = w_hittable_gpu[t];
-		if (hittable->hit(ray, PT_EPSILON, PT_MAX_FLOAT, rec)) {
-			rgb = normalize(rec.pos);
-			rgb = rgb * 0.5f + vec3(0.5f);
-		}
+	// for (size_t t = 0; t < hittable_count; ++t) {
+	// 	Hittable* hittable = w_hittable_gpu[t];
+	// 	if (!hittable) {
+	// 		return;
+	// 	}
+	// 	vec3 c  = hittable->center();
+	// 	rgb = c * 0.5f + vec3(0.5f);
+	// 	// if (hittable->hit(ray, PT_EPSILON, PT_MAX_FLOAT, rec)) {
+	// 	// 	rgb = normalize(rec.pos);
+	// 	// 	rgb = rgb * 0.5f + vec3(0.5f);
+	// 	// }
+	// }
+	for (size_t t = 0; t < material_count; ++t) {
+		Material* mat = w_material_gpu[t];
+		if (idx % 100 == 0) mat->test();
 	}
     frame_buffer[idx] = vec4{rgb, 1.0f};
 }
@@ -83,6 +97,8 @@ __global__ void init_rays_world_kernel_nerf(
 	vec4 rolling_shutter,
 	vec2 screen_center,
 	vec3 parallax_shift,
+    ngp::BoundingBox render_aabb,
+    mat3 render_aabb_to_local,
 	bool snap_to_pixel_centers,
 	float near_distance,
 	float plane_z,
@@ -128,8 +144,9 @@ __global__ void init_rays_world_kernel_nerf(
 		distortion
 	);
 
-    rays[idx] = ray;
-    ends[idx] = !ray.is_valid();
+	float t = fmaxf(render_aabb.ray_intersect(render_aabb_to_local * ray.o, render_aabb_to_local * ray.d).x, 0.0f) + 1e-6f;
+    ends[idx] = !ray.is_valid() || !render_aabb.contains(render_aabb_to_local * ray(t));
+	if (!ends[idx]) rays[idx] = ray;
 }
 
 void World::render(
@@ -168,6 +185,8 @@ void World::init_rays(
     const vec4& rolling_shutter,
     const vec2& screen_center,
     const vec3& parallax_shift,
+	const ngp::BoundingBox& render_aabb,
+	const mat3& render_aabb_to_local,
     const bool& snap_to_pixel_centers,
     const float& near_distance,
     const float& plane_z,
@@ -191,6 +210,8 @@ void World::init_rays(
 		px_prev_end,
 		px_hit_record
 	);
+    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+
     init_rays_world_kernel_nerf<<<blocks, threads, 0, stream>>> (
 		sample_index,
 		resolution,
@@ -200,6 +221,8 @@ void World::init_rays(
 		rolling_shutter,
 		screen_center,
 		parallax_shift,
+		render_aabb,
+		render_aabb_to_local,
 		snap_to_pixel_centers,
 		near_distance,
 		plane_z,
@@ -210,7 +233,6 @@ void World::init_rays(
 		distortion,
         px_ray,
         px_end);
-
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }
 
