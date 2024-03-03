@@ -48,10 +48,6 @@ struct LambertianMaterial : public Material {
     }
 
     __host__ virtual Material* copy_to_gpu() const override {
-      LambertianMaterial *tmp;
-      tmp = new LambertianMaterial(albedo);
-      memcpy(tmp, this, sizeof(LambertianMaterial));
-
       CUDA_CHECK_THROW(cudaMalloc((void**)&device, sizeof(LambertianMaterial)));
       CUDA_CHECK_THROW(cudaMemcpy(device, this, sizeof(LambertianMaterial), cudaMemcpyHostToDevice));
       return device;
@@ -67,7 +63,7 @@ struct LambertianMaterial : public Material {
 
   private:
     vec3 albedo;
-    LambertianMaterial* device{nullptr};
+    Material* device{nullptr};
 };
 
 }

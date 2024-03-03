@@ -17,7 +17,7 @@ __global__ void pt_debug_world_triangles(uint32_t n_elements, Tri* triangles) {
 }
 
 __global__ void pt_debug_mat(Material* d_mat) {
-  d_mat->test();
+	if (d_mat) d_mat->test();
 }
 
 __global__ void pt_reset_buffers(uint32_t n_elements, 

@@ -173,7 +173,8 @@ private:
                 vec3 albedo { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
                 w_materials.emplace_back(std::make_shared<LambertianMaterial>(albedo));
                 h_material_list.push_back(w_materials.back()->copy_to_gpu());
-                pt_debug_mat<<<1,1>>>(h_material_list.back());
+                Material* d_mat = h_material_list.back();
+                pt_debug_mat<<<1,1>>>(d_mat);
                 CUDA_CHECK_THROW(cudaDeviceSynchronize());
             } else {
                 throw std::runtime_error(fmt::format("Material type {} not supported", type_str));
