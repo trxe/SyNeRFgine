@@ -9,6 +9,7 @@
 /venv
 /video
 /instant-ngp
+/extra_data
 /*.dll
 /*.exe
 /*.json
