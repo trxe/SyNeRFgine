@@ -1,0 +1,28 @@
+{
+    "cmake.configureSettings": {
+        "CMAKE_BUILD_TYPE" : "RelWithDebInfo"
+    },
+    "cmake.buildBeforeRun": false,
+    "cmake.buildArgs": [
+        "--config",
+        "RelWithDebInfo"
+    ],
+    "cmake.parallelJobs": 8,
+    "cmake.debugConfig": {
+        "args": [
+            "--snapshot",
+            "..\\extra_data\\nerf360\\kitchen\\35000.msgpack",
+            "--virtual",
+            "..\\scripts\\virtual_desc\\box.json",
+            "--width",
+            "1280",
+            "--height",
+            "720",
+        ]
+    },
+    "files.associations": {
+        "filesystem": "cpp",
+        "chrono": "cpp",
+        "xstring": "cpp"
+    },
+}
