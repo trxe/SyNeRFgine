@@ -85,29 +85,53 @@ __global__ void pt_free_hittables(uint32_t n_elements, Hittable** hit_list) {
 __global__ void pt_trace_once(uint32_t n_elements, 
 	ivec2 resolution, 
 	vec4* __restrict__ frame_buffer,
+	float* __restrict__ depth_buffer,
 	uint32_t material_count,
 	Material** __restrict__ w_material_gpu,
 	uint32_t hittable_count,
 	Hittable** __restrict__ w_hittable_gpu,
 	Ray* __restrict__ rays,
-	HitRecord* __restrict__ hit_records
+	bool* __restrict__ ends,
+	const mat4x3* __restrict__ camera,
+	HitRecord* __restrict__ hit_records,
+	curandState* __restrict__ random_state
+	// const mat4x3** __restrict__ world_matrices
 ) {
     uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= n_elements) return;
+	// vec3 rgb = frame_buffer[idx].rgb();
 	Ray& ray = rays[idx];
-	HitRecord& rec = hit_records[idx];
-	vec3 rgb{0.0};
-	for (size_t t = 0; t < hittable_count; ++t) {
-		Hittable* hittable = w_hittable_gpu[t];
-		if (!hittable) {
-			return;
+	vec3 rgb = vec3_to_col(ray.d);
+	float depth = 0.0f;
+	if (!ends[idx]) {
+		vec3 cam_fwd = camera[idx][2];
+		HitRecord& rec = hit_records[idx];
+		for (size_t t = 0; t < hittable_count; ++t) {
+			Hittable* hittable = w_hittable_gpu[t];
+			if (!hittable) {
+				return;
+			}
+			if (hittable->hit(ray, PT_EPSILON, PT_MAX_FLOAT, rec)) {
+				Material* mat = w_material_gpu[rec.material_idx];
+				Ray scattered;
+				vec3 color{};
+				bool has_next = mat->scatter(ray, rec, color, scattered, random_state[idx]);
+				rgb = color;
+				// rgb = vec3(1.0, 0.0, 0.0);
+				depth = rec.t;
+			} else {
+				vec3 max_pos = ray.o + ray.d * PT_MAX_T;
+				depth = dot(cam_fwd, max_pos - camera[idx][3]);
+			}
+			// if (idx == 0) hittable->print();
 		}
-		if (hittable->hit(ray, PT_EPSILON, PT_MAX_FLOAT, rec)) {
-			rgb = vec3_to_col(rec.pos);
-		}
-		// if (idx == 0) hittable->print();
+	} else {
+		rgb = vec3(0.0, 1.0, 0.0);
 	}
-    frame_buffer[idx] = vec4{rgb, 1.0f};
+    // frame_buffer[idx] = vec4{normalize(vec3(depth/100.0)), 1.0f};
+	frame_buffer[idx] = vec4(rgb, 1.0);
+	// if (idx == 0) print_vec(frame_buffer[idx]);
+	depth_buffer[idx] = depth;
 }
 
 __global__ void init_rays_world_kernel_nerf(
@@ -130,7 +154,8 @@ __global__ void init_rays_world_kernel_nerf(
 	Buffer2DView<const uint8_t> hidden_area_mask,
 	Buffer2DView<const vec2> distortion,
     Ray* __restrict__ rays,
-    bool* __restrict__ ends
+    bool* __restrict__ ends,
+	mat4x3* __restrict__ px_camera
 ) {
 	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
 	uint32_t y = threadIdx.y + blockDim.y * blockIdx.y;
@@ -148,7 +173,7 @@ __global__ void init_rays_world_kernel_nerf(
 	vec2 pixel_offset = ld_random_pixel_offset(snap_to_pixel_centers ? 0 : sample_index);
 	vec2 uv = vec2{(float)x + pixel_offset.x, (float)y + pixel_offset.y} / vec2(resolution);
 	mat4x3 camera = get_xform_given_rolling_shutter({camera_matrix0, camera_matrix1}, rolling_shutter, uv, ld_random_val(sample_index, idx * 72239731));
-	if (idx == 0) print_mat4x3(camera);
+	// if (idx == 0) print_mat4x3(camera);
 
 	Ray ray = uv_to_ray(
 		sample_index,
@@ -167,10 +192,11 @@ __global__ void init_rays_world_kernel_nerf(
 		distortion
 	);
 
-	// float t = fmaxf(render_aabb.ray_intersect(render_aabb_to_local * ray.o, render_aabb_to_local * ray.d).x, 0.0f) + 1e-6f;
-    // ends[idx] = !ray.is_valid() || !render_aabb.contains(render_aabb_to_local * ray(t));
-    ends[idx] = !ray.is_valid();
+	float t = fmaxf(render_aabb.ray_intersect(render_aabb_to_local * ray.o, render_aabb_to_local * ray.d).x, 0.0f) + 1e-6f;
+    ends[idx] = !ray.is_valid() || !render_aabb.contains(render_aabb_to_local * ray(t));
+    // ends[idx] = !ray.is_valid();
 	if (!ends[idx]) rays[idx] = ray;
+	px_camera[idx] = camera;
 }
 
 void World::render(
@@ -191,12 +217,16 @@ void World::render(
 	linear_kernel(pt_trace_once, 0, stream, n_elements, 
 		resolution, 
 		render_buffer.frame_buffer,
+		render_buffer.depth_buffer,
 		w_materials.size(),
 		w_material_gpu,
 		w_hittables.size(),
 		w_hittable_gpu,
 		px_ray,
-		px_hit_record);
+		px_end,
+		px_camera,
+		px_hit_record, 
+		w_pixel_rand_state_gpu);
 	BENCHMARK("Trace once", 
 		CUDA_CHECK_THROW(cudaStreamSynchronize(stream))
 	);
@@ -247,7 +277,8 @@ void World::init_rays(
 		hidden_area_mask,
 		distortion,
         px_ray,
-        px_end);
+        px_end,
+		px_camera);
 	BENCHMARK("Init rays world", 
 		CUDA_CHECK_THROW(cudaStreamSynchronize(stream))
 	);

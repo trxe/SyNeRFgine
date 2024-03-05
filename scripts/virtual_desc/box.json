@@ -27,7 +27,7 @@
     ],
     "objfile": [
         {
-            "dir": "../data/obj/smallbox.obj",
+            "dir": "../data/obj/rock.obj",
             "material": 0
         }
     ],

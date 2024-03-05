@@ -50,12 +50,12 @@ public:
     }
 
     NGP_HOST_DEVICE AABB bounding_box() const override {
-        float xleft = std::min({point[0].x, point[1].x, point[2].x});
-        float xright = std::max({point[0].x, point[1].x, point[2].x});
-        float yleft = std::min({point[0].y, point[1].y, point[2].y});
-        float yright = std::max({point[0].y, point[1].y, point[2].y});
-        float zleft = std::min({point[0].z, point[1].z, point[2].z});
-        float zright = std::max({point[0].z, point[1].z, point[2].z});
+        float xleft = ffmin(ffmin(point[0].x, point[1].x), point[2].x);
+        float xright = ffmax(ffmin(point[0].x, point[1].x), point[2].x);
+        float yleft = ffmin(ffmin(point[0].y, point[1].y), point[2].y);
+        float yright = ffmax(ffmin(point[0].y, point[1].y), point[2].y);
+        float zleft = ffmin(ffmin(point[0].z, point[1].z), point[2].z);
+        float zright = ffmax(ffmin(point[0].z, point[1].z), point[2].z);
         return {xleft, xright, yleft, yright, zleft, zright};
     }
 
@@ -79,6 +79,12 @@ public:
     }
 
     __device__ bool hit(const ngp::Ray& r, float ray_tmin, float ray_tmax, HitRecord& rec) const override {
+        AABB ab = bounding_box();
+        if (ab.hit(r, ray_tmin, ray_tmax)) {
+            rec.material_idx = material_idx;
+            return true;
+        }
+        return false;
         // Möller–Trumbore
         vec3 edge1 = point[1] - point[0];
         vec3 edge2 = point[2] - point[0];
@@ -104,7 +110,7 @@ public:
         // At this stage we can compute t to find out where the intersection point is on the line.
         float t = inv_det * dot(edge2, s_cross_e1);
 
-        if (t > PT_EPSILON) // ray intersection
+        if (t >= ray_tmin && t < ray_tmax) // ray intersection
         {
             rec.t = t;
             rec.pos = r.o + r.d * t;

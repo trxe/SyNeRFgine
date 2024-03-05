@@ -13,6 +13,9 @@
 namespace ngp { 
 namespace pt {
 
+__host__ __device__ inline float ffmin(float a, float b) { return a < b ? a : b; }
+__host__ __device__ inline float ffmax(float a, float b) { return a > b ? a : b; }
+
 // Always initialize the benchmarker, __timer should not be redeclared in the
 // current context.
 #define INIT_BENCHMARK() Timer __timer;
@@ -26,6 +29,7 @@ namespace pt {
 constexpr float PT_EPSILON = std::numeric_limits<float>::epsilon();
 constexpr float PT_MIN_FLOAT = std::numeric_limits<float>::min();
 constexpr float PT_MAX_FLOAT = std::numeric_limits<float>::max();
+constexpr float PT_MAX_T = 16480.0f;
 
 __device__ vec3 vec3_to_col(const vec3& v);
 __device__ void print_vec(const vec3& v);

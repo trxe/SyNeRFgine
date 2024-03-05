@@ -20,6 +20,8 @@
 #include <neural-graphics-primitives/render_buffer.h>
 #include <neural-graphics-primitives/bounding_box.cuh>
 
+// #define DEBUG_BVH 
+
 namespace ngp {
 namespace pt {
 
@@ -70,6 +72,7 @@ struct World {
     Ray* px_prev_ray;
     bool *px_end;
     bool *px_prev_end;
+    mat4x3* px_camera;
     HitRecord* px_hit_record;
 
     Camera w_cam;
@@ -113,14 +116,12 @@ struct World {
 
     void alloc_buffers(unsigned int resx, unsigned int resy) {
         if (!is_active) return;
-        release();
         uint32_t n_elements = resx * resy;
         CUDA_CHECK_THROW(cudaMalloc(&w_pixel_rand_state_gpu, n_elements * sizeof(curandState)));
         cudaStream_t stream;
         CUDA_CHECK_THROW(cudaStreamCreate(&stream));
         rand_init_pixels<<<resx, resy, 0, stream>>>(resx, resy, w_pixel_rand_state_gpu);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-        tlog::warning() << "ALLOCATING???";
 
         // CUDA_CHECK_THROW(cudaMalloc(&px_beta, n_elements * sizeof(vec3)));
         // CUDA_CHECK_THROW(cudaMalloc(&px_attenuation, n_elements * sizeof(vec3)));
@@ -131,6 +132,7 @@ struct World {
         CUDA_CHECK_THROW(cudaMalloc(&px_prev_ray, n_elements * sizeof(Ray)));
         CUDA_CHECK_THROW(cudaMalloc(&px_end, n_elements * sizeof(bool)));
         CUDA_CHECK_THROW(cudaMalloc(&px_prev_end, n_elements * sizeof(bool)));
+        CUDA_CHECK_THROW(cudaMalloc(&px_camera, n_elements * sizeof(mat4x3)));
         CUDA_CHECK_THROW(cudaMalloc(&px_hit_record, n_elements * sizeof(HitRecord)));
     }
 
@@ -241,7 +243,9 @@ private:
             tlog::success() << "Loaded mesh \"" << obj_fp << "\" file with " << shapes.size() << " shapes.";
 
             Hittable*** h_hittable_list;
+#ifdef DEBUG_BVH 
             CUDA_CHECK_THROW(cudaMallocManaged((void**)&h_hittable_list, shapes.size() * sizeof(Hittable*)));
+#endif
             size_t shape_id = 0;
             for (auto& shape : shapes) {
                 // vec3 center{};
@@ -261,14 +265,25 @@ private:
                     triangles_cpu.emplace_back(std::make_shared<Tri>(
                         get_vec(i), get_vec(i+1), get_vec(i+2), material_idx
                     ));
+#ifndef DEBUG_BVH 
+                    w_hittables.emplace_back(triangles_cpu.back());
+#endif
                 }
+#ifdef DEBUG_BVH 
                 w_hittables.emplace_back(std::make_shared<BvhCpu>(triangles_cpu, 0, triangles_cpu.size()));
                 Hittable** bvh_gpu_ptr = w_hittables.back()->copy_to_gpu();
                 h_hittable_list[shape_id] = bvh_gpu_ptr;
                 ++shape_id;
+#endif
             }
-            CUDA_CHECK_THROW(cudaMalloc(&w_hittable_gpu, all_config.size() * sizeof(Hittable*)));
-            int n_element = all_config.size();
+#ifndef DEBUG_BVH 
+            CUDA_CHECK_THROW(cudaMallocManaged((void**)&h_hittable_list, w_hittables.size() * sizeof(Hittable*)));
+            for (size_t t= 0; t < w_hittables.size(); ++t) {
+                h_hittable_list[t] = w_hittables[t]->copy_to_gpu();
+            }
+#endif
+            int n_element = w_hittables.size();
+            CUDA_CHECK_THROW(cudaMalloc(&w_hittable_gpu, n_element * sizeof(Hittable*)));
             pt_copy_hittables<<<n_element, 1>>>(n_element, h_hittable_list, w_hittable_gpu);
             CUDA_CHECK_THROW(cudaDeviceSynchronize());
             CUDA_CHECK_THROW(cudaFree(h_hittable_list));
@@ -278,7 +293,7 @@ private:
     void release() {
         // cudaFree(w_material_gpu);
         // cudaFree(w_hittable_gpu);
-        // cudaFree(w_pixel_rand_state_gpu);
+        cudaFree(w_pixel_rand_state_gpu);
         // cudaFree(px_beta);
         // cudaFree(px_attenuation);
         // cudaFree(px_aggregation);
@@ -288,6 +303,7 @@ private:
         cudaFree(px_prev_ray);
         cudaFree(px_end);
         cudaFree(px_prev_end);
+        cudaFree(px_camera);
         cudaFree(px_hit_record);
     }
 
