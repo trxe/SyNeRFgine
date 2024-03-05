@@ -7,12 +7,17 @@
 #include <tiny-cuda-nn/common_device.h>
 #include "common.cuh"
 #include <cstdlib>
+#include <stdio.h>
 
 namespace ngp {
 namespace pt {
 
 struct Material;
+struct LambertianMaterial;
+
 using ngp::Ray;
+
+__global__ void init_material_lambertian(Material** __restrict__ d_mat, vec3 albedo);
 
 struct HitRecord {
   public:
@@ -30,9 +35,9 @@ struct HitRecord {
 
 struct Material {
 public:
-    __host__ virtual ~Material() {}
-    __host__ virtual Material* copy_to_gpu() const = 0;
-    __device__ virtual void test() const = 0;
+    NGP_HOST_DEVICE virtual ~Material() {}
+    NGP_HOST_DEVICE virtual void test() const = 0;
+    __host__ virtual Material** copy_to_gpu() const = 0;
     __device__ virtual bool scatter(
         const Ray& r_in, const HitRecord& rec, vec3& attenuation, Ray& scattered, curandState& rand) const = 0;
 };
@@ -41,15 +46,17 @@ struct LambertianMaterial : public Material {
   public:
     NGP_HOST_DEVICE LambertianMaterial(const vec3& ks) : albedo(ks) {}
     
-    __host__ virtual ~LambertianMaterial() { cudaFree(device); }
+    NGP_HOST_DEVICE virtual ~LambertianMaterial() {}
 
-    __device__ void test() const override {
+    NGP_HOST_DEVICE void test() const override {
       printf("material %f %f %f\n", albedo.r, albedo.g, albedo.b);
     }
 
-    __host__ virtual Material* copy_to_gpu() const override {
-      CUDA_CHECK_THROW(cudaMalloc((void**)&device, sizeof(LambertianMaterial)));
-      CUDA_CHECK_THROW(cudaMemcpy(device, this, sizeof(LambertianMaterial), cudaMemcpyHostToDevice));
+    __host__ virtual Material** copy_to_gpu() const override {
+      Material** device;
+      CUDA_CHECK_THROW(cudaMalloc((void**)&device, sizeof(Material**)));
+      init_material_lambertian<<<1,1>>>(device, albedo);
+      CUDA_CHECK_THROW(cudaDeviceSynchronize());
       return device;
     }
 
@@ -63,7 +70,6 @@ struct LambertianMaterial : public Material {
 
   private:
     vec3 albedo;
-    Material* device{nullptr};
 };
 
 }

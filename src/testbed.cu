@@ -123,8 +123,9 @@ void Testbed::update_imgui_paths() {
 	snprintf(m_imgui.video_path, sizeof(m_imgui.video_path), "%s", get_filename_in_data_path_with_suffix(m_data_path, m_network_config_path, "_video.mp4").c_str());
 }
 
-void Testbed::set_world(pt::World&& world) {
-	m_virtual_world = std::move(world);
+void Testbed::set_world(unsigned int resx, unsigned int resy, const std::string& config_fp) {
+	m_virtual_world = std::make_unique<pt::World>(resx, resy, config_fp);
+	m_is_hybrid = true;
 }
 
 void Testbed::load_training_data(const fs::path& path) {
@@ -2131,6 +2132,7 @@ void Testbed::mouse_drag() {
 		if (m_drag_depth < 256.0f) {
 			translation *= m_drag_depth / m_relative_focal_length[m_fov_axis];
 		}
+		tlog::info() << "cam-translated" << translation.x << " " << translation.y;
 
 		translate_camera(translation, mat3(m_camera));
 	}
@@ -4338,7 +4340,10 @@ void Testbed::render_frame_main(
 	switch (m_testbed_mode) {
 		case ETestbedMode::Nerf:
 			if (!m_render_ground_truth || m_ground_truth_alpha < 1.0f) {
-				hybrid_render_nerf(device.stream(), device, device.render_buffer_view(), device.nerf_network(), device.data().density_grid_bitfield_ptr, focal_length, camera_matrix0, camera_matrix1, nerf_rolling_shutter, screen_center, foveation, visualized_dimension);
+				if (m_is_hybrid)
+					hybrid_render_nerf(device.stream(), device, device.render_buffer_view(), device.nerf_network(), device.data().density_grid_bitfield_ptr, focal_length, camera_matrix0, camera_matrix1, nerf_rolling_shutter, screen_center, foveation, visualized_dimension);
+				else
+					render_nerf(device.stream(), device, device.render_buffer_view(), device.nerf_network(), device.data().density_grid_bitfield_ptr, focal_length, camera_matrix0, camera_matrix1, nerf_rolling_shutter, screen_center, foveation, visualized_dimension);
 			}
 			break;
 		case ETestbedMode::Sdf:

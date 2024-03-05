@@ -15,6 +15,7 @@
 #include <fmt/format.h>
 #include <json/json.hpp>
 #include <tinylogger/tinylogger.h>
+#include <neural-graphics-primitives/path-tracing/hittable.cuh>
 #include <neural-graphics-primitives/path-tracing/hittable_list.cuh>
 #include <neural-graphics-primitives/render_buffer.h>
 #include <neural-graphics-primitives/bounding_box.cuh>
@@ -25,6 +26,10 @@ namespace pt {
 namespace fs = filesystem;
 
 __global__ void pt_debug_mat(Material* d_mat);
+__global__ void pt_copy_mats(uint32_t n_elements, Material*** nested_mat_list, Material** mat_list);
+__global__ void pt_copy_hittables(uint32_t n_elements, Hittable*** nested_hit_list, Hittable** hit_list);
+__global__ void pt_free_mats(uint32_t n_elements, Material** mat_list);
+__global__ void pt_free_hittables(uint32_t n_elements, Hittable** hit_list);
 __global__ void init_rays_world_kernel_nerf(
 	uint32_t sample_index,
 	ivec2 resolution,
@@ -74,10 +79,11 @@ struct World {
     std::vector<std::shared_ptr<Hittable>> w_hittables;
     std::vector<std::vector<std::shared_ptr<Hittable>>> w_primitives;
 
-    World() {}
-    World(unsigned int resx, unsigned int resy, const std::string& config_fp) : w_resolution(resx, resy) {
-        resize(resx, resy, false);
-
+    World() : is_active(false) {}
+    World(const World& other) = delete;
+    World& operator=(const World& other) = delete;
+    World(unsigned int resx, unsigned int resy, const std::string& config_fp) : is_active(true), w_resolution(resx, resy) {
+        alloc_buffers(resx, resy);
         fs::path fp {config_fp};
         if (!fp.exists()) {
             throw std::runtime_error(fmt::format("Virtual World Configuration at {} does not exist", config_fp));
@@ -91,23 +97,36 @@ struct World {
         nlohmann::json& obj_conf = config["objfile"];
         init_objs(obj_conf);
     }
-    ~World() { release(); }
+    ~World() { 
+        release(); 
+        release_mesh();
+    }
 
-    void resize(unsigned int resx, unsigned int resy, bool to_release = true) {
-        if (to_release) release();
+    void resize(unsigned int resx, unsigned int resy) {
+        if (!is_active) return;
+        if (w_resolution.x == resx && w_resolution.y == resy) return;
+        w_resolution.x = (int)resx;
+        w_resolution.y = (int)resy;
+        release();
+        alloc_buffers(resx, resy);
+    }
 
+    void alloc_buffers(unsigned int resx, unsigned int resy) {
+        if (!is_active) return;
+        release();
         uint32_t n_elements = resx * resy;
         CUDA_CHECK_THROW(cudaMalloc(&w_pixel_rand_state_gpu, n_elements * sizeof(curandState)));
         cudaStream_t stream;
         CUDA_CHECK_THROW(cudaStreamCreate(&stream));
         rand_init_pixels<<<resx, resy, 0, stream>>>(resx, resy, w_pixel_rand_state_gpu);
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+        tlog::warning() << "ALLOCATING???";
 
-        CUDA_CHECK_THROW(cudaMalloc(&px_beta, n_elements * sizeof(vec3)));
-        CUDA_CHECK_THROW(cudaMalloc(&px_attenuation, n_elements * sizeof(vec3)));
-        CUDA_CHECK_THROW(cudaMalloc(&px_aggregation, n_elements * sizeof(vec3)));
-        CUDA_CHECK_THROW(cudaMalloc(&px_pos, n_elements * sizeof(vec3)));
-        CUDA_CHECK_THROW(cudaMalloc(&px_shadow, n_elements * sizeof(float)));
+        // CUDA_CHECK_THROW(cudaMalloc(&px_beta, n_elements * sizeof(vec3)));
+        // CUDA_CHECK_THROW(cudaMalloc(&px_attenuation, n_elements * sizeof(vec3)));
+        // CUDA_CHECK_THROW(cudaMalloc(&px_aggregation, n_elements * sizeof(vec3)));
+        // CUDA_CHECK_THROW(cudaMalloc(&px_pos, n_elements * sizeof(vec3)));
+        // CUDA_CHECK_THROW(cudaMalloc(&px_shadow, n_elements * sizeof(float)));
         CUDA_CHECK_THROW(cudaMalloc(&px_ray, n_elements * sizeof(Ray)));
         CUDA_CHECK_THROW(cudaMalloc(&px_prev_ray, n_elements * sizeof(Ray)));
         CUDA_CHECK_THROW(cudaMalloc(&px_end, n_elements * sizeof(bool)));
@@ -150,6 +169,9 @@ struct World {
     );
 
 private:
+	INIT_BENCHMARK();
+
+    bool is_active;
     void init_cam(const nlohmann::json& config) {
         auto& lookfrom = config["lookfrom"];
         auto& lookat = config["lookat"];
@@ -163,25 +185,28 @@ private:
     }
 
     void init_mat(const nlohmann::json& all_config) {
-        std::vector<Material*> h_material_list;
+        Material*** h_material_list;
+        CUDA_CHECK_THROW(cudaMallocManaged(&h_material_list, all_config.size() * sizeof(Material**)));
+        size_t id = 0;
         for (auto& config : all_config) {
-            size_t id {config["id"].get<size_t>()};
             std::string type_str {config["type"].get<std::string>()}; 
             std::shared_ptr<Material> mat;
             if (type_str == "lambertian") {
                 auto& a = config["albedo"];
                 vec3 albedo { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
                 w_materials.emplace_back(std::make_shared<LambertianMaterial>(albedo));
-                h_material_list.push_back(w_materials.back()->copy_to_gpu());
-                Material* d_mat = h_material_list.back();
-                pt_debug_mat<<<1,1>>>(d_mat);
-                CUDA_CHECK_THROW(cudaDeviceSynchronize());
+                Material** d_mat = w_materials.back()->copy_to_gpu();
+                h_material_list[id] = d_mat;
             } else {
                 throw std::runtime_error(fmt::format("Material type {} not supported", type_str));
             }
+            ++id;
         }
-        CUDA_CHECK_THROW(cudaMalloc(&w_material_gpu, h_material_list.size() * sizeof(Material*)));
-        CUDA_CHECK_THROW(cudaMemcpy(w_material_gpu, h_material_list.data(), h_material_list.size(), cudaMemcpyHostToDevice));
+        CUDA_CHECK_THROW(cudaMalloc(&w_material_gpu, all_config.size() * sizeof(Material*)));
+        int n_element = all_config.size();
+        pt_copy_mats<<<n_element, 1>>>(n_element, h_material_list, w_material_gpu);
+        CUDA_CHECK_THROW(cudaDeviceSynchronize());
+        CUDA_CHECK_THROW(cudaFree(h_material_list));
     }
 
     void init_objs(const nlohmann::json& all_config) {
@@ -215,10 +240,12 @@ private:
 
             tlog::success() << "Loaded mesh \"" << obj_fp << "\" file with " << shapes.size() << " shapes.";
 
-            std::vector<Hittable*> h_hittable_list;
+            Hittable*** h_hittable_list;
+            CUDA_CHECK_THROW(cudaMallocManaged((void**)&h_hittable_list, shapes.size() * sizeof(Hittable*)));
+            size_t shape_id = 0;
             for (auto& shape : shapes) {
-                vec3 center{};
-                uint32_t tri_count{0};
+                // vec3 center{};
+                // uint32_t tri_count{0};
                 std::vector<std::shared_ptr<Hittable>> triangles_cpu;
                 auto& idxs = shape.mesh.indices;
                 auto& verts = attrib.vertices;
@@ -234,32 +261,44 @@ private:
                     triangles_cpu.emplace_back(std::make_shared<Tri>(
                         get_vec(i), get_vec(i+1), get_vec(i+2), material_idx
                     ));
-
-                    center += triangles_cpu.back()->center();
-                    ++tri_count;
                 }
-                center = center / (float) tri_count;
-                w_hittables.emplace_back(std::make_shared<Bvh>(triangles_cpu, center, 0, triangles_cpu.size()));
-                h_hittable_list.push_back(w_hittables.back()->copy_to_gpu());
+                w_hittables.emplace_back(std::make_shared<BvhCpu>(triangles_cpu, 0, triangles_cpu.size()));
+                Hittable** bvh_gpu_ptr = w_hittables.back()->copy_to_gpu();
+                h_hittable_list[shape_id] = bvh_gpu_ptr;
+                ++shape_id;
             }
-            CUDA_CHECK_THROW(cudaMalloc(&w_hittable_gpu, h_hittable_list.size() * sizeof(Hittable*)));
-            CUDA_CHECK_THROW(cudaMemcpy(w_hittable_gpu, h_hittable_list.data(), h_hittable_list.size(), cudaMemcpyHostToDevice));
+            CUDA_CHECK_THROW(cudaMalloc(&w_hittable_gpu, all_config.size() * sizeof(Hittable*)));
+            int n_element = all_config.size();
+            pt_copy_hittables<<<n_element, 1>>>(n_element, h_hittable_list, w_hittable_gpu);
+            CUDA_CHECK_THROW(cudaDeviceSynchronize());
+            CUDA_CHECK_THROW(cudaFree(h_hittable_list));
         };
     }
 
     void release() {
-        cudaFree(w_material_gpu);
-        cudaFree(w_hittable_gpu);
-        cudaFree(w_pixel_rand_state_gpu);
-        cudaFree(px_beta);
-        cudaFree(px_attenuation);
-        cudaFree(px_aggregation);
-        cudaFree(px_pos);
-        cudaFree(px_shadow);
+        // cudaFree(w_material_gpu);
+        // cudaFree(w_hittable_gpu);
+        // cudaFree(w_pixel_rand_state_gpu);
+        // cudaFree(px_beta);
+        // cudaFree(px_attenuation);
+        // cudaFree(px_aggregation);
+        // cudaFree(px_pos);
+        // cudaFree(px_shadow);
         cudaFree(px_ray);
         cudaFree(px_prev_ray);
         cudaFree(px_end);
         cudaFree(px_prev_end);
+        cudaFree(px_hit_record);
+    }
+
+    void release_mesh() {
+        auto mat_count = w_materials.size();
+        auto hit_count = w_hittables.size();
+        pt_free_mats<<<mat_count, 1>>>(mat_count, w_material_gpu);
+        pt_free_hittables<<<mat_count, 1>>>(hit_count, w_hittable_gpu);
+        cudaDeviceSynchronize();
+        cudaFree(w_material_gpu);
+        cudaFree(w_hittable_gpu);
     }
 };
 

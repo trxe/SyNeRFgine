@@ -36,6 +36,8 @@
 
 #include <json/json.hpp>
 
+#include <memory>
+
 #ifdef NGP_PYTHON
 #  include <pybind11/pybind11.h>
 #  include <pybind11/numpy.h>
@@ -76,7 +78,7 @@ public:
 	void load_training_data(const fs::path& path);
 	void reload_training_data();
 	void clear_training_data();
-	void set_world(pt::World&& world);
+	void set_world(unsigned int resx, unsigned int resy, const std::string& config_fp);
 
 	void set_mode(ETestbedMode mode);
 
@@ -1228,7 +1230,8 @@ public:
 	} m_distortion;
 
 	std::shared_ptr<NerfNetwork<network_precision_t>> m_nerf_network;
-	pt::World m_virtual_world;
+	bool m_is_hybrid{false};
+	std::unique_ptr<pt::World> m_virtual_world;
 };
 
 }

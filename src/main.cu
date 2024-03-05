@@ -177,8 +177,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.init_vr();
 	}
 	if (virtual_scene_config_flag){
-		pt::World world{width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080, virtual_scene_config_flag.Get()};
-		testbed.set_world(std::move(world));
+		testbed.set_world(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080, virtual_scene_config_flag.Get());;
 	}
 
 	// Render/training loop

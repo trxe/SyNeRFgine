@@ -24,6 +24,13 @@
         "filesystem": "cpp",
         "chrono": "cpp",
         "xstring": "cpp",
-        "vector": "cpp"
+        "vector": "cpp",
+        "deque": "cpp",
+        "forward_list": "cpp",
+        "list": "cpp",
+        "locale": "cpp",
+        "valarray": "cpp",
+        "xlocmon": "cpp",
+        "xlocnum": "cpp"
     },
 }

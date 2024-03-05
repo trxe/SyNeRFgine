@@ -15,35 +15,35 @@
 namespace ngp { 
 namespace pt {
 
+struct Hittable;
+struct Tri;
 using namespace tcnn;
+
+__global__ void pt_init_tri(Hittable** hittable, vec3 p0, vec3 p1, vec3 p2, uint32_t mat_idx);
+__global__ void pt_debug_hittables(uint32_t count, Hittable** hittables);
 
 struct Hittable {
   public:
     __host__ virtual ~Hittable() {}
     NGP_HOST_DEVICE virtual AABB bounding_box() const = 0;
     NGP_HOST_DEVICE virtual vec3 center() const = 0;
+    NGP_HOST_DEVICE virtual void print(uint32_t indent = 0) const = 0;
     __device__ virtual bool hit(const ngp::Ray& r, float ray_tmin, float ray_tmax, HitRecord& rec) const = 0;
-    __host__ virtual Hittable* copy_to_gpu() const = 0;
-    __host__ virtual Hittable* copy_to_gpu(const cudaStream_t& stream) const = 0;
-    __host__ Hittable* get_device() {
-        return device;
-    }
-protected:
-    Hittable* device {nullptr};
+    __host__ virtual Hittable** copy_to_gpu() const = 0;
 };
 
 struct Tri : public Hittable {
 public:
     vec3 point[3];
+    vec3 normal;
     uint32_t material_idx;
 
     NGP_HOST_DEVICE Tri(const vec3& p1, const vec3& p2, const vec3& p3, uint32_t material_idx) : material_idx(material_idx) {
         point[0] = p1;
         point[1] = p2;
         point[2] = p3;
+        normal = normalize(cross(p2 - p1, p3 - p1));
     }
-
-    __host__ virtual ~Tri()  { cudaFree(device); }
 
     NGP_HOST_DEVICE vec3 center() const override {
         return (point[0] + point[1] + point[2]) / 3.0f;
@@ -59,19 +59,22 @@ public:
         return {xleft, xright, yleft, yright, zleft, zright};
     }
 
-    __host__ virtual Hittable* copy_to_gpu() const override {
-        if (!device) {
-            CUDA_CHECK_THROW(cudaMalloc((void**)&device, sizeof(Tri)));
-        }
-		CUDA_CHECK_THROW(cudaMemcpy(device, this, sizeof(Tri), cudaMemcpyHostToDevice));
-		return device;
+    NGP_HOST_DEVICE void print(uint32_t indent = 0) const override {
+        char* str_indent = new char[indent];
+        for (uint32_t i = 0; i < indent; ++i) str_indent[i] = ' ';
+        printf("**%sTRI: {%f, %f, %f}, {%f, %f, %f}, {%f, %f, %f}\n", str_indent, 
+            point[0].x, point[0].y, point[0].z, 
+            point[1].x, point[1].y, point[1].z, 
+            point[2].x, point[2].y, point[2].z
+        );
+        delete str_indent;
     }
 
-    __host__ virtual Hittable* copy_to_gpu(const cudaStream_t& stream) const override {
-        if (!device) {
-            CUDA_CHECK_THROW(cudaMallocAsync((void**)&device, sizeof(Tri), stream));
-        }
-		CUDA_CHECK_THROW(cudaMemcpyAsync(device, this, sizeof(Tri), cudaMemcpyHostToDevice, stream));
+    __host__ virtual Hittable** copy_to_gpu() const override {
+        Hittable** device;
+        CUDA_CHECK_THROW(cudaMalloc((void**)&device, sizeof(Hittable*)));
+        pt_init_tri<<<1, 1>>>(device, point[0], point[1], point[2], material_idx);
+        CUDA_CHECK_THROW(cudaDeviceSynchronize());
 		return device;
     }
 
@@ -106,7 +109,7 @@ public:
             rec.t = t;
             rec.pos = r.o + r.d * t;
             rec.material_idx = material_idx;
-            rec.normal = normalize(cross(edge1, edge2));
+            rec.normal = normal;
             rec.front_face = true;
             return true;
         }

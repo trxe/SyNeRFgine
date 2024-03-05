@@ -41,6 +41,26 @@
                 1.0
             ],
             "fuzz": 0.0
+        },
+        {
+            "id": 1,
+            "type": "lambertian",
+            "albedo": [
+                0.0,
+                0.0,
+                1.0
+            ],
+            "fuzz": 0.0
+        },
+        {
+            "id": 2,
+            "type": "lambertian",
+            "albedo": [
+                0.0,
+                1.0,
+                0.2
+            ],
+            "fuzz": 0.0
         }
     ]
 }

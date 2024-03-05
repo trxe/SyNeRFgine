@@ -273,6 +273,8 @@ list(APPEND NGP_SOURCES
 	src/tinyobj_loader_wrapper.cu
 	src/triangle_bvh.cu
 	src/path_tracing/common.cu
+	src/path_tracing/hittable.cu
+	src/path_tracing/material.cu
 	src/path_tracing/world.cu
 )
 

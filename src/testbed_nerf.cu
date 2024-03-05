@@ -24,6 +24,7 @@
 #include <neural-graphics-primitives/testbed.h>
 #include <neural-graphics-primitives/trainable_buffer.cuh>
 #include <neural-graphics-primitives/triangle_octree.cuh>
+#include <neural-graphics-primitives/path-tracing/common.cuh>
 
 #include <tiny-cuda-nn/encodings/grid.h>
 #include <tiny-cuda-nn/encodings/spherical_harmonics.h>
@@ -1407,6 +1408,7 @@ __global__ void init_rays_with_payload_kernel_nerf(
 	vec2 pixel_offset = ld_random_pixel_offset(snap_to_pixel_centers ? 0 : sample_index);
 	vec2 uv = vec2{(float)x + pixel_offset.x, (float)y + pixel_offset.y} / vec2(resolution);
 	mat4x3 camera = get_xform_given_rolling_shutter({camera_matrix0, camera_matrix1}, rolling_shutter, uv, ld_random_val(sample_index, idx * 72239731));
+	if (idx == 0) pt::print_mat4x3(camera);
 
 	Ray ray = uv_to_ray(
 		sample_index,
@@ -1843,8 +1845,8 @@ void Testbed::hybrid_render_nerf(
 	device.wait_for(stream);
 	auto res = render_buffer.resolution;
 
-	m_virtual_world.resize(res.x, res.y);
-	m_virtual_world.init_rays(
+	m_virtual_world->resize(res.x, res.y);
+	m_virtual_world->init_rays(
 		stream,
 		render_buffer.spp,
 		render_buffer.resolution,
@@ -1860,12 +1862,12 @@ void Testbed::hybrid_render_nerf(
 		m_render_near_distance,
 		m_slice_plane_z,
 		m_aperture_size,
-	foveation,
+		foveation,
 		lens,
 		render_buffer.hidden_area_mask ? render_buffer.hidden_area_mask->const_view() : Buffer2DView<const uint8_t>{},
 		grid_distortion);
 
-	m_virtual_world.render(stream, device.render_buffer_view(),
+	m_virtual_world->render(stream, device.render_buffer_view(),
 		focal_length, camera_matrix0, camera_matrix1, 
 		rolling_shutter, screen_center, foveation, 
 		visualized_dimension);
