@@ -1817,6 +1817,60 @@ void Testbed::Nerf::Training::update_extra_dims() {
 	CUDA_CHECK_THROW(cudaMemcpyAsync(extra_dims_gpu.data(), extra_dims_cpu.data(), extra_dims_opt.size() * n_extra_dims * sizeof(float), cudaMemcpyHostToDevice));
 }
 
+void Testbed::hybrid_render_nerf(
+	cudaStream_t stream,
+	CudaDevice& device,
+	const CudaRenderBufferView& render_buffer,
+	const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+	const uint8_t* density_grid_bitfield,
+	const vec2& focal_length,
+	const mat4x3& camera_matrix0,
+	const mat4x3& camera_matrix1,
+	const vec4& rolling_shutter,
+	const vec2& screen_center,
+	const Foveation& foveation,
+	int visualized_dimension
+) {
+	// Our motion vector code can't undo grid distortions -- so don't render grid distortion if DLSS is enabled.
+	// (Unless we're in distortion visualization mode, in which case the distortion grid is fine to visualize.)
+	auto grid_distortion =
+		m_nerf.render_with_lens_distortion && (!m_dlss || m_render_mode == ERenderMode::Distortion) ?
+		m_distortion.inference_view() :
+		Buffer2DView<const vec2>{};
+
+	Lens lens = m_nerf.render_with_lens_distortion ? m_nerf.render_lens : Lens{};
+	auto guard = device.device_guard();
+	device.wait_for(stream);
+	auto res = render_buffer.resolution;
+
+	m_virtual_world.resize(res.x, res.y);
+	m_virtual_world.init_rays(
+		stream,
+		render_buffer.spp,
+		render_buffer.resolution,
+		focal_length,
+		camera_matrix0,
+		camera_matrix1,
+		screen_center,
+		rolling_shutter,
+		m_parallax_shift,
+		m_render_aabb,
+		m_render_aabb_to_local,
+		m_snap_to_pixel_centers,
+		m_render_near_distance,
+		m_slice_plane_z,
+		m_aperture_size,
+	foveation,
+		lens,
+		render_buffer.hidden_area_mask ? render_buffer.hidden_area_mask->const_view() : Buffer2DView<const uint8_t>{},
+		grid_distortion);
+
+	m_virtual_world.render(stream, device.render_buffer_view(),
+		focal_length, camera_matrix0, camera_matrix1, 
+		rolling_shutter, screen_center, foveation, 
+		visualized_dimension);
+}
+
 void Testbed::render_nerf(
 	cudaStream_t stream,
 	CudaDevice& device,
@@ -1850,8 +1904,6 @@ void Testbed::render_nerf(
 		Buffer2DView<const vec2>{};
 
 	Lens lens = m_nerf.render_with_lens_distortion ? m_nerf.render_lens : Lens{};
-
-	auto resolution = render_buffer.resolution;
 
 	tracer.init_rays_from_camera(
 		render_buffer.spp,

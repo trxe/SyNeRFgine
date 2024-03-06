@@ -1,0 +1,46 @@
+{
+    "ns": 10,
+    "camera": {
+        "lookfrom": [
+            13,
+            2,
+            3
+        ],
+        "lookat": [
+            0,
+            0,
+            0
+        ],
+        "vup": [
+            0,
+            0,
+            1
+        ],
+        "vfov": 55,
+        "aspect": 2,
+        "aperture": 0.1,
+        "focus_dist": 17.3
+    },
+    "spheres": [
+        {"center": [0.0, 5, 0.0], "radius": 0.2, "material": 0},
+        {"center": [0.0, 1.0, 0.0], "radius": 0.25, "material": 0}
+    ],
+    "objfile": [
+        {
+            "dir": "../data/obj/smallbox.obj",
+            "material": 0
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "albedo": [
+                0.0,
+                1.0,
+                1.0
+            ],
+            "fuzz": 0.0
+        }
+    ]
+}

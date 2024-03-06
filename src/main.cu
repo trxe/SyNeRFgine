@@ -13,6 +13,7 @@
  */
 
 #include <neural-graphics-primitives/testbed.h>
+#include <neural-graphics-primitives/path-tracing/world.cuh>
 
 #include <tiny-cuda-nn/common.h>
 
@@ -40,18 +41,18 @@ int main_func(const std::vector<std::string>& arguments) {
 		{'h', "help"},
 	};
 
-	ValueFlag<string> mode_flag{
-		parser,
-		"MODE",
-		"Deprecated. Do not use.",
-		{'m', "mode"},
-	};
-
 	ValueFlag<string> network_config_flag{
 		parser,
 		"CONFIG",
 		"Path to the network config. Uses the scene's default if unspecified.",
 		{'n', 'c', "network", "config"},
+	};
+
+	ValueFlag<string> virtual_scene_config_flag{
+		parser,
+		"VIRTUAL",
+		"Path to the virtual scene config. None if unspecified.",
+		{'v', "virtual"},
 	};
 
 	Flag no_gui_flag{
@@ -144,10 +145,6 @@ int main_func(const std::vector<std::string>& arguments) {
 		return 0;
 	}
 
-	if (mode_flag) {
-		tlog::warning() << "The '--mode' argument is no longer in use. It has no effect. The mode is automatically chosen based on the scene.";
-	}
-
 	Testbed testbed;
 
 	for (auto file : get(files)) {
@@ -178,6 +175,10 @@ int main_func(const std::vector<std::string>& arguments) {
 
 	if (vr_flag) {
 		testbed.init_vr();
+	}
+	if (virtual_scene_config_flag){
+		pt::World world{width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080, virtual_scene_config_flag.Get()};
+		testbed.set_world(std::move(world));
 	}
 
 	// Render/training loop

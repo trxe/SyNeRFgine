@@ -25,6 +25,7 @@
 #include <neural-graphics-primitives/shared_queue.h>
 #include <neural-graphics-primitives/thread_pool.h>
 #include <neural-graphics-primitives/trainable_buffer.cuh>
+#include <neural-graphics-primitives/path-tracing/world.cuh>
 
 #ifdef NGP_GUI
 #  include <neural-graphics-primitives/openxr_hmd.h>
@@ -75,6 +76,7 @@ public:
 	void load_training_data(const fs::path& path);
 	void reload_training_data();
 	void clear_training_data();
+	void set_world(pt::World&& world);
 
 	void set_mode(ETestbedMode mode);
 
@@ -278,6 +280,20 @@ public:
 
 	class CudaDevice;
 
+	void hybrid_render_nerf(
+		cudaStream_t stream,
+		CudaDevice& device,
+		const CudaRenderBufferView& render_buffer,
+		const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+		const uint8_t* density_grid_bitfield,
+		const vec2& focal_length,
+		const mat4x3& camera_matrix0,
+		const mat4x3& camera_matrix1,
+		const vec4& rolling_shutter,
+		const vec2& screen_center,
+		const Foveation& foveation,
+		int visualized_dimension
+	);
 	void render_nerf(
 		cudaStream_t stream,
 		CudaDevice& device,
@@ -1212,6 +1228,7 @@ public:
 	} m_distortion;
 
 	std::shared_ptr<NerfNetwork<network_precision_t>> m_nerf_network;
+	pt::World m_virtual_world;
 };
 
 }
