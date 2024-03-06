@@ -40,6 +40,8 @@
 #  include <pybind11/numpy.h>
 #endif
 
+#include <synerfgine/filters.cuh>
+
 #include <thread>
 
 struct GLFWwindow;
@@ -55,6 +57,7 @@ template <uint32_t N_DIMS, uint32_t RANK, typename T> class TrainableBuffer;
 
 namespace sng {
 	class NerfWorld;
+	class SyntheticWorld;
 }
 
 namespace ngp {
@@ -68,6 +71,7 @@ class GLTexture;
 class Testbed {
 public:
 	friend class sng::NerfWorld;
+	friend class sng::SyntheticWorld;
 	struct Nerf;
 	Testbed(ETestbedMode mode = ETestbedMode::None);
 	~Testbed();
@@ -153,6 +157,36 @@ public:
 
 		void init_rays_from_camera(
 			uint32_t spp,
+			std::shared_ptr<NerfNetwork<network_precision_t>> nerf_network,
+			const ivec2& resolution,
+			const vec2& focal_length,
+			const mat4x3& cam_matrix,
+			const vec4& rolling_shutter,
+			const vec2& screen_center,
+			const vec3& parallax_shift,
+			bool snap_to_pixel_centers,
+			const BoundingBox& render_aabb,
+			const mat3& render_aabb_to_local,
+			float near_distance,
+			float plane_z,
+			float aperture_size,
+			const Foveation& foveation,
+			const Lens& lens,
+			const Buffer2DView<const vec4>& envmap,
+			const Buffer2DView<const vec2>& distortion,
+			vec4* frame_buffer,
+			float* depth_buffer,
+			const Buffer2DView<const uint8_t>& hidden_area_mask,
+			const uint8_t* grid,
+			int show_accel,
+			uint32_t max_mip,
+			float cone_angle_constant,
+			ERenderMode render_mode,
+			cudaStream_t stream
+		);
+
+		void init_rays_from_camera(
+			uint32_t spp,
 			uint32_t padded_output_width,
 			uint32_t n_extra_dims,
 			const ivec2& resolution,
@@ -180,6 +214,29 @@ public:
 			uint32_t max_mip,
 			float cone_angle_constant,
 			ERenderMode render_mode,
+			cudaStream_t stream
+		);
+
+		void init_rays_from_payload(
+			const ivec2& resolution,
+			const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+			cudaStream_t stream
+		);
+
+		void shoot_shadow_rays(
+			NerfPayload* shadow_payload,
+			const CudaRenderBufferView& render_buffer,
+			float* shadow_coeffs,
+			const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+			const uint8_t* grid,
+			const vec3& sun_pos,
+			const vec3& center_pos,
+			uint32_t max_mip,
+			const BoundingBox& render_aabb,
+			const mat3& render_aabb_to_local,
+			sng::ImgFilters filter_type,
+			int kernel_size,
+			float std_dev,
 			cudaStream_t stream
 		);
 
@@ -222,6 +279,12 @@ public:
 		uint32_t m_n_rays_initialized = 0;
 		GPUMemoryArena::Allocation m_scratch_alloc;
 	};
+
+	// void trace_reflection_rays(
+	// 	NerfTracer& refl_tracer,
+	// 	const mat4x3& cam_mat,
+	// 	const vec2& focal_len
+	// );
 
 	class FiniteDifferenceNormalsApproximator {
 	public:
@@ -284,6 +347,24 @@ public:
 	void load_volume(const fs::path& data_path);
 
 	class CudaDevice;
+
+	void render_nerf_with_shadow(
+		cudaStream_t stream,
+		CudaDevice& device,
+		const CudaRenderBufferView& render_buffer,
+		const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+		const uint8_t* density_grid_bitfield,
+		const vec2& focal_length,
+		const mat4x3& camera_matrix0,
+		const mat4x3& camera_matrix1,
+		const vec4& rolling_shutter,
+		const vec2& screen_center,
+		const Foveation& foveation,
+		int visualized_dimension,
+		const std::vector<vec3> lights,
+		const Triangle* gpu_triangles,
+		size_t gpu_triangles_count
+	);
 
 	void render_nerf(
 		cudaStream_t stream,
@@ -564,7 +645,7 @@ public:
 	ivec2 m_window_res = ivec2(0);
 	bool m_dynamic_res = true;
 	float m_dynamic_res_target_fps = 20.0f;
-	int m_fixed_res_factor = 8;
+	int m_fixed_res_factor = 64;
 	float m_scale = 1.0;
 	float m_aperture_size = 0.0f;
 	vec2 m_relative_focal_length = vec2(1.0f);

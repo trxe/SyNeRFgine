@@ -4,10 +4,11 @@
 
 #include <tiny-cuda-nn/common.h>
 
-#include <synerfgine/camera.h>
+#include <synerfgine/camera.cuh>
 #include <synerfgine/display.h>
 #include <synerfgine/file.h>
 #include <synerfgine/virtual_object.h>
+#include <imgui/imgui.h>
 
 namespace sng {
 
@@ -75,9 +76,6 @@ GLFWwindow* Renderer::create_glfw_window(const ivec2& m_window_res) {
 
     tlog::success() << "Initialized OpenGL version " << glGetString(GL_VERSION);
 
-	// TODO: Fix window size crashing issues
-	// glfwSetWindowSizeCallback(m_glfw_window, );
-
 	init_opengl_shaders();
 
 	return m_glfw_window;
@@ -116,8 +114,11 @@ void Ui::init_imgui(GLFWwindow* m_glfw_window) {
 }
 
 void Ui::imgui(SyntheticWorld& syn_world, NerfWorld& nerf_world, float frame_time) {
-	syn_world.imgui(frame_time);
-	nerf_world.imgui(frame_time);
+	if (ImGui::Begin("Controls")) {
+		syn_world.imgui(frame_time);
+		nerf_world.imgui(frame_time);
+		ImGui::End();
+	}
 }
 
 void Renderer::init_opengl_shaders() {
@@ -172,18 +173,6 @@ void Renderer::init_opengl_shaders() {
 			float sd = texture(syn_depth, tex_coords.xy).r;
 			vec4 nerf = texture(nerf_rgba, tex_coords.xy);
 			float nd = texture(nerf_depth, tex_coords.xy).r;
-
-			// DEBUG
-			// frag_color = vec4(0.0, 0.0, 0.0, 1.0);
-			// if (nd < max_nd) {
-			// 	frag_color += vec4(0.0, 0.0, nd, 1.0);
-			// 	gl_FragDepth = nd;
-			// }
-			// if (sd < nd) {
-			// 	frag_color += vec4(sd, 0.0, 0.0, 1.0);
-			// 	gl_FragDepth = nd;
-			// }
-			// frag_color.rgb /= 5.0;
 
 			if (sd < nd) {
 				frag_color = vec4(syn.rgb, 1.0);
@@ -466,27 +455,27 @@ void Renderer::blit_texture(const ngp::Foveation& foveation, GLint syn_rgba, GLi
 	glBindTexture(GL_TEXTURE_2D, nerf_depth);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, nerf_rgba);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_2D, syn_depth);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, syn_rgba);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, rgba_filter_mode);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, rgba_filter_mode);
 

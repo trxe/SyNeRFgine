@@ -20,11 +20,14 @@ public:
     Engine();
     void init(int res_width, int res_height, Testbed* nerf);
     bool frame();
+    void debug_rays();
     void redraw_next_frame() { is_dirty = true; }
     ~Engine();
 
 private:
     bool is_dirty = true;
+    bool m_is_debug_rays = true;
+    bool m_show_nerf = false;
     SyntheticWorld m_syn_world;
     NerfWorld m_nerf_world;
     Testbed* m_testbed;
