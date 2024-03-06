@@ -4,7 +4,7 @@
 
 #include <tiny-cuda-nn/common.h>
 
-#include <synerfgine/camera.h>
+#include <synerfgine/camera.cuh>
 #include <synerfgine/display.h>
 #include <synerfgine/file.h>
 #include <synerfgine/virtual_object.h>
@@ -75,9 +75,6 @@ GLFWwindow* Renderer::create_glfw_window(const ivec2& m_window_res) {
     }
 
     tlog::success() << "Initialized OpenGL version " << glGetString(GL_VERSION);
-
-	// TODO: Fix window size crashing issues
-	// glfwSetWindowSizeCallback(m_glfw_window, );
 
 	init_opengl_shaders();
 

@@ -2,7 +2,7 @@
 
 #include <neural-graphics-primitives/testbed.h>
 #include <synerfgine/cuda_helpers.h>
-#include <synerfgine/camera.h>
+#include <synerfgine/camera.cuh>
 #include <synerfgine/virtual_object.h>
 #include <synerfgine/light.cuh>
 
@@ -11,11 +11,22 @@ using ngp::Testbed;
 
 class Display;
 
+enum NerfImgBuffers {
+    NerfWorldOrigin,
+    NerfWorldDir
+};
+
+static const char* nerf_buffer_names[] = {
+    "[Refl][Payload] Origin",
+    "[Refl][Payload] Dir"
+};
+
 class NerfWorld {
 public:
     NerfWorld();
     void init(Testbed* testbed);
     bool handle(CudaDevice& device, const Camera& cam, const Light& sun, std::optional<VirtualObject>& vo, const ivec2& view_res);
+    void reset_frame(CudaDevice& device, const ivec2& resolution);
     void shadow_rays(
         cudaStream_t stream,
         const mat4x3& camera_matrix0,
@@ -28,6 +39,8 @@ public:
     );
     std::shared_ptr<CudaRenderBuffer> render_buffer() { return m_render_buffer; }
     void imgui(float frame_time);
+
+    bool debug_init_rays(CudaDevice& device, const ivec2& resolution, const Camera& cam);
 
 private:
     friend class sng::Display;
@@ -56,6 +69,7 @@ private:
     std::shared_ptr<CudaRenderBuffer> m_render_buffer;
     CudaRenderBufferView m_render_buffer_view;
     ivec2 m_resolution;
+    NerfImgBuffers m_buffer_type{NerfImgBuffers::NerfWorldDir};
 };
 
 }

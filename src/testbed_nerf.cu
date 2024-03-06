@@ -1713,6 +1713,7 @@ __global__ void safe_divide(const uint32_t num_elements, float* __restrict__ ino
 	inout[i] = local_divisor > 0.0f ? (inout[i] / local_divisor) : 0.0f;
 }
 
+
 void Testbed::NerfTracer::shoot_shadow_rays(
 	NerfPayload* shadow_payload,
 	const CudaRenderBufferView& render_buffer,
@@ -1731,7 +1732,7 @@ void Testbed::NerfTracer::shoot_shadow_rays(
 ) {
 	auto resolution = render_buffer.resolution;
 	auto n_extra_dims = nerf_network->n_extra_dims();
-	size_t n_pixels = (size_t)resolution.x * resolution.y;
+	size_t n_pixels = (size_t)(resolution.x * resolution.y);
 	enlarge(n_pixels, nerf_network->padded_output_width(), n_extra_dims, stream);
 
 	float cone_angle_constant = 1.0f;
@@ -1753,6 +1754,104 @@ void Testbed::NerfTracer::shoot_shadow_rays(
 		filter_type,
 		kernel_size,
 		std_dev
+	);
+}
+
+void Testbed::NerfTracer::init_rays_from_payload(
+	const ivec2& resolution,
+	const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+	cudaStream_t stream
+) {
+	// Make sure we have enough memory reserved to render at the requested resolution
+	size_t n_pixels = (size_t)resolution.x * resolution.y;
+	enlarge(n_pixels, nerf_network->padded_output_width(), nerf_network->n_extra_dims(), stream);
+
+	m_n_rays_initialized = resolution.x * resolution.y;
+
+	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].rgba, 0, m_n_rays_initialized * sizeof(vec4), stream));
+	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].depth, 0, m_n_rays_initialized * sizeof(float), stream));
+}
+
+void Testbed::NerfTracer::init_rays_from_camera(
+	uint32_t sample_index,
+	std::shared_ptr<NerfNetwork<network_precision_t>> nerf_network,
+	const ivec2& resolution,
+	const vec2& focal_length,
+	const mat4x3& cam_matrix,
+	const vec4& rolling_shutter,
+	const vec2& screen_center,
+	const vec3& parallax_shift,
+	bool snap_to_pixel_centers,
+	const BoundingBox& render_aabb,
+	const mat3& render_aabb_to_local,
+	float near_distance,
+	float plane_z,
+	float aperture_size,
+	const Foveation& foveation,
+	const Lens& lens,
+	const Buffer2DView<const vec4>& envmap,
+	const Buffer2DView<const vec2>& distortion,
+	vec4* frame_buffer,
+	float* depth_buffer,
+	const Buffer2DView<const uint8_t>& hidden_area_mask,
+	const uint8_t* grid,
+	int show_accel,
+	uint32_t max_mip,
+	float cone_angle_constant,
+	ERenderMode render_mode,
+	cudaStream_t stream
+) {
+	// Make sure we have enough memory reserved to render at the requested resolution
+	size_t n_pixels = (size_t)resolution.x * resolution.y;
+	uint32_t padded_output_width = nerf_network->padded_output_width();
+	uint32_t n_extra_dims = nerf_network->n_extra_dims();
+	enlarge(n_pixels, padded_output_width, n_extra_dims, stream);
+
+	const dim3 threads = { 16, 8, 1 };
+	const dim3 blocks = { div_round_up((uint32_t)resolution.x, threads.x), div_round_up((uint32_t)resolution.y, threads.y), 1 };
+	init_rays_with_payload_kernel_nerf<<<blocks, threads, 0, stream>>>(
+		sample_index,
+		m_rays[0].payload,
+		resolution,
+		focal_length,
+		cam_matrix,
+		cam_matrix,
+		rolling_shutter,
+		screen_center,
+		parallax_shift,
+		snap_to_pixel_centers,
+		render_aabb,
+		render_aabb_to_local,
+		near_distance,
+		plane_z,
+		aperture_size,
+		foveation,
+		lens,
+		envmap,
+		frame_buffer,
+		depth_buffer,
+		hidden_area_mask,
+		distortion,
+		render_mode
+	);
+
+	m_n_rays_initialized = resolution.x * resolution.y;
+
+	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].rgba, 0, m_n_rays_initialized * sizeof(vec4), stream));
+	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].depth, 0, m_n_rays_initialized * sizeof(float), stream));
+
+	linear_kernel(advance_pos_nerf_kernel, 0, stream,
+		m_n_rays_initialized,
+		render_aabb,
+		render_aabb_to_local,
+		cam_matrix[2],
+		focal_length,
+		sample_index,
+		m_rays[0].payload,
+		grid,
+		(show_accel >= 0) ? show_accel : 0,
+		max_mip,
+		cone_angle_constant
 	);
 }
 
