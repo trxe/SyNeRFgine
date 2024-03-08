@@ -157,6 +157,36 @@ public:
 
 		void init_rays_from_camera(
 			uint32_t spp,
+			std::shared_ptr<NerfNetwork<network_precision_t>> nerf_network,
+			const ivec2& resolution,
+			const vec2& focal_length,
+			const mat4x3& cam_matrix,
+			const vec4& rolling_shutter,
+			const vec2& screen_center,
+			const vec3& parallax_shift,
+			bool snap_to_pixel_centers,
+			const BoundingBox& render_aabb,
+			const mat3& render_aabb_to_local,
+			float near_distance,
+			float plane_z,
+			float aperture_size,
+			const Foveation& foveation,
+			const Lens& lens,
+			const Buffer2DView<const vec4>& envmap,
+			const Buffer2DView<const vec2>& distortion,
+			vec4* frame_buffer,
+			float* depth_buffer,
+			const Buffer2DView<const uint8_t>& hidden_area_mask,
+			const uint8_t* grid,
+			int show_accel,
+			uint32_t max_mip,
+			float cone_angle_constant,
+			ERenderMode render_mode,
+			cudaStream_t stream
+		);
+
+		void init_rays_from_camera(
+			uint32_t spp,
 			uint32_t padded_output_width,
 			uint32_t n_extra_dims,
 			const ivec2& resolution,
@@ -184,6 +214,12 @@ public:
 			uint32_t max_mip,
 			float cone_angle_constant,
 			ERenderMode render_mode,
+			cudaStream_t stream
+		);
+
+		void init_rays_from_payload(
+			const ivec2& resolution,
+			const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
 			cudaStream_t stream
 		);
 
@@ -243,6 +279,12 @@ public:
 		uint32_t m_n_rays_initialized = 0;
 		GPUMemoryArena::Allocation m_scratch_alloc;
 	};
+
+	// void trace_reflection_rays(
+	// 	NerfTracer& refl_tracer,
+	// 	const mat4x3& cam_mat,
+	// 	const vec2& focal_len
+	// );
 
 	class FiniteDifferenceNormalsApproximator {
 	public:

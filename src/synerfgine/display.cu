@@ -76,9 +76,6 @@ GLFWwindow* Renderer::create_glfw_window(const ivec2& m_window_res) {
 
     tlog::success() << "Initialized OpenGL version " << glGetString(GL_VERSION);
 
-	// TODO: Fix window size crashing issues
-	// glfwSetWindowSizeCallback(m_glfw_window, );
-
 	init_opengl_shaders();
 
 	return m_glfw_window;

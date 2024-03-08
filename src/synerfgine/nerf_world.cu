@@ -99,7 +99,6 @@ bool NerfWorld::handle(sng::CudaDevice& device, const Camera& cam, const Light& 
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
         m_testbed->render_frame_epilogue(stream, cam_matrix, m_last_camera, screen_center, 
             m_testbed->m_relative_focal_length, {}, {}, *m_render_buffer);
-
     }
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     m_last_camera = cam_matrix;
@@ -128,8 +127,8 @@ void NerfWorld::imgui(float frame_time) {
 __global__ void debug_depth(const uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
-    if (i == n_elements * 4 / 7) {
-        printf("NERF DEPTH: %.5f\n", depth[i]);
+    if (i % 10000 == 0) {
+        printf("NERF DEPTH[%d]: %.5f\n", i, depth[i]);
     }
 }
 

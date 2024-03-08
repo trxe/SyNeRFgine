@@ -28,19 +28,10 @@ const float bounding_radius = 1.0f;
 const float exposure = 0.0f;
 }
 
-struct HitInfo;
-
 class Camera {
 public:
     Camera() {}
-    ~Camera() {
-        m_gpu_positions.check_guards();
-        m_gpu_positions.free_memory();
-        m_gpu_directions.check_guards();
-        m_gpu_directions.free_memory();
-    }
 
-    void generate_rays_async(CudaDevice& device);
 	void translate_camera(const vec3& rel, const mat3& rot, bool allow_up_down = true);
 	mat3 rotation_from_angles(const vec2& angles) const;
 	bool handle_user_input();
@@ -69,14 +60,14 @@ public:
 			return;
 		}
 	}
-    vec3* gpu_positions() { return m_gpu_positions.data(); }
-    vec3* gpu_directions() { return m_gpu_directions.data(); }
 
 	vec2 calc_focal_length(const ivec2& resolution, const vec2& relative_focal_length, int fov_axis, float zoom) const;
 	vec2 get_focal_length(const ivec2& resolution) const { return calc_focal_length(resolution, m_relative_focal_length, m_fov_axis, m_zoom); }
 	vec2 render_screen_center(const vec2& screen_center) const;
 	mat4x3 get_matrix() const { return m_camera; }
     // void set_render_buffer(const CudaRenderBuffer& render_buffer) { m_render_buffer = {render_buffer};}
+
+	const float m_ndc_znear = 1.0f / 32.0f;
 
 private:
 	bool is_buffer_outdated = true;
@@ -101,17 +92,10 @@ private:
 	vec2 m_relative_focal_length{1.0f, 1.0f};
 	float m_drag_depth = 1.0f;
 
-	const float m_ndc_znear = 1.0f / 32.0f;
 	const float m_ndc_zfar = 128.0f;
     const uint32_t m_fps_camera = 12;
 
-    // CudaRenderBuffer* p_render_buffer;
-
-    // Light m_sun;
-
     ivec2 m_resolution;
-    GPUMemory<vec3> m_gpu_positions;
-    GPUMemory<vec3> m_gpu_directions;
 };
 
 
