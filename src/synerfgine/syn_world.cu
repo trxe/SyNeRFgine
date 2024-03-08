@@ -88,7 +88,7 @@ __global__ void init_rays_cam(
 	// Buffer2DView<const vec4> envmap,
 	ngp::NerfPayload* __restrict__ payloads,
 	// vec4* __restrict__ frame_buffer,
-	// float* __restrict__ depth_buffer,
+	float* __restrict__ depth_buffer,
 	Buffer2DView<const uint8_t> hidden_area_mask,
 	Buffer2DView<const vec2> distortion,
 	ERenderMode render_mode
@@ -155,9 +155,6 @@ bool SyntheticWorld::handle(CudaDevice& device, const ivec2& resolution) {
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 
     bool changed_depth = cam_matrix == m_last_camera;
-    linear_kernel(init_buffer, 0, stream, n_elements, vec3(0.0), MAX_DEPTH(), m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
-    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-
     if (m_object.has_value()) {
         VirtualObject& vo = m_object.value();
         changed_depth = changed_depth & vo.update_triangles(stream);
@@ -226,46 +223,44 @@ bool SyntheticWorld::shoot_network(CudaDevice& device, const ivec2& resolution, 
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
     }
 
-	ngp::Testbed::NerfTracer refl_tracer;
-    {
-        auto device_guard = use_device(stream, *m_render_buffer, device);
-        vec3 center = m_object.has_value() ? m_object.value().get_center() : vec3(0.0);
-        auto cam_mat = m_camera.get_matrix();
-        auto focal_len = m_camera.get_focal_length(m_resolution);
-        float depth_scale = 1.0f / testbed.m_nerf.training.dataset.scale;
-        refl_tracer.init_rays_from_payload(m_resolution, testbed.m_nerf_network, stream);
-        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-        refl_tracer.trace(testbed.m_nerf_network, testbed.m_render_aabb, testbed.m_render_aabb_to_local, testbed.m_render_aabb,
-            focal_len, testbed.m_nerf.cone_angle_constant, 
-			testbed_device.data().density_grid_bitfield_ptr,
-			testbed.m_render_mode,
-            cam_mat,
-            depth_scale,
-			testbed.m_visualized_layer,
-			testbed.m_visualized_dimension,
-			testbed.m_nerf.rgb_activation,
-			testbed.m_nerf.density_activation,
-			testbed.m_nerf.show_accel,
-			testbed.m_nerf.max_cascade,
-			testbed.m_nerf.render_min_transmittance,
-			testbed.m_nerf.glow_y_cutoff,
-			testbed.m_nerf.glow_mode,
-            nullptr,
-			stream
-        );
-        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-        RaysNerfSoa& rays_hit = refl_tracer.rays_hit();
-        linear_kernel(add_reflection_nerf, 0, stream, n_elements, 
-            cam_mat,
-            rays_hit.rgba,
-            rays_hit.depth,
-            m_render_buffer_view.frame_buffer,
-            m_render_buffer_view.depth_buffer
-        );
-        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-        linear_kernel(debug_depth_syn, 0, stream, n_elements, m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
-        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-    }
+	// ngp::Testbed::NerfTracer refl_tracer;
+    // {
+    //     auto device_guard = use_device(stream, *m_render_buffer, device);
+    //     vec3 center = m_object.has_value() ? m_object.value().get_center() : vec3(0.0);
+    //     auto cam_mat = m_camera.get_matrix();
+    //     auto focal_len = m_camera.get_focal_length(m_resolution);
+    //     float depth_scale = 1.0f / testbed.m_nerf.training.dataset.scale;
+    //     refl_tracer.init_rays_from_payload(m_resolution, testbed.m_nerf_network, stream);
+    //     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+    //     refl_tracer.trace(testbed.m_nerf_network, testbed.m_render_aabb, testbed.m_render_aabb_to_local, testbed.m_render_aabb,
+    //         focal_len, testbed.m_nerf.cone_angle_constant, 
+	// 		testbed_device.data().density_grid_bitfield_ptr,
+	// 		testbed.m_render_mode,
+    //         cam_mat,
+    //         depth_scale,
+	// 		testbed.m_visualized_layer,
+	// 		testbed.m_visualized_dimension,
+	// 		testbed.m_nerf.rgb_activation,
+	// 		testbed.m_nerf.density_activation,
+	// 		testbed.m_nerf.show_accel,
+	// 		testbed.m_nerf.max_cascade,
+	// 		testbed.m_nerf.render_min_transmittance,
+	// 		testbed.m_nerf.glow_y_cutoff,
+	// 		testbed.m_nerf.glow_mode,
+    //         nullptr,
+	// 		stream
+    //     );
+    //     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+    //     RaysNerfSoa& rays_hit = refl_tracer.rays_hit();
+    //     linear_kernel(add_reflection_nerf, 0, stream, n_elements, 
+    //         cam_mat,
+    //         rays_hit.rgba,
+    //         rays_hit.depth,
+    //         m_render_buffer_view.frame_buffer,
+    //         m_render_buffer_view.depth_buffer
+    //     );
+    //     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+    // }
     return true;
 }
 
@@ -329,7 +324,7 @@ void SyntheticWorld::generate_rays_async(CudaDevice& device) {
 		// envmap,
         m_nerf_payloads.data(),
 		// render_buf.frame_buffer,
-		// render_buf.depth_buffer,
+		render_buf.depth_buffer,
 		Buffer2DView<const uint8_t>{}, // hidden_area_mask
 		Buffer2DView<const vec2>{}, // distortion
 		ERenderMode::Shade
@@ -376,6 +371,7 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
     vec4 local_color;
     float dt = MAX_DEPTH();
     vec3 normal{};
+    vec3 reflect_vec{};
     for (size_t k = 0; k < tri_count; ++k) {
         float t = triangles[k].ray_intersect(ro, rd);
         if (t < dt && t > ngp::MIN_RT_DIST) {
@@ -383,20 +379,17 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
             normal = triangles[k].normal();
         }
     }
-    surface_normals[i] = normal;
-    ray_scatters[i] = reflect_ray(-rd, normal);
 
     if (dt < ngp::MAX_RT_DIST) {
         ro += rd * dt;
         vec3 view_vec = normalize(-rd);
         vec3 to_sun = normalize(sun_pos - ro);
         float NdotL = dot(normal, to_sun);
-        vec3 reflect_vec = normal * 2.0f * NdotL - to_sun;
+        reflect_vec = reflect_ray(to_sun, normal);
         float RdotV = dot(reflect_vec, view_vec);
         vec3 primary_color = material.ka + max(0.0f, NdotL) * material.kd;
         vec3 secondary_color =  pow(max(0.0f, RdotV), material.n) * material.ks;
         local_color = vec4(min(vec3(1.0), primary_color + secondary_color), 1.0);
-        local_color = vec4(vec_to_col(ro), 1.0);
     }
     NerfPayload& payload = payloads[i];
     if (depth[i] > dt) {
@@ -420,6 +413,8 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
         payload.n_steps = 0;
         payload.alive = false;
     }
+    surface_normals[i] = normal;
+    ray_scatters[i] = reflect_vec;
 }
 
 void SyntheticWorld::imgui(float frame_time) {
@@ -501,7 +496,7 @@ __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width,
     vec4* __restrict__ rgba, float* __restrict__ depth, ImgBuffers buffer_type) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
-    vec4 tmp_rgba;
+    vec4 tmp_rgba = rgba[i];
     vec3 tmp_rgb;
     NerfPayload& pld = in_pld[i];
     switch (buffer_type) {
@@ -637,7 +632,7 @@ __global__ void init_rays_cam(
 	// Buffer2DView<const vec4> envmap,
 	ngp::NerfPayload* __restrict__ payloads,
 	// vec4* __restrict__ frame_buffer,
-	// float* __restrict__ depth_buffer,
+	float* __restrict__ depth_buffer,
 	Buffer2DView<const uint8_t> hidden_area_mask,
 	Buffer2DView<const vec2> distortion,
 	ERenderMode render_mode
@@ -669,7 +664,7 @@ __global__ void init_rays_cam(
 		screen_center
 	);
 
-	// depth_buffer[idx] = MAX_DEPTH();
+	depth_buffer[idx] = MAX_DEPTH();
 
 	if (!ray.is_valid()) {
         positions[idx] = ray.o;
