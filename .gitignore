@@ -1,4 +1,3 @@
-/.vscode
 /.vs
 /build*
 /external
@@ -9,6 +8,7 @@
 /venv
 /video
 /instant-ngp
+/extra_data
 /*.dll
 /*.exe
 /*.json

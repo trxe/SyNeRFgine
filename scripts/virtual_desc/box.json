@@ -1,0 +1,20 @@
+{
+    "objfile": [
+        {
+            "dir": "../data/obj/smallbox.obj",
+            "material": 5
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "n": 64.0,
+            "kd": [
+                1.0,
+                0.0,
+                0.5
+            ]
+        }
+    ]
+}
