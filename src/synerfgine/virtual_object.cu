@@ -89,7 +89,6 @@ VirtualObject::VirtualObject(const char* fp, const std::string& name)
 	triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	// cam_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	triangles_bvh->build(triangles_cpu, 4);
-	// TODO: build a bvh implementation that can be updated
 }
 
 const std::vector<Triangle>& VirtualObject::cpu_triangles() {
@@ -104,8 +103,8 @@ Triangle* VirtualObject::gpu_triangles() {
 	return triangles_gpu.data();
 }
 
-TriangleBvhNode* VirtualObject::gpu_triangles_bvh_nodes() {
-	return triangles_bvh->nodes_gpu();
+std::shared_ptr<TriangleBvh> VirtualObject::gpu_triangles_bvh() {
+	return triangles_bvh;
 }
 
 bool VirtualObject::update_triangles(cudaStream_t stream) {

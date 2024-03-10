@@ -44,6 +44,15 @@ __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width,
     const Triangle* __restrict__ triangles, const vec3 sun_pos,
     vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads, const Material material);
 
+__global__ void gpu_transform_to(const uint32_t n_elements, 
+    vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, 
+    vec3* __restrict__ surface_normals, vec3* __restrict__ surface_scatter, 
+    mat3 rot, vec3 trans, bool ignore_surface);
+
+__global__ void gpu_shade_obj(const uint32_t n_elements, const uint32_t width, const uint32_t height, const uint32_t tri_count,
+    vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, vec3* __restrict__ surface_normals, vec3* __restrict__ ray_scatters, 
+    vec3 sun_pos, vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads, const Material material);
+
 __global__ void debug_draw_rays(const uint32_t n_elements, const uint32_t width, const uint32_t height, 
     // vec4* __restrict__ in_rgba, float* __restrict__ in_depth, 
     NerfPayload* __restrict__ in_pld, 
@@ -178,8 +187,8 @@ bool SyntheticWorld::shoot_network(CudaDevice& device, const ivec2& resolution, 
     }
 
     if (!m_object.has_value()) { 
-        linear_kernel(debug_depth_syn, 0, stream, product(m_resolution), m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
-        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+        // linear_kernel(debug_depth_syn, 0, stream, product(m_resolution), m_render_buffer_view.frame_buffer, m_render_buffer_view.depth_buffer);
+        // CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
         return false; 
     }
 
@@ -189,6 +198,7 @@ bool SyntheticWorld::shoot_network(CudaDevice& device, const ivec2& resolution, 
         m_gpu_directions.check_guards();
         m_gpu_normals.check_guards();
         m_gpu_scatters.check_guards();
+        m_gpu_obj_ids.check_guards();
         m_nerf_payloads.check_guards();
         m_nerf_payloads_refl.check_guards();
         m_shadow_coeffs.check_guards();
@@ -342,7 +352,39 @@ void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& vo) {
         m_nerf_payloads.check_guards();
         m_nerf_payloads.resize(n_elements);
         vec3 sun_pos = m_camera.get_matrix() * vec4(m_sun.pos, 1.0);
-        linear_kernel(gpu_draw_object, 0, stream, n_elements,
+        mat4x3 o2w_mat = vo.get_transform();
+        mat3 o2w_rot = mat3(o2w_mat);
+        vec3 o2w_trans = o2w_mat[3].xyz();
+        linear_kernel(gpu_transform_to, 0, stream, n_elements, 
+            m_gpu_positions.data(),
+            m_gpu_directions.data(),
+            m_gpu_normals.data(),
+            m_gpu_scatters.data(),
+            inverse(o2w_rot),
+            -o2w_trans, true
+        );
+        vo.gpu_triangles_bvh()->ray_trace_gpu(
+            n_elements, 
+            m_gpu_positions.data(),
+            m_gpu_directions.data(),
+            m_gpu_normals.data(),
+            m_render_buffer_view.depth_buffer, 
+            m_gpu_obj_ids.data(),
+            0,
+            vo.gpu_triangles(),
+            stream
+        );
+        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+        linear_kernel(gpu_transform_to, 0, stream, n_elements, 
+            m_gpu_positions.data(),
+            m_gpu_directions.data(),
+            m_gpu_normals.data(),
+            m_gpu_scatters.data(),
+            o2w_rot,
+            o2w_trans, false
+        );
+        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+        linear_kernel(gpu_shade_obj, 0, stream, n_elements,
             m_resolution.x, 
             m_resolution.y, 
             tri_count,
@@ -350,14 +392,96 @@ void SyntheticWorld::draw_object_async(CudaDevice& device, VirtualObject& vo) {
             m_gpu_directions.data(),
             m_gpu_normals.data(),
             m_gpu_scatters.data(),
-            vo.gpu_triangles(),
             sun_pos,
             m_render_buffer_view.frame_buffer, 
             m_render_buffer_view.depth_buffer,
             m_nerf_payloads.data(),
             m_object.value().get_material()
         );
+        CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+
+        // linear_kernel(gpu_draw_object, 0, stream, n_elements,
+        //     m_resolution.x, 
+        //     m_resolution.y, 
+        //     tri_count,
+        //     m_gpu_positions.data(),
+        //     m_gpu_directions.data(),
+        //     m_gpu_normals.data(),
+        //     m_gpu_scatters.data(),
+        //     vo.gpu_triangles(),
+        //     sun_pos,
+        //     m_render_buffer_view.frame_buffer, 
+        //     m_render_buffer_view.depth_buffer,
+        //     m_nerf_payloads.data(),
+        //     m_object.value().get_material()
+        // );
     }
+}
+
+__global__ void gpu_transform_to(const uint32_t n_elements, 
+    vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, 
+    vec3* __restrict__ surface_normals, vec3* __restrict__ surface_scatter, 
+    mat3 rot, vec3 trans, bool ignore_surface) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+    vec3 rd = ray_directions[i];
+    vec3 ro = ray_origins[i];
+    ray_directions[i] = rot * rd;
+    ray_origins[i] = rot * (ro - trans);
+    if (!ignore_surface) {
+        vec3 rn = surface_normals[i];
+        vec3 rs = surface_scatter[i];
+        surface_normals[i] = rot * rn;
+        surface_scatter[i] = rot * rs;
+    }
+}
+
+__global__ void gpu_shade_obj(const uint32_t n_elements, const uint32_t width, const uint32_t height, const uint32_t tri_count,
+    vec3* __restrict__ ray_origins, vec3* __restrict__ ray_directions, vec3* __restrict__ surface_normals, vec3* __restrict__ ray_scatters, 
+    vec3 sun_pos, vec4* __restrict__ rgba, float* __restrict__ depth, NerfPayload* __restrict__ payloads, const Material material) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+    vec3 rd = ray_directions[i]; // prev dir
+    vec3 ro = ray_origins[i]; // new final pos
+    float dt = depth[i]; // new final depth
+    vec3 normal = surface_normals[i];
+    vec3 reflect_vec = ray_scatters[i];
+    vec4 local_color;
+
+    if (dt < ngp::MAX_RT_DIST) {
+        vec3 view_vec = normalize(-rd);
+        vec3 to_sun = normalize(sun_pos - ro);
+        float NdotL = dot(normal, to_sun);
+        reflect_vec = reflect_ray(to_sun, normal);
+        float RdotV = dot(reflect_vec, view_vec);
+        vec3 primary_color = material.ka + max(0.0f, NdotL) * material.kd;
+        vec3 secondary_color =  pow(max(0.0f, RdotV), material.n) * material.ks;
+        local_color = vec4(min(vec3(1.0), primary_color + secondary_color), 1.0);
+    }
+    NerfPayload& payload = payloads[i];
+    if (depth[i] > dt) {
+        rgba[i] = local_color;
+        depth[i] = dt;
+        payload.max_weight = 0.0f;
+
+        vec3 full_dir = sun_pos - ro;
+        float n = length(full_dir);
+        payload.origin = ro;
+        payload.dir = normalize(full_dir);
+        payload.t = n;
+        payload.idx = i;
+        payload.n_steps = 0;
+        payload.alive = true;
+    } else {
+        payload.origin = vec3(0.0);
+        payload.dir = vec3(0.0);
+        payload.t = 0.0f;
+        payload.idx = i;
+        payload.n_steps = 0;
+        payload.alive = false;
+    }
+    surface_normals[i] = normal;
+    ray_scatters[i] = reflect_vec;
 }
 
 __global__ void gpu_draw_object(const uint32_t n_elements, const uint32_t width, const uint32_t height, const uint32_t tri_count,

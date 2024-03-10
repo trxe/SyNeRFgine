@@ -87,6 +87,8 @@ public:
         m_gpu_normals.resize(n_elements);
         m_gpu_scatters.check_guards();
         m_gpu_scatters.resize(n_elements);
+        m_gpu_obj_ids.check_guards();
+        m_gpu_obj_ids.resize(n_elements);
         m_nerf_payloads.check_guards();
         m_nerf_payloads.resize(n_elements);
         m_nerf_payloads_refl.check_guards();
@@ -120,6 +122,8 @@ private:
     GPUMemory<vec3> m_gpu_directions;
     GPUMemory<vec3> m_gpu_normals;
     GPUMemory<vec3> m_gpu_scatters;
+    GPUMemory<float> m_gpu_depth;
+    GPUMemory<size_t> m_gpu_obj_ids;
 
     // Buffers and resolution
 	std::shared_ptr<GLTexture> m_rgba_render_textures;

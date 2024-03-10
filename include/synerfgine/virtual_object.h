@@ -41,13 +41,13 @@ public:
     mat4 get_transform();
     vec3 get_center();
     Triangle* gpu_triangles();
-    TriangleBvhNode* gpu_triangles_bvh_nodes();
+    std::shared_ptr<TriangleBvh> gpu_triangles_bvh();
     const Material& get_material() { return vo_material; }
     const std::vector<Triangle>& cpu_triangles();
     void imgui();
     const std::string& get_name() { return name; }
 
-	std::unique_ptr<TriangleBvh> triangles_bvh;
+	std::shared_ptr<TriangleBvh> triangles_bvh;
 
 private:
     bool needs_update{true};
