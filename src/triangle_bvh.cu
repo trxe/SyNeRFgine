@@ -143,6 +143,16 @@ __global__ void signed_distance_raystab_kernel(uint32_t n_elements, const vec3* 
 __global__ void unsigned_distance_kernel(uint32_t n_elements, const vec3* __restrict__ positions, const TriangleBvhNode* __restrict__ bvhnodes, const Triangle* __restrict__ triangles, float* __restrict__ distances, bool use_existing_distances_as_upper_bounds = false);
 __global__ void raytrace_kernel(uint32_t n_elements, vec3* __restrict__ positions, vec3* __restrict__ directions, const TriangleBvhNode* __restrict__ nodes, const Triangle* __restrict__ triangles);
 
+// sng stuff
+__global__ void raytrace_kernel_full(uint32_t n_elements, vec3* __restrict__ positions, vec3* __restrict__ directions, vec3* __restrict__ gpu_normals, float* __restrict__ gpu_depth, size_t* __restrict__ gpu_obj_id, size_t this_obj_id, const TriangleBvhNode* __restrict__ nodes, const Triangle* __restrict__ triangles);
+__global__ void shade_gpu_kernel(const uint32_t n_elements, vec3* __restrict__ current_pos, vec3* __restrict__ views, vec3* __restrict__ normals,
+    size_t* __restrict__ obj_ids, Triangle** __restrict__ triangles_lists, TriangleBvhNode** __restrict__ triangles_bvh_lists, 
+	sng::Material* __restrict__ materials, vec4* __restrict__ rgba, float* __restrict__ depth, size_t vo_id, size_t vo_count, const sng::Light sun, float attenuation);
+
+// Helpers
+__device__ float shoot(vec3 pos, vec3 dir, size_t this_obj_id, size_t total_objects, Triangle** __restrict__ triangles_lists, TriangleBvhNode** triangles_bvh_lists);
+__device__ vec3 reflect(const vec3& n, const vec3& l);
+
 struct DistAndIdx {
 	float dist;
 	uint32_t idx;
@@ -506,6 +516,32 @@ public:
 			);
 		}
 	}
+	virtual void ray_trace_gpu(uint32_t n_elements, vec3* gpu_positions, vec3* gpu_directions, vec3* gpu_normals, float* gpu_depth, size_t* gpu_obj_ids, size_t this_obj_id, 
+		const Triangle* gpu_triangles, cudaStream_t stream) override {
+#ifdef NGP_OPTIX
+		if (m_optix.available) {
+			m_optix.raytrace->invoke({gpu_positions, gpu_directions, gpu_triangles, m_optix.gas->handle()}, {n_elements, 1, 1}, stream);
+		} else
+#endif //NGP_OPTIX
+		{
+			linear_kernel(raytrace_kernel_full, 0, stream,
+				n_elements,
+				gpu_positions,
+				gpu_directions,
+				gpu_normals,
+				gpu_depth,
+				gpu_obj_ids,
+				this_obj_id,
+				m_nodes_gpu.data(),
+				gpu_triangles
+			);
+		}
+	}
+
+	void shade_gpu(uint32_t n_elements, vec3* gpu_positions, vec3* gpu_views, vec3* gpu_normals, size_t* gpu_obj_ids, Triangle** gpu_objs, TriangleBvhNode** gpu_bvhs, sng::Material* gpu_materials, sng::Light sun, vec4* rgba, float* depth, size_t this_obj_id, size_t vo_count, cudaStream_t stream) override {
+		float attenuation = 0.8f;
+		linear_kernel(shade_gpu_kernel, 0, stream, n_elements, gpu_positions, gpu_views, gpu_normals, gpu_obj_ids, gpu_objs, gpu_bvhs, gpu_materials, rgba, depth, this_obj_id, vo_count, sun, attenuation);
+	}
 
 	bool touches_triangle(const BoundingBox& bb, const TriangleBvhNode& node, const Triangle* __restrict__ triangles) const {
 		if (!node.bb.intersects(bb)) {
@@ -718,6 +754,72 @@ __global__ void raytrace_kernel(uint32_t n_elements, vec3* __restrict__ position
 	if (p.first >= 0) {
 		directions[i] = triangles[p.first].normal();
 	}
+}
+
+// direction: old, normal + position + depth: new, obj_id: cumulative
+__global__ void raytrace_kernel_full(uint32_t n_elements, vec3* __restrict__ positions, vec3* __restrict__ directions, vec3* __restrict__ gpu_normals, float* __restrict__ gpu_depth, size_t* __restrict__ gpu_obj_id, size_t this_obj_id, const TriangleBvhNode* __restrict__ nodes, const Triangle* __restrict__ triangles) {
+	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= n_elements) return;
+
+	auto pos = positions[i];
+	auto dir = directions[i];
+
+	auto p = TriangleBvh4::ray_intersect(pos, dir, nodes, triangles);
+	auto tri_id = p.first;
+	auto t = p.second;
+	if (tri_id >= 0) {
+		// Reflect can be computed from -D, N
+		gpu_obj_id[i] = this_obj_id;
+		gpu_normals[i] = triangles[p.first].normal();
+		gpu_depth[i] = t;
+		positions[i] = pos + t * dir;
+	} else {
+		gpu_depth[i] = std::numeric_limits<float>::max();
+	}
+}
+
+__device__ float shoot(vec3 pos, vec3 dir, size_t this_obj_id, size_t total_objects, Triangle** __restrict__ triangles_lists, TriangleBvhNode** triangles_bvh_lists) {
+	float t = std::numeric_limits<float>::max();
+	for (size_t id = 0; id < total_objects; ++id) {
+		if (id == this_obj_id) continue;
+		auto obj_to_intersect = triangles_lists[id];
+		auto bvh_to_intersect = triangles_bvh_lists[id];
+		auto p = TriangleBvh4::ray_intersect(pos, dir, bvh_to_intersect, obj_to_intersect);
+		t = min(t, p.second);
+	}
+	return t;
+}
+
+__device__ vec3 reflect(const vec3& n, const vec3& l) {
+	return 2 * dot(n, l) * n - l;
+}
+
+__device__ void print_vec3(const char* str, const vec3& n) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	printf("%s: %f %f %f\n", str, n.r, n.g, n.b);
+}
+
+// needs: directions, positions, normals, sunpos, obj_ids, materials, bvh
+__global__ void shade_gpu_kernel(const uint32_t n_elements, vec3* __restrict__ current_pos, vec3* __restrict__ views, vec3* __restrict__ normals,
+    size_t* __restrict__ obj_ids, Triangle** __restrict__ triangles_lists, TriangleBvhNode** __restrict__ triangles_bvh_lists, 
+	sng::Material* __restrict__ materials, vec4* __restrict__ rgba, float* __restrict__ depth, size_t vo_id, size_t vo_count, const sng::Light sun, float attenuation) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+    vec3 V = normalize(-views[i]);
+	vec3 pos = current_pos[i];
+    vec3 L = normalize(sun.pos - pos);
+    float shot_depth = shoot(pos, L, vo_id, vo_count, triangles_lists, triangles_bvh_lists);
+    vec3 N = normalize(normals[i]);
+    vec3 R = reflect(N, L); 
+    size_t id = obj_ids[i];
+    sng::Material& mat = materials[id];
+
+	vec3 added_color = mat.ka;
+    if (shot_depth == std::numeric_limits<float>::max()) {
+		vec3 secondary = (max(0.0f, dot(N, L)) * mat.kd + pow(max(0.0f, dot(R, V)), mat.n) * mat.ks) * attenuation;
+        added_color += secondary;
+    }
+	rgba[i] = vec4(added_color, 1.0);
 }
 
 }

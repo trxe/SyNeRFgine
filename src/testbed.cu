@@ -40,6 +40,7 @@
 
 #include <zstr.hpp>
 
+#include <iostream>
 #include <fstream>
 #include <set>
 #include <unordered_set>
@@ -159,6 +160,10 @@ void Testbed::reload_training_data() {
 void Testbed::clear_training_data() {
 	m_training_data_available = false;
 	m_nerf.training.dataset.metadata.clear();
+}
+
+Testbed::Nerf* Testbed::mutable_nerf() {
+	return &m_nerf;
 }
 
 void Testbed::set_mode(ETestbedMode mode) {
@@ -2842,6 +2847,10 @@ void Testbed::train_and_render(bool skip_rendering) {
 
 		size_t n_pixels = 0, n_pixels_full_res = 0;
 		for (const auto& view : m_views) {
+			auto view_in_res = view.render_buffer->in_resolution();
+			auto view_out_res = view.render_buffer->out_resolution();
+			// std::cerr << "ORIG: " << view_in_res.x << " " << view_in_res.y 
+			// 	<< " " << view_out_res.x << " " << view_out_res.y << std::endl;
 			n_pixels += product(view.render_buffer->in_resolution());
 			n_pixels_full_res += product(view.full_resolution);
 		}
@@ -2855,6 +2864,7 @@ void Testbed::train_and_render(bool skip_rendering) {
 		}
 
 		factor = clamp(factor, 1.0f / 16.0f, 1.0f);
+		// std::cerr << pixel_ratio << " " << last_factor << " " << factor << std::endl;
 
 		for (auto&& view : m_views) {
 			if (m_dlss) {
