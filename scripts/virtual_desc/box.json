@@ -1,7 +1,8 @@
 {
     "objfile": [
         {
-            "dir": "../data/obj/smallbox.obj",
+            "file": "../data/obj/smallbox.obj",
+            "pos" : [ 0.2, 0.3, 0.2 ],
             "material": 5
         }
     ],
@@ -14,6 +15,16 @@
                 1.0,
                 0.0,
                 0.5
+            ]
+        },
+        {
+            "id": 1,
+            "type": "lambertian",
+            "n": 28.0,
+            "kd": [
+                0.0,
+                1.0,
+                0.8
             ]
         }
     ]

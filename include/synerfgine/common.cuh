@@ -48,6 +48,7 @@ __device__ void print_mat4x3(const mat4x3& m);
 __global__ void rand_init_pixels(int resx, int resy, curandState *rand_state);
 __global__ void debug_shade(uint32_t n_elements, vec4* __restrict__ rgba, vec3 color, float* __restrict__ depth, float depth_value);
 __global__ void print_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth);
+__global__ void debug_uv_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth, ivec2 resolution);
 
 class Timer {
  public:

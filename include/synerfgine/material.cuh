@@ -34,7 +34,22 @@ struct Material {
         }
     }
 
-    __host__ void imgui() {}
+    __host__ void imgui() {
+        std::string unique_kd = fmt::format("[{}] kd", id);
+        std::string unique_n = fmt::format("[{}] n", id);
+        std::string title = fmt::format("Material [{}]", id);
+        if (ImGui::TreeNode(title.c_str())) {
+            if (ImGui::ColorPicker3(unique_kd.c_str(), kd.data())) {
+                ka = kd;
+                is_dirty = true;
+            }
+            if (ImGui::SliderFloat(unique_n.c_str(), &n, 0.0, 256.0)) {
+                is_dirty = true;
+            }
+            ImGui::TreePop();
+        }
+        ImGui::Separator();
+    }
 
     NGP_HOST_DEVICE void print() const {
         char ctype = type == MaterialType::Lambertian ? 'L' : '?';
@@ -62,6 +77,7 @@ struct Material {
     vec3 ks;
     float n;
     MaterialType type;
+    bool is_dirty;
 };
 
 }

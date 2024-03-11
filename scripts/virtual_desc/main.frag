@@ -50,13 +50,6 @@ void main() {
     //     frag_color = vec4(nerf.rgb, 1.0);
     //     gl_FragDepth = nd;
     // }
-    // frag_color = vec4(nerf.rgb, 1.0);
-    if (nd < max_nd) {
-        // frag_color = vec4(vec3(nd/ 10.0), 1.0);
-        if (nd < 1.0) frag_color = vec4(nd, 0.0, 0.0, 1.0);
-        else if (nd < 2.0) frag_color = vec4(0.0, nd / 2.0, 0.0, 1.0);
-        else if (nd < 4.0) frag_color = vec4(0.0, 0.0, nd / 4.0, 1.0);
-        else frag_color = vec4(vec3(nd / 16.0), 1.0);
-    }
-    gl_FragDepth = nd;
+    frag_color = vec4(syn.rgb, 1.0);
+    gl_FragDepth = sd;
 }

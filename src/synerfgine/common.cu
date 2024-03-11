@@ -18,4 +18,12 @@ __global__ void print_shade(uint32_t n_elements, vec4* __restrict__ rgba, float*
     }
 }
 
+__global__ void debug_uv_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth, ivec2 resolution) {
+    uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx >= n_elements) return;
+    float x = (float)(idx % resolution.x) / (float) resolution.x;
+    float y = (float)(idx / resolution.x) / (float) resolution.y;
+    rgba[idx] = {x, y, 0.0, 1.0};
+    depth[idx] = 1.0;
+}
 }

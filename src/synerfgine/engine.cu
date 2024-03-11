@@ -12,19 +12,17 @@ void Engine::set_virtual_world(const std::string& config_fp) {
     for (uint32_t i = 0; i < mat_conf.size(); ++i) {
         m_materials.emplace_back(i, mat_conf[i]);
     }
-    for (const auto& m: m_materials ) {
-        m.print();
-    }
+    for (const auto& m: m_materials) { m.print(); }
     nlohmann::json& obj_conf = config["objfile"];
-    // init_objs(obj_conf);
+    for (uint32_t i = 0; i < obj_conf.size(); ++i) {
+        m_objects.emplace_back(i, obj_conf[i]);
+    }
 }
 
 void Engine::init(int res_width, int res_height, const std::string& frag_fp, Testbed* nerf) {
 	m_testbed = nerf;
     m_testbed->m_train = false;
     m_testbed->set_n_views(1);
-    m_testbed->m_views.front().visualized_dimension = -1;
-    m_testbed->m_views.front().device = &(m_testbed->primary_device());
     m_next_frame_resolution = {res_width, res_height};
     GLFWwindow* glfw_window = m_display.init_window(res_width, res_height, frag_fp);
     glfwSetWindowUserPointer(glfw_window, this);
@@ -50,7 +48,6 @@ void Engine::try_resize() {
         m_testbed->m_window_res = m_next_frame_resolution;
         auto& view = nerf_render_buffer_view();
         auto nerf_view = view.render_buffer->view();
-        nerf_view.hidden_area_mask = nullptr;
         uint32_t nerf_res = product(nerf_view.resolution);
         uint32_t n_pixels_full_res = product(curr_window_res);
 		float pixel_ratio = ((float)nerf_res / (float)n_pixels_full_res);
@@ -58,8 +55,22 @@ void Engine::try_resize() {
 		float factor = std::sqrt(pixel_ratio / m_render_ms * 1000.0f / m_testbed->m_dynamic_res_target_fps);
         auto new_res = downscale_resolution(m_next_frame_resolution, factor);
         view.resize(new_res);
-        m_testbed->m_views.front().resize(view.full_resolution);
+        sync(m_stream_id);
+
+        m_raytracer.enlarge(new_res);
     }
+}
+
+void Engine::imgui() {
+    if (ImGui::Begin("Synthetic World")) {
+        if (ImGui::CollapsingHeader("Materials", ImGuiTreeNodeFlags_DefaultOpen)) {
+            for (auto& m : m_materials) { m.imgui(); }
+        }
+        if (ImGui::CollapsingHeader("Objects", ImGuiTreeNodeFlags_DefaultOpen)) {
+            for (auto& m : m_objects) { m.imgui(); }
+        }
+    }
+    ImGui::End();
 }
 
 bool Engine::frame() {
@@ -68,20 +79,12 @@ bool Engine::frame() {
     device.device_guard();
 	m_display.begin_frame();
     try_resize();
-    sync();
+    sync(m_stream_id);
     m_testbed->handle_user_input();
+    imgui();
     m_testbed->apply_camera_smoothing(__timer.get_ave_time("nerf"));
 
     auto& view = nerf_render_buffer_view();
-    view.full_resolution = m_testbed->m_window_res;
-    view.camera0 = m_testbed->m_smoothed_camera;
-    // Motion blur over the fraction of time that the shutter is open. Interpolate in log-space to preserve rotations.
-    view.camera1 = m_testbed->m_camera_path.rendering ? camera_log_lerp(m_testbed->m_smoothed_camera, m_testbed->m_camera_path.render_frame_end_camera, m_testbed->m_camera_path.render_settings.shutter_fraction) : view.camera0;
-    view.visualized_dimension = m_testbed->m_visualized_dimension;
-    view.relative_focal_length = m_testbed->m_relative_focal_length;
-    view.screen_center = m_testbed->m_screen_center;
-    view.render_buffer->set_hidden_area_mask(nullptr);
-    view.foveation = {};
 
     auto nerf_view = view.render_buffer->view();
 	vec2 focal_length = m_testbed->calc_focal_length(
@@ -92,7 +95,7 @@ bool Engine::frame() {
 	vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
     __timer.reset();
     {
-        sync();
+        sync(m_stream_id);
         m_testbed->primary_device().set_render_buffer_view(nerf_view);
         if (m_testbed->primary_device().dirty()) {
             m_testbed->reset_accumulation(false);
@@ -111,7 +114,7 @@ bool Engine::frame() {
             view.visualized_dimension,
             *view.render_buffer
         );
-        sync();
+        sync(m_stream_id);
         view.prev_camera = view.camera0;
         view.prev_foveation = view.foveation;
 
@@ -122,14 +125,20 @@ bool Engine::frame() {
         // sync();
     }
     m_render_ms = (float)__timer.log_time("nerf");
+    m_testbed->m_frame_ms.set(m_render_ms);
     m_testbed->m_rgba_render_textures.front()->load_gpu(nerf_view.frame_buffer, nerf_view.resolution, m_nerf_rgba_cpu);
     m_testbed->m_depth_render_textures.front()->load_gpu(nerf_view.depth_buffer, nerf_view.resolution, 1, m_nerf_depth_cpu);
     GLuint nerf_rgba_texid = m_testbed->m_rgba_render_textures.front()->texture();
     GLuint nerf_depth_texid = m_testbed->m_depth_render_textures.front()->texture();
 
+    m_raytracer.test();
+    m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);
+    GLuint syn_rgba_texid = m_raytracer.m_rgba_texture->texture();
+    GLuint syn_depth_texid = m_raytracer.m_depth_texture->texture();
+
 	ImDrawList* list = ImGui::GetBackgroundDrawList();
     m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera);
-    m_display.present(nerf_rgba_texid, nerf_depth_texid, m_testbed->m_n_views(0), view.foveation);
+    m_display.present(nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, m_testbed->m_n_views(0), view.foveation);
 
     return m_display.is_alive();
 }

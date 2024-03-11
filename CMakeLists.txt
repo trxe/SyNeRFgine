@@ -274,6 +274,8 @@ list(APPEND NGP_SOURCES
 	src/synerfgine/common.cu
 	src/synerfgine/display.cu
 	src/synerfgine/engine.cu
+	src/synerfgine/raytracer.cu
+	src/synerfgine/virtual_object.cu
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
