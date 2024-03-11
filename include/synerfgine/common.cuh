@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 #include <numeric>
+#include <deque>
 #include <unordered_map>
 #include <tinylogger/tinylogger.h>
 #include <filesystem/path.h>
@@ -22,6 +23,9 @@ namespace fs = filesystem;
 
 __host__ __device__ inline float ffmin(float a, float b) { return a < b ? a : b; }
 __host__ __device__ inline float ffmax(float a, float b) { return a > b ? a : b; }
+__host__ __device__ inline ivec2 downscale_resolution(const ivec2& resolution, float scale) {
+    return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution);
+}
 
 // Always initialize the benchmarker, __timer should not be redeclared in the
 // current context.
@@ -42,6 +46,8 @@ __device__ vec3 vec3_to_col(const vec3& v);
 __device__ void print_vec(const vec3& v);
 __device__ void print_mat4x3(const mat4x3& m);
 __global__ void rand_init_pixels(int resx, int resy, curandState *rand_state);
+__global__ void debug_shade(uint32_t n_elements, vec4* __restrict__ rgba, vec3 color, float* __restrict__ depth, float depth_value);
+__global__ void print_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth);
 
 class Timer {
  public:
@@ -58,11 +64,22 @@ class Timer {
     return std::chrono::duration<double, std::milli>(end - start);
   }
 
-  void log_time(const char* label, bool is_print = false) {
+  double get_ave_time(const char* label) {
+    return rolling_averages[label];
+  }
+  double log_time(const char* label, bool is_print = false) {
     const auto t = get_time_ms();
     if (is_print)
         tlog::info() << "[" << label << "]: " << t.count() << "ms";
     records[label].push_back(t.count());
+    double to_remove = records[label].front();
+    if (records.size() > window) {
+        records[label].pop_front();
+    } else {
+        to_remove = 0.0;
+    }
+    rolling_averages[label] = (rolling_averages[label] * ((float)records.size() - 1) - to_remove + t.count()) / (float)(records.size());
+    return rolling_averages[label];
   }
 
   ~Timer() {
@@ -76,7 +93,9 @@ class Timer {
 
  private:
   std::chrono::system_clock::time_point start;
-  std::unordered_map<const char*, std::vector<double>> records;
+  std::unordered_map<const char*, std::deque<double>> records;
+  std::unordered_map<const char*, double> rolling_averages;
+  const uint32_t window = 100;
 };
 
 
@@ -132,6 +151,23 @@ public:
         return nlohmann::json::parse(file);
     }
 
+    static inline fs::path get_root_dir() {
+        fs::path root_dir = fs::path::getcwd();
+        fs::path exists_in_root_dir = "scripts";
+        for (const auto& candidate : {
+            fs::path{"."}/exists_in_root_dir,
+            fs::path{".."}/exists_in_root_dir,
+            root_dir/exists_in_root_dir,
+            root_dir/".."/exists_in_root_dir,
+        }) {
+            if (candidate.exists()) {
+                return candidate.str();
+            }
+        }
+        return {};
+    }
+
 };
+
 
 }

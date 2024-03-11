@@ -2,8 +2,10 @@
 
 #include <neural-graphics-primitives/render_buffer.h>
 
+#include <synerfgine/common.cuh>
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/common_host.h>
+#include <tiny-cuda-nn/common_device.h>
 
 #ifdef NGP_GUI
 #	include <imgui/backends/imgui_impl_glfw.h>
@@ -33,69 +35,37 @@ namespace sng {
 
 using namespace tcnn;
 using ngp::CudaRenderBuffer;
-using ngp::GLTexture;
-
-// class Renderer {
-// public:
-// 	bool begin_frame(const ivec2& window_res);
-// 	bool present(const ivec2& m_n_views, std::shared_ptr<ngp::GLTexture> rgba, std::shared_ptr<ngp::GLTexture> depth, CudaDevice& device);
-// 	bool present(const ivec2& m_n_views, std::shared_ptr<ngp::GLTexture> syn_rgba, std::shared_ptr<ngp::GLTexture> syn_depth, const CudaRenderBufferView& syn_view,
-// 		std::shared_ptr<ngp::GLTexture> nerf_rgba, std::shared_ptr<ngp::GLTexture> nerf_depth, const CudaRenderBufferView& nerf_view,CudaDevice& device);
-// 	void end_frame();
-// private:
-// 	void blit_texture(const ngp::Foveation& foveation, GLint syn_rgba, GLint nerf_rgba, GLint rgba_filter_mode, 
-// 		GLint syn_depth, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution);
-// 	GLFWwindow* m_glfw_window = nullptr;
-// 	ivec2 m_window_res = ivec2(0);
-
-// 	// The VAO will be empty, but we need a valid one for attribute-less rendering
-// 	GLuint m_blit_vao = 0;
-// 	GLuint m_blit_program = 0;
-
-// 	std::vector<vec4> m_cpu_frame_buffer_syn; 
-// 	std::vector<float> m_cpu_depth_buffer_syn; 
-// 	std::vector<vec4> m_cpu_frame_buffer_nerf; 
-// 	std::vector<float> m_cpu_depth_buffer_nerf; 
-
-// 	void init_opengl_shaders();
-// };
 
 class Display {
 public:
 	Display() {}
 	~Display() { destroy(); }
-    GLFWwindow* init_window(int resw, int resh);
+    GLFWwindow* init_window(int resw, int resh, const std::string& frag_fp);
 	void destroy();
-	void resize(const ivec2& window_res);
-	void begin_frame(bool& is_dirty);
-	// bool present(); 
-	void end_frame();
+	void begin_frame();
+	bool present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, const ivec2& nerf_extent, const Foveation& fov); 
+	bool is_alive() { return m_is_init; }
+	void set_dead() { m_is_init = false; }
 
-	ivec2 get_window_res() const {
-		return m_window_res;
-	}
+	const ivec2& get_window_res() const { return m_window_res; }
+	void set_window_res(const ivec2& res)  { m_window_res = res; }
 
 private:
-	GLFWwindow* init_glfw();
-	void init_buffers();
+	GLFWwindow* init_glfw(int resw, int resh);
 	void init_imgui();
-	// void copy_textures(std::shared_ptr<ngp::GLTexture> rgba, 
-		// std::shared_ptr<ngp::GLTexture> depth, CudaDevice& device);
+	void init_opengl_shaders(const std::string& frag_fp);
+	void transfer_texture(const Foveation& foveation, [[maybe_unused]] GLint syn_rgba, GLint nerf_rgba, GLint rgba_filter_mode, 
+		[[maybe_unused]] GLint syn_depth, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution);
 
 	ivec2 m_window_res = ivec2(0);
 
-	// Buffers
-	std::shared_ptr<ngp::GLTexture> m_rgba_render_texture;
-	std::shared_ptr<ngp::GLTexture> m_depth_render_texture;
-	std::shared_ptr<ngp::CudaRenderBuffer> m_render_buffer;
 
 	static bool m_is_init;
 
-	// Metrics
-	std::chrono::system_clock::time_point m_last_timestamp = std::chrono::system_clock::now();
-	float m_last_frame_time = 0.000001f;
-
 	GLFWwindow* m_glfw_window = nullptr;
+	GLuint m_framebuffer = 0;
+	GLuint m_blit_vao = 0;
+	GLuint m_blit_program = 0;
 };
 
 }

@@ -373,6 +373,8 @@ __global__ void advance_pos_nerf_kernel(
 	uint32_t min_mip,
 	uint32_t max_mip,
 	float cone_angle_constant
+	// DEBUGGER
+	// , vec4* __restrict__ rgba
 ) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
@@ -657,6 +659,7 @@ __global__ void composite_kernel_nerf(
 		local_rgba += vec4(rgb * weight, weight);
 		if (weight > payload.max_weight) {
 			payload.max_weight = weight;
+			// IMPORTANT: Ray traced depth must be adjusted this way too
 			local_depth = dot(cam_fwd, pos - camera_matrix[3]);
 		}
 
@@ -673,6 +676,10 @@ __global__ void composite_kernel_nerf(
 
 	rgba[i] = local_rgba;
 	depth[i] = local_depth;
+	// depth[i] = payload.t;
+	// DEBUGGER
+	// if (i % 100 == 0) printf("EFORE %d: %f\n", i, local_depth);
+
 }
 
 __global__ void generate_training_samples_nerf(
@@ -1626,7 +1633,15 @@ void Testbed::NerfTracer::init_rays_from_camera(
 		(show_accel >= 0) ? show_accel : 0,
 		max_mip,
 		cone_angle_constant
+		// DEBUGGER
+		// , frame_buffer
 	);
+}
+
+__global__ void print_depth(uint32_t n_elements, const float* __restrict__ depths) {
+	uint32_t i = threadIdx.x + blockDim.x * blockIdx.x;
+	if (i >= n_elements) return;
+	if (i % 200 == 0) printf("Final depth %d: %f\n", i, depths[i]);
 }
 
 uint32_t Testbed::NerfTracer::trace(
@@ -1884,6 +1899,9 @@ void Testbed::render_nerf(
 		render_mode,
 		stream
 	);
+
+	// DEBUGGER
+	// return;
 
 	float depth_scale = 1.0f / m_nerf.training.dataset.scale;
 	bool render_2d = m_render_mode == ERenderMode::Slice || m_render_mode == ERenderMode::Distortion;

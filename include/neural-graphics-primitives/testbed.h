@@ -53,6 +53,10 @@ template <typename T, typename PARAMS_T, typename COMPUTE_T> class Trainer;
 template <uint32_t N_DIMS, uint32_t RANK, typename T> class TrainableBuffer;
 }
 
+namespace sng {
+class Engine;
+}
+
 namespace ngp {
 
 template <typename T> class NerfNetwork;
@@ -63,6 +67,7 @@ class GLTexture;
 
 class Testbed {
 public:
+	friend class sng::Engine;
 	Testbed(ETestbedMode mode = ETestbedMode::None);
 	~Testbed();
 
@@ -936,8 +941,15 @@ public:
 
 		vec2 relative_focal_length;
 		vec2 screen_center;
+		vec4 rolling_shutter = vec4(vec3(0.0), 1.0);
 
 		CudaDevice* device = nullptr;
+		void resize(const ivec2& size) {
+			if (full_resolution == size) return;
+			full_resolution = size;
+			if (device) device->device_guard();
+			render_buffer->resize(size);
+		}
 	};
 
 	std::vector<View> m_views;

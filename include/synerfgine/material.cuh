@@ -38,7 +38,7 @@ struct Material {
 
     NGP_HOST_DEVICE void print() const {
         char ctype = type == MaterialType::Lambertian ? 'L' : '?';
-        printf("[#%d - %c] ka: {%f, %f, %f}, kd: {%f, %f, %f}, ks: {%f, %f, %f}, n: %f\n", 
+        printf("#%d [%c] ka: {%f, %f, %f}, kd: {%f, %f, %f}, ks: {%f, %f, %f}, n: %f\n", 
             id,
             ctype,
             ka[0], ka[1], ka[2], 
