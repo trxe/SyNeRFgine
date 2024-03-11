@@ -4,42 +4,52 @@
 #include <tiny-cuda-nn/common_device.h>
 #include <tiny-cuda-nn/gpu_memory.h>
 
-#include <neural-graphics-primitives/nerf.h>
 #include <neural-graphics-primitives/bounding_box.cuh>
+#include <neural-graphics-primitives/nerf.h>
 #include <neural-graphics-primitives/render_buffer.h>
+#include <neural-graphics-primitives/testbed.h>
 #include <synerfgine/common.cuh>
+#include <synerfgine/material.cuh>
+#include <synerfgine/virtual_object.cuh>
+
+#include <cstdint>
 
 namespace sng {
-
-struct RayPayload {
-	vec3 origin;
-	vec3 dir;
-	float t;
-	float max_weight;
-	uint32_t idx;
-	uint16_t n_steps;
-	bool alive;
-};
 
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
 	void copy_from_other_async(const RaysSoa& other, cudaStream_t stream) {
 		CUDA_CHECK_THROW(cudaMemcpyAsync(rgba, other.rgba, size * sizeof(vec4), cudaMemcpyDeviceToDevice, stream));
 		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.depth, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(payload, other.payload, size * sizeof(RayPayload), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.origin, size * sizeof(vec3), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.dir, size * sizeof(vec3), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.normal, size * sizeof(vec3), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.mat_idx, size * sizeof(int32_t), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.t, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.alive, size * sizeof(bool), cudaMemcpyDeviceToDevice, stream));
 	}
 #endif
 
-	void set(vec4* rgba, float* depth, RayPayload* payload, size_t size) {
+	void set(vec4* rgba, float* depth, vec3* origin, vec3* dir, vec3* normal, int32_t* mat_idx, float* t, bool* alive, size_t size) {
 		this->rgba = rgba;
 		this->depth = depth;
-		this->payload = payload;
+		this->origin = origin;
+		this->dir = dir;
+		this->normal = normal;
+		this->mat_idx = mat_idx;
+		this->t = t;
+		this->alive = alive;
 		this->size = size;
 	}
 
 	vec4* rgba;
 	float* depth;
-	RayPayload* payload;
+	vec3* origin;
+	vec3* dir;
+	vec3* normal;
+	int32_t* mat_idx;
+	float* t;
+	bool* alive;
 	size_t size;
 };
 
@@ -50,68 +60,30 @@ class RayTracer {
 		}
 
 		void init_rays_from_camera(
-			uint32_t spp,
-			uint32_t padded_output_width,
-			// uint32_t n_extra_dims,
-			const ivec2& resolution,
+			uint32_t sample_index,
 			const vec2& focal_length,
 			const mat4x3& camera_matrix0,
 			const mat4x3& camera_matrix1,
 			const vec4& rolling_shutter,
 			const vec2& screen_center,
-			const vec3& parallax_shift,
-			bool snap_to_pixel_centers,
-			const ngp::BoundingBox& render_aabb,
-			const mat3& render_aabb_to_local,
-			float near_distance,
-			float plane_z,
-			float aperture_size,
-			const Foveation& foveation,
-			const Lens& lens,
-			const Buffer2DView<const vec4>& envmap,
-			const Buffer2DView<const vec2>& distortion,
-			// vec4* frame_buffer,
-			// float* depth_buffer,
-			// const Buffer2DView<const uint8_t>& hidden_area_mask,
-			const uint8_t* grid,
-			int show_accel,
-			uint32_t max_mip,
-			float cone_angle_constant
-			// ERenderMode render_mode,
-			// , cudaStream_t stream
-		);
-
-		uint32_t trace(
-			// const std::shared_ptr<NerfNetwork<network_precision_t>>& network,
-			const ngp::BoundingBox& render_aabb,
-			const mat3& render_aabb_to_local,
-			const ngp::BoundingBox& train_aabb,
-			const vec2& focal_length,
-			float cone_angle_constant,
-			const uint8_t* grid,
-			ERenderMode render_mode,
-			const mat4x3 &camera_matrix,
-			float depth_scale,
-			int visualized_layer,
-			int visualized_dim,
-			// ENerfActivation rgb_activation,
-			// ENerfActivation density_activation,
-			int show_accel,
-			uint32_t max_mip,
-			float min_transmittance,
-			float glow_y_cutoff,
-			int glow_mode,
-			const float* extra_dims_gpu
-			// , cudaStream_t stream
+			bool snap_to_pixel_centers
 		);
 
 		void enlarge(const ivec2& resolution);
 		RaysSoa& rays_hit() { return m_rays_hit; }
 		RaysSoa& rays_init() { return m_rays[0]; }
 		uint32_t n_rays_initialized() const { return m_n_rays_initialized; }
-		const ivec2& resolution() const { return m_render_buffer.out_resolution(); }
+		ivec2 resolution() const { return m_render_buffer.out_resolution(); }
+		void render(
+			const std::vector<Material>& h_materials, 
+			std::vector<VirtualObject>& h_vo, 
+			const Testbed::View& view, 
+			const vec2& screen_center,
+			uint32_t sample_index,
+			const vec2& focal_length,
+			bool snap_to_pixel_centers
+		);
 
-        void test();
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
 		void sync() {
 			CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream_ray));
@@ -129,6 +101,11 @@ class RayTracer {
 		uint32_t* m_alive_counter;
 		uint32_t m_n_rays_initialized = 0;
 		GPUMemoryArena::Allocation m_scratch_alloc;
+
+		// std::vector<Material*> h_material_gpu_ptrs;
+		// Material** d_material_gpu_ptrs;
+		// std::vector<> h_material_gpu_ptrs;
+		// Material** d_material_gpu_ptrs;
 
 };
 

@@ -43,7 +43,7 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
 
 void Engine::try_resize() {
     ivec2 curr_window_res = m_display.get_window_res();
-    if (curr_window_res != m_next_frame_resolution) {
+    if (curr_window_res != m_next_frame_resolution || !m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter) {
         m_display.set_window_res(m_next_frame_resolution);
         m_testbed->m_window_res = m_next_frame_resolution;
         auto& view = nerf_render_buffer_view();
@@ -97,7 +97,7 @@ bool Engine::frame() {
     {
         sync(m_stream_id);
         m_testbed->primary_device().set_render_buffer_view(nerf_view);
-        if (m_testbed->primary_device().dirty()) {
+        if (!m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter) {
             m_testbed->reset_accumulation(false);
             nerf_view.clear(m_stream_id);
         }
@@ -131,7 +131,15 @@ bool Engine::frame() {
     GLuint nerf_rgba_texid = m_testbed->m_rgba_render_textures.front()->texture();
     GLuint nerf_depth_texid = m_testbed->m_depth_render_textures.front()->texture();
 
-    m_raytracer.test();
+    m_raytracer.render(
+        m_materials, 
+        m_objects,
+        view, 
+        screen_center,
+        nerf_view.spp,
+        focal_length,
+        m_testbed->m_snap_to_pixel_centers
+    );
     m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);
     GLuint syn_rgba_texid = m_raytracer.m_rgba_texture->texture();
     GLuint syn_depth_texid = m_raytracer.m_depth_texture->texture();

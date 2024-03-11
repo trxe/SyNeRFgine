@@ -6,6 +6,9 @@
 #include <tiny-cuda-nn/common_device.h>
 #include <json/json.hpp>
 
+#include <imgui/imgui.h>
+#include <imguizmo/ImGuizmo.h>
+
 #include <stdio.h>
 #include <synerfgine/common.cuh>
 #include <synerfgine/hit_record.cuh>
