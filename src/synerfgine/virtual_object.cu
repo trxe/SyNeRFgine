@@ -64,9 +64,9 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 	if (tri_count) center = center / (float)tri_count;
 	triangles_bvh = TriangleBvh::make();
 	// orig_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
-	triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	// cam_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	triangles_bvh->build(triangles_cpu, prims_per_leaf);
+	triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	// TODO: build a bvh implementation that can be updated
 }
 

@@ -160,7 +160,8 @@ struct BoundingBox {
 		return true;
 	}
 
-	NGP_HOST_DEVICE vec2 ray_intersect(const vec3& pos, const vec3& dir) const {
+	NGP_HOST_DEVICE vec2 ray_intersect(const vec3& pos, const vec3& odir) const {
+		vec3 dir = odir + vec3(FLT_EPSILON);
 		float tmin = (min.x - pos.x) / dir.x;
 		float tmax = (max.x - pos.x) / dir.x;
 

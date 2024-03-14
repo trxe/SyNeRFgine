@@ -1,7 +1,7 @@
 {
     "objfile": [
         {
-            "file": "../data/obj/tris-aabb.obj",
+            "file": "../data/obj/rock.obj",
             "pos" : [ 0.0, 0.0, 0.0 ],
             "material": 5,
             "primitives-per-leaf": 2

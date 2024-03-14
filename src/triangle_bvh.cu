@@ -264,6 +264,7 @@ template <uint32_t BRANCHING_FACTOR>
 class TriangleBvhWithBranchingFactor : public TriangleBvh {
 public:
 	__host__ __device__ static std::pair<int, float> ray_intersect(const vec3& ro, const vec3& rd, const TriangleBvhNode* __restrict__ bvhnodes, const Triangle* __restrict__ triangles) {
+		uint32_t px = threadIdx.x + blockIdx.x * blockDim.x;
 		FixedIntStack query_stack;
 		query_stack.push(0);
 
@@ -635,6 +636,26 @@ public:
 		}
 
 		m_nodes_gpu.resize_and_copy_from_host(m_nodes);
+
+		// for (size_t i = 0; i < triangles.size(); ++i) {
+		// 	vec3 n = triangles[i].normal();
+		// 	std::cout << i << ":" << triangles[i] << " || normal : " << n[0]<< ", " << n[1] << ", " << n[2] << std::endl;
+		// }
+
+		// for (size_t k = 0; k < m_nodes.size(); ++k) {
+		// 	auto& node = m_nodes[k];
+		// 	std::cout << k << "... " << node.bb << "\n";
+		// 	if (node.left_idx < 0) {
+		// 		for (size_t i = -node.left_idx-1; i < -node.right_idx-1; ++i) {
+		// 			std::cout << "   " << i <<  ": " << triangles[i] << std::endl;
+		// 		}
+		// 	} else {
+		// 		uint32_t first_child = node.left_idx;
+		// 		for (uint32_t i = 0; i < BRANCHING_FACTOR; ++i) {
+		// 			std::cout << "   " << i+ first_child << ": " << m_nodes[i+first_child].bb << std::endl;
+		// 		}
+		// 	}
+		// }
 
 		tlog::success() << "Built TriangleBvh: nodes=" << m_nodes.size();
 	}
