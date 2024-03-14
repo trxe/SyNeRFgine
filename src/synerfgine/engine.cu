@@ -57,7 +57,7 @@ void Engine::try_resize() {
         view.resize(new_res);
         sync(m_stream_id);
 
-        m_raytracer.enlarge(new_res);
+        m_raytracer.enlarge(m_next_frame_resolution);
     }
 }
 
@@ -69,6 +69,7 @@ void Engine::imgui() {
         if (ImGui::CollapsingHeader("Objects", ImGuiTreeNodeFlags_DefaultOpen)) {
             for (auto& m : m_objects) { m.imgui(); }
         }
+        m_raytracer.imgui();
     }
     ImGui::End();
 }
@@ -87,14 +88,14 @@ bool Engine::frame() {
     auto& view = nerf_render_buffer_view();
 
     auto nerf_view = view.render_buffer->view();
-	vec2 focal_length = m_testbed->calc_focal_length(
-        nerf_view.resolution, 
-        m_testbed->m_relative_focal_length, 
-        m_testbed->m_fov_axis, 
-        m_testbed->m_zoom);
-	vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
     __timer.reset();
     {
+        vec2 focal_length = m_testbed->calc_focal_length(
+            nerf_view.resolution, 
+            m_testbed->m_relative_focal_length, 
+            m_testbed->m_fov_axis, 
+            m_testbed->m_zoom);
+        vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
         sync(m_stream_id);
         m_testbed->primary_device().set_render_buffer_view(nerf_view);
         if (!m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter) {
@@ -131,15 +132,23 @@ bool Engine::frame() {
     GLuint nerf_rgba_texid = m_testbed->m_rgba_render_textures.front()->texture();
     GLuint nerf_depth_texid = m_testbed->m_depth_render_textures.front()->texture();
 
-    m_raytracer.render(
-        m_materials, 
-        m_objects,
-        view, 
-        screen_center,
-        nerf_view.spp,
-        focal_length,
-        m_testbed->m_snap_to_pixel_centers
-    );
+    {
+        vec2 focal_length = m_testbed->calc_focal_length(
+            m_raytracer.resolution(),
+            m_testbed->m_relative_focal_length, 
+            m_testbed->m_fov_axis, 
+            m_testbed->m_zoom);
+        vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
+        m_raytracer.render(
+            m_materials, 
+            m_objects,
+            view, 
+            screen_center,
+            nerf_view.spp,
+            focal_length,
+            m_testbed->m_snap_to_pixel_centers
+        );
+    }
     m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);
     GLuint syn_rgba_texid = m_raytracer.m_rgba_texture->texture();
     GLuint syn_depth_texid = m_raytracer.m_depth_texture->texture();

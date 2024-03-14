@@ -1,9 +1,10 @@
 {
     "objfile": [
         {
-            "file": "../data/obj/smallbox.obj",
-            "pos" : [ 0.2, 0.3, 0.2 ],
-            "material": 5
+            "file": "../data/obj/tris-aabb.obj",
+            "pos" : [ 0.0, 0.0, 0.0 ],
+            "material": 5,
+            "primitives-per-leaf": 2
         }
     ],
     "materials": [

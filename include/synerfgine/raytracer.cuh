@@ -16,6 +16,22 @@
 
 namespace sng {
 
+enum ImgBufferType {
+	Origin,
+	Direction,
+	Normal,
+	// MaterialIndex,
+	// Alive,
+};
+
+static const char * img_buffer_type_names[] = {
+	"Origin",
+	"Direction",
+	"Normal",
+	// "MaterialIndex",
+	// "Alive"
+};
+
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
 	void copy_from_other_async(const RaysSoa& other, cudaStream_t stream) {
@@ -62,9 +78,7 @@ class RayTracer {
 		void init_rays_from_camera(
 			uint32_t sample_index,
 			const vec2& focal_length,
-			const mat4x3& camera_matrix0,
-			const mat4x3& camera_matrix1,
-			const vec4& rolling_shutter,
+			const mat4x3& camera,
 			const vec2& screen_center,
 			bool snap_to_pixel_centers
 		);
@@ -89,11 +103,26 @@ class RayTracer {
 			CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream_ray));
 		}
 
+		void imgui();
+
         std::shared_ptr<GLTexture> m_rgba_texture;
         std::shared_ptr<GLTexture> m_depth_texture;
 		cudaStream_t m_stream_ray;
 
 	private:
+		vec3* buffer_selector(RaysSoa& rays, ImgBufferType to_show) {
+			switch (to_show) {
+			case ImgBufferType::Origin: 
+				return rays.origin;
+			case ImgBufferType::Direction: 
+				return rays.dir;
+			case ImgBufferType::Normal: 
+				return rays.normal;
+			default:
+				return nullptr;
+			}
+		}
+
 		RaysSoa m_rays[2];
 		RaysSoa m_rays_hit;
         CudaRenderBuffer m_render_buffer {m_rgba_texture, m_depth_texture};
@@ -106,6 +135,7 @@ class RayTracer {
 		// Material** d_material_gpu_ptrs;
 		// std::vector<> h_material_gpu_ptrs;
 		// Material** d_material_gpu_ptrs;
+		ImgBufferType m_buffer_to_show{ImgBufferType::Normal};
 
 };
 

@@ -10,6 +10,7 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 	std::string err;
     file_path = fs::path(config["file"].get<std::string>());
     auto a = config["pos"];
+    auto prims_per_leaf = config["primitives-per-leaf"].get<int>();
     pos = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
     name = fs::path(file_path).basename();
     material_id = config["material"].get<uint32_t>();
@@ -65,7 +66,7 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 	// orig_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	// cam_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
-	triangles_bvh->build(triangles_cpu, 4);
+	triangles_bvh->build(triangles_cpu, prims_per_leaf);
 	// TODO: build a bvh implementation that can be updated
 }
 

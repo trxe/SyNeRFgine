@@ -33,6 +33,7 @@ public:
     const mat3& get_rotate() const { return rot; }
     const vec3& get_translate() const { return pos; }
     float get_scale() const { return scale; }
+    int32_t get_mat_idx() const { return static_cast<int32_t>(material_id); }
     Triangle* gpu_triangles() { return triangles_gpu.data(); }
     std::shared_ptr<TriangleBvh> bvh() { return triangles_bvh; }
     void imgui();
