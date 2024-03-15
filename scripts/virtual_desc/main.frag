@@ -51,6 +51,6 @@ void main() {
     //     gl_FragDepth = nd;
     // }
     // frag_color = vec4(syn.rgb, 1.0) * 0.5 + vec4(nerf.rgb, 1.0);
-    frag_color = vec4(syn.rgb, 1.0);
-    gl_FragDepth = sd;
+    frag_color = vec4(nerf.rgb, 1.0);
+    gl_FragDepth = nd;
 }
