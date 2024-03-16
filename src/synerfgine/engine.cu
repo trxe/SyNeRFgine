@@ -57,7 +57,8 @@ void Engine::try_resize() {
         view.resize(new_res);
         sync(m_stream_id);
 
-        m_raytracer.enlarge(m_next_frame_resolution);
+        // m_raytracer.enlarge(m_next_frame_resolution);
+        m_raytracer.enlarge(new_res);
     }
 }
 
@@ -83,6 +84,9 @@ bool Engine::frame() {
     sync(m_stream_id);
     m_testbed->handle_user_input();
     imgui();
+	ImDrawList* list = ImGui::GetBackgroundDrawList();
+    m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera);
+
     m_testbed->apply_camera_smoothing(__timer.get_ave_time("nerf"));
 
     auto& view = nerf_render_buffer_view();
@@ -152,11 +156,7 @@ bool Engine::frame() {
     m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);
     GLuint syn_rgba_texid = m_raytracer.m_rgba_texture->texture();
     GLuint syn_depth_texid = m_raytracer.m_depth_texture->texture();
-
-	ImDrawList* list = ImGui::GetBackgroundDrawList();
-    m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera);
     m_display.present(nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, m_testbed->m_n_views(0), view.foveation);
-
     return m_display.is_alive();
 }
 

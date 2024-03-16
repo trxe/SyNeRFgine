@@ -103,6 +103,8 @@ class RayTracer {
 			CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream_ray));
 		}
 
+		CudaRenderBuffer& render_buffer() { return m_render_buffer; }
+
 		void imgui();
 
         std::shared_ptr<GLTexture> m_rgba_texture;

@@ -782,10 +782,12 @@ __global__ void raytrace_kernel_full(uint32_t n_elements,
 		t[i] = p.second;
 		positions[i] = pos + p.second * dir;
 		normals[i] = triangles[p.first].normal();
-		norm = triangles[p.first].normal();
 		mat_idx[i] = this_mat_idx;
 		alive[i] = true;
 	} else {
+		t[i] = MAX_DEPTH();
+		normals[i] = vec3(0.0);
+		mat_idx[i] = -1;
 		alive[i] = false;
 	}
 }

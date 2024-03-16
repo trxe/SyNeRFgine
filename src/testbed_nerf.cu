@@ -678,7 +678,7 @@ __global__ void composite_kernel_nerf(
 	depth[i] = local_depth;
 	// depth[i] = payload.t;
 	// DEBUGGER
-	// if (i % 100 == 0) printf("EFORE %d: %f\n", i, local_depth);
+	// if (i % 1000 == 0) printf("NERF %d: local_depth %f payload.t %f \n", i, local_depth, payload.t);
 
 }
 

@@ -6,9 +6,10 @@
 #include <neural-graphics-primitives/testbed.h>
 
 #include <synerfgine/display.cuh>
+#include <synerfgine/light.cuh>
 #include <synerfgine/material.cuh>
-#include <synerfgine/virtual_object.cuh>
 #include <synerfgine/raytracer.cuh>
+#include <synerfgine/virtual_object.cuh>
 
 #include <string>
 #include <vector>
@@ -55,6 +56,7 @@ private:
     RayTracer m_raytracer;
     std::vector<Material> m_materials;
     std::vector<VirtualObject> m_objects;
+    std::vector<Light> m_lights;
 
     std::vector<vec4> m_nerf_rgba_cpu;
     std::vector<float> m_nerf_depth_cpu;

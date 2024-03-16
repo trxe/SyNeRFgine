@@ -146,8 +146,8 @@ void Display::begin_frame() {
 	ImGuizmo::BeginFrame();
 }
 
-void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLint syn_rgba, GLint nerf_rgba, GLint rgba_filter_mode, 
-	[[maybe_unused]] GLint syn_depth, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution) {
+void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLint syn_rgba, GLint syn_depth, GLint rgba_filter_mode, 
+	GLint nerf_rgba, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution) {
 	if (m_blit_program == 0) {
 		return;
 	}
@@ -257,13 +257,13 @@ bool Display::present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint sy
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	glEnable(GL_BLEND);
-	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
-	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	// glEnable(GL_BLEND);
+	// glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+	// glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
     ivec2 extent = {(int)((float)m_window_res.x / nerf_extent.x), (int)((float)m_window_res.y / nerf_extent.y)};
 	ivec2 top_left{0, m_window_res.y - extent.y};
-	transfer_texture(fov, syn_rgba_texid, nerf_rgba_texid, GL_LINEAR, syn_depth_texid, nerf_depth_texid, m_framebuffer, top_left, extent);
+	transfer_texture(fov, syn_rgba_texid, syn_depth_texid, GL_LINEAR, nerf_rgba_texid, nerf_depth_texid, m_framebuffer, top_left, extent);
 	glFinish();
 
 	// IMGUI

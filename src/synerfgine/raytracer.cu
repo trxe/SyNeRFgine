@@ -98,17 +98,23 @@ __global__ void transform_payload(
 
 __global__ void transfer_color(
 	uint32_t n_elements,
-	const vec3* __restrict__ src,
-	vec4* __restrict__ frame_buffer
+	const vec3* __restrict__ src_color,
+	const float* __restrict__ src_depth,
+	const bool* __restrict__ src_alive,
+	vec4* __restrict__ frame_buffer,
+	float* __restrict__ depth_buffer
 ) {
 	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
-	if (idx >= n_elements || src == nullptr) return;
-	vec3 src_col = src[idx];
-	if (length2(src_col) == 0.0) {
+	if (idx >= n_elements || src_color == nullptr || src_depth == nullptr) return;
+	vec3 scol = src_color[idx];
+	float sdep = src_depth[idx];
+	depth_buffer[idx] = sdep;
+	if (src_alive[idx]) {
+		frame_buffer[idx] = vec4(normalize(scol) * 0.5f + vec3(0.5f), 1.0);
+	} else {
 		frame_buffer[idx] = vec4(vec3(0.0), 1.0);
-		return;
 	}
-	frame_buffer[idx] = vec4(normalize(src[idx]) * 0.5f + vec3(0.5f), 1.0);
+	// if (idx % 1000 == 0) printf("SYN %d: local_depth %f, payload.t %f \n", idx, depth_buffer[idx], sdep);
 }
 
 void RayTracer::enlarge(const ivec2& res) {
@@ -211,9 +217,6 @@ void RayTracer::render(
 			-o2w_trans
 		);
 		sync();
-		BoundingBox test_box;
-		test_box.min = vec3(0.0);
-		test_box.max = vec3(2.0);
 		// linear_kernel(test_intersect_aabb, 0, m_stream_ray, n_elements,
 		// 	test_box,
 		// 	m_rays[1].origin,
@@ -238,7 +241,10 @@ void RayTracer::render(
 		sync();
 		linear_kernel(transfer_color, 0, m_stream_ray, n_elements,
 			buffer_selector(m_rays[1], m_buffer_to_show),
-			m_render_buffer.frame_buffer()
+			m_rays[1].t,
+			m_rays[1].alive,
+			m_render_buffer.frame_buffer(),
+			m_render_buffer.depth_buffer()
 		);
 		sync();
 	}
@@ -248,6 +254,7 @@ void RayTracer::render(
 void RayTracer::load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu) {
     m_rgba_texture->load_gpu(m_render_buffer.frame_buffer(), resolution(), frame_cpu);
     m_depth_texture->load_gpu(m_render_buffer.depth_buffer(), resolution(), 1, depth_cpu);
+	sync();
 }
 
 void RayTracer::imgui() {
