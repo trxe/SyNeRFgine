@@ -45,6 +45,8 @@ public:
     std::shared_ptr<TriangleBvh> bvh() { return triangles_bvh; }
     void imgui();
 
+    bool is_dirty{true};
+
 private:
     std::string name;
     fs::path file_path;

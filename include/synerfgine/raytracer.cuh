@@ -110,22 +110,14 @@ class RayTracer {
 			uint32_t sample_index,
 			const vec2& focal_length,
 			bool snap_to_pixel_centers,
-			const uint8_t* density_grid_bitfield
+			const uint8_t* density_grid_bitfield,
+			const GPUMemory<ObjectTransform>& world
 		);
 
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
 
 		void sync() {
 			CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream_ray));
-		}
-
-		void set_objs(std::vector<VirtualObject>& vos) {
-			h_world.clear();
-			for (auto& obj : vos) {
-				h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), obj.get_translate(), obj.get_scale());
-			}
-			d_world.check_guards();
-			d_world.resize_and_copy_from_host(h_world);
 		}
 
 		CudaRenderBuffer& render_buffer() { return m_render_buffer; }
@@ -187,8 +179,6 @@ class RayTracer {
 
 		GPUMemory<Material> d_materials;
 		GPUMemory<Light> d_lights;
-		std::vector<ObjectTransform> h_world;
-		GPUMemory<ObjectTransform> d_world;
 		ImgBufferType m_buffer_to_show{ImgBufferType::Final};
 
 		bool m_view_nerf_shadow{true};

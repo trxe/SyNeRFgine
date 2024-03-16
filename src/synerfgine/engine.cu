@@ -21,7 +21,16 @@ void Engine::set_virtual_world(const std::string& config_fp) {
     for (uint32_t i = 0; i < light_conf.size(); ++i) {
         m_lights.emplace_back(i, light_conf[i]);
     }
-	m_raytracer.set_objs(m_objects);
+    update_gpu_objects();
+}
+
+void Engine::update_gpu_objects() {
+    std::vector<ObjectTransform> h_world;
+    for (auto& obj : m_objects) {
+        h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), obj.get_translate(), obj.get_scale());
+    }
+    d_world.check_guards();
+    d_world.resize_and_copy_from_host(h_world);
 }
 
 void Engine::init(int res_width, int res_height, const std::string& frag_fp, Testbed* nerf) {
@@ -106,6 +115,11 @@ void Engine::imgui() {
         m_pos_to_translate = &(m_objects[m_transform_idx].get_translate_mut());
         m_rot_to_rotate = &(m_objects[m_transform_idx].get_rotate_mut());
         m_scale_to_scale = &(m_objects[m_transform_idx].get_scale_mut());
+        m_obj_dirty_marker = &(m_objects[m_transform_idx].is_dirty);
+    } else {
+        m_pos_to_translate = nullptr;
+        m_rot_to_rotate = nullptr;
+        m_scale_to_scale = nullptr;
         m_obj_dirty_marker = nullptr;
     }
 }
@@ -121,6 +135,10 @@ bool Engine::frame() {
     imgui();
 	ImDrawList* list = ImGui::GetBackgroundDrawList();
     m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera, m_pos_to_translate, m_rot_to_rotate, m_scale_to_scale, m_obj_dirty_marker);
+    if (m_transform_type == WorldObjectType::VirtualObjectObj && m_obj_dirty_marker && *m_obj_dirty_marker) {
+        update_gpu_objects();
+        *m_obj_dirty_marker = false;
+    }
 
     m_testbed->apply_camera_smoothing(__timer.get_ave_time("nerf"));
 
@@ -161,7 +179,8 @@ bool Engine::frame() {
             nerf_view.spp,
             focal_length,
             m_testbed->m_snap_to_pixel_centers,
-            m_testbed->m_nerf.density_grid_bitfield.data()
+            m_testbed->m_nerf.density_grid_bitfield.data(),
+            d_world
         );
     }
     m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);

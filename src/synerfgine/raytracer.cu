@@ -273,7 +273,8 @@ void RayTracer::render(
 	uint32_t sample_index,
 	const vec2& focal_length,
 	bool snap_to_pixel_centers,
-	const uint8_t* density_grid_bitfield
+	const uint8_t* density_grid_bitfield,
+	const GPUMemory<ObjectTransform>& world
 ) {
 	auto res = m_render_buffer.out_resolution();
     uint32_t n_elements = product(res);
@@ -342,8 +343,8 @@ void RayTracer::render(
 			d_lights.size(),
 			d_materials.data(),
 			d_materials.size(),
-			d_world.data(),
-			d_world.size(),
+			world.data(),
+			world.size(),
 			m_view_nerf_shadow,
 			view.render_aabb,
 			view.render_aabb_to_local,

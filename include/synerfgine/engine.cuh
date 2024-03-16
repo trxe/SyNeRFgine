@@ -30,6 +30,7 @@ private:
     void imguizmo();
     void init_buffers();
     void try_resize();
+    void update_gpu_objects();
     void set_dead() { m_display.set_dead(); }
     void sync(cudaStream_t stream) { 
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream)); 
@@ -64,6 +65,7 @@ private:
     std::vector<Material> m_materials;
     std::vector<VirtualObject> m_objects;
     std::vector<Light> m_lights;
+    GPUMemory<ObjectTransform> d_world;
 
     std::vector<vec4> m_nerf_rgba_cpu;
     std::vector<float> m_nerf_depth_cpu;
