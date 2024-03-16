@@ -191,6 +191,8 @@ class RayTracer {
 		GPUMemory<ObjectTransform> d_world;
 		ImgBufferType m_buffer_to_show{ImgBufferType::Final};
 
+		bool m_view_nerf_shadow{true};
+		int m_n_steps{20};
 };
 
 }

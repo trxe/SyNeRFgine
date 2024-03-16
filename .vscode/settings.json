@@ -11,8 +11,8 @@
     "cmake.debugConfig": {
         "args": [
             "--snapshot",
-            "..\\extra_data\\nerf360\\garden\\35000.msgpack",
-            // "..\\data\\nerf\\fox\\base.ingp",
+            // "..\\extra_data\\nerf360\\garden\\35000.msgpack",
+            "..\\data\\nerf\\fox\\base.ingp",
             "--virtual",
             "..\\scripts\\virtual_desc\\box.json",
             "--frag",

@@ -3,6 +3,7 @@
 #include <filesystem/path.h>
 #include <iostream>
 #include <type_traits>
+#include <imguizmo/ImGuizmo.h>
 
 namespace sng {
 
@@ -76,8 +77,37 @@ void Engine::imgui() {
             for (auto& m : m_lights) { m.imgui(); }
         }
         m_raytracer.imgui();
+        if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
+            if (ImGui::Combo("Mode", (int*)&m_transform_type, world_object_names, sizeof(world_object_names) / sizeof(const char*))) {
+                m_transform_idx = 0;
+            }
+            int max_count = 0;
+            switch (m_transform_type) {
+            case WorldObjectType::LightObj:
+                max_count = m_lights.size() - 1;
+                break;
+            case WorldObjectType::VirtualObjectObj:
+                max_count = m_objects.size() - 1;
+                break;
+            default:
+                break;
+            }
+            ImGui::SliderInt("Obj idx", (int*)&m_transform_idx, 0, max_count);
+        }
     }
     ImGui::End();
+
+    if (m_transform_type == WorldObjectType::LightObj && !m_lights.empty()) { 
+        m_pos_to_translate = &(m_lights[m_transform_idx].pos);
+        m_rot_to_rotate = nullptr;
+        m_scale_to_scale = nullptr;
+        m_obj_dirty_marker = &(m_lights[m_transform_idx].is_dirty);
+    } else if (m_transform_type == WorldObjectType::VirtualObjectObj && !m_objects.empty()) {
+        m_pos_to_translate = &(m_objects[m_transform_idx].get_translate_mut());
+        m_rot_to_rotate = &(m_objects[m_transform_idx].get_rotate_mut());
+        m_scale_to_scale = &(m_objects[m_transform_idx].get_scale_mut());
+        m_obj_dirty_marker = nullptr;
+    }
 }
 
 bool Engine::frame() {
@@ -90,7 +120,7 @@ bool Engine::frame() {
     m_testbed->handle_user_input();
     imgui();
 	ImDrawList* list = ImGui::GetBackgroundDrawList();
-    // m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera);
+    m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera, m_pos_to_translate, m_rot_to_rotate, m_scale_to_scale, m_obj_dirty_marker);
 
     m_testbed->apply_camera_smoothing(__timer.get_ave_time("nerf"));
 

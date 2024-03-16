@@ -1,21 +1,21 @@
 {
     "lights": [
         {
-            "pos" : [ 1.0, 1.0, -1.0 ],
-            "intensity" : -1.0
+            "pos" : [ 0.0, 0.0, 0.0 ],
+            "intensity" : 1.0
         }
     ],
     "objfile": [
         {
             "file": "../data/obj/rock.obj",
             "pos" : [ 1.0, 0.6, -1.0 ],
-            "scale" : 0.1,
+            "scale" : 0.4,
             "material": 0
         },
         {
             "file": "../data/obj/smallbox.obj",
             "pos" : [ 1.0, 0.3, -1.0 ],
-            "scale" : 0.1,
+            "scale" : 0.4,
             "material": 1
         }
     ],

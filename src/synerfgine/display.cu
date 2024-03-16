@@ -257,9 +257,9 @@ bool Display::present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint sy
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	// glEnable(GL_BLEND);
-	// glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
-	// glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
     ivec2 extent = {(int)((float)m_window_res.x / nerf_extent.x), (int)((float)m_window_res.y / nerf_extent.y)};
 	ivec2 top_left{0, m_window_res.y - extent.y};

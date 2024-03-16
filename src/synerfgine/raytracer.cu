@@ -123,6 +123,7 @@ __global__ void shade_color(
 	ObjectTransform* __restrict__ obj_transforms,
 	uint32_t object_count,
 	// for NeRF shadows
+	bool show_nerf_shadow,
 	BoundingBox render_aabb,
 	mat3 render_aabb_to_local,
 	ivec2 focal_length,
@@ -144,25 +145,27 @@ __global__ void shade_color(
 	vec3 pos = world_origin[idx];
 	vec3 N = normalize(world_normal[idx]);
 	vec3 V = -normalize(world_dir[idx]);
-	Material* mat = materials+mat_id;
-	out_color[idx] = mat->ka;
+	Material* mat_p = materials+mat_id;
+	out_color[idx] = mat_p->ka;
 	for (size_t i = 0; i < light_count; ++i) {
-		Light* light = world_lights+i;
-		float full_d = length2(light->pos - pos);
-		float shadow_depth = 0.0f;
-		vec3 L = normalize(light->pos - pos);
+		Light* light_p = world_lights+i;
+		float full_d = length2(light_p->pos - pos);
+		vec3 L = normalize(light_p->pos - pos);
 		vec3 invL = vec3(1.0f) / L;
 		float cone_angle = calc_cone_angle(dot(L, L), focal_length, cone_angle_constant);
 		vec3 R = reflect(L, N);
-		vec3 tmp_col = max(0.0f, dot(L, N)) * mat->kd + pow(max(0.0f, dot(R, V)), mat->n) * mat->ks;
-		for (uint32_t j = 0; j < n_steps; ++j) {
-			shadow_depth = if_unoccupied_advance_to_next_occupied_voxel(shadow_depth, cone_angle, {pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
-			if (shadow_depth >= full_d) {
+		vec3 tmp_col = max(0.0f, dot(L, N)) * mat_p->kd + pow(max(0.0f, dot(R, V)), mat_p->n) * mat_p->ks;
+		float nerf_shadow = 0.0;
+		for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
+			nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle, {pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+			if (nerf_shadow >= full_d) {
+				nerf_shadow = full_d;
 				break;
 			}
-			float dt = calc_dt(shadow_depth, cone_angle);
-			shadow_depth += dt;
+			float dt = calc_dt(nerf_shadow, cone_angle);
+			nerf_shadow += dt;
 		}
+		float shadow_depth = full_d;
 
 		for (size_t t = 0; t < object_count; ++t) {
 			if (t == obj_id) continue;
@@ -173,7 +176,7 @@ __global__ void shade_color(
 			if (hit >= 0) shadow_depth = min(d, shadow_depth);
 		}
 
-		out_color[idx] += smoothstep(shadow_depth / full_d) * tmp_col;
+		out_color[idx] += smoothstep(min(nerf_shadow, shadow_depth) / full_d) * tmp_col;
 	}
 }
 
@@ -341,10 +344,11 @@ void RayTracer::render(
 			d_materials.size(),
 			d_world.data(),
 			d_world.size(),
+			m_view_nerf_shadow,
 			view.render_aabb,
 			view.render_aabb_to_local,
 			focal_length,
-			view.n_steps,
+			static_cast<size_t>(m_n_steps),
 			density_grid_bitfield,
 			view.min_mip,
 			view.max_mip,
@@ -371,16 +375,17 @@ void RayTracer::load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu
 }
 
 void RayTracer::imgui() {
-	constexpr int img_buffer_type_count = sizeof(img_buffer_type_names) / sizeof(img_buffer_type_names[0]);
+	// constexpr int img_buffer_type_count = sizeof(img_buffer_type_names) / sizeof(img_buffer_type_names[0]);
 	if (ImGui::CollapsingHeader("Raytracer", ImGuiTreeNodeFlags_DefaultOpen)) {
-		ImGui::SetNextItemOpen(true);
-		if (ImGui::TreeNode("Display Buffer")) {
-			if (ImGui::Combo("Buffer Type", (int*)&m_buffer_to_show, img_buffer_type_names, img_buffer_type_count)) {
-			}
-			ImGui::TreePop();
-		}
+		ImGui::Checkbox("View NeRF shadows on Virtual Objects", &m_view_nerf_shadow);
+		ImGui::InputInt("Number of shadow steps", &m_n_steps);
+		// ImGui::SetNextItemOpen(true);
+		// if (ImGui::TreeNode("Display Buffer")) {
+		// 	if (ImGui::Combo("Buffer Type", (int*)&m_buffer_to_show, img_buffer_type_names, img_buffer_type_count)) {
+		// 	}
+		// 	ImGui::TreePop();
+		// }
 	}
-	ImGui::End();
 }
 
 }

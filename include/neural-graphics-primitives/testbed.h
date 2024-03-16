@@ -470,7 +470,7 @@ public:
 #endif
 
 	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);
-	void draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix);
+	void draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix, vec3* pos_to_translate=nullptr, mat3* rotate=nullptr, float* scale=nullptr, bool* dirty_marker=nullptr);
 	void train_and_render(bool skip_rendering);
 	fs::path training_data_path() const;
 	void init_window(int resw, int resh, bool hidden = false, bool second_window = false);
@@ -952,7 +952,6 @@ public:
 		vec4 rolling_shutter = vec4(vec3(0.0), 1.0);
 		BoundingBox render_aabb;
 		mat4x3 render_aabb_to_local;
-		uint32_t n_steps = 10;
 		uint32_t min_mip = 0; 
 		uint32_t max_mip = 10; 
 		float cone_angle_constant = 1.0f;

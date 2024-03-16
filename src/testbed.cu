@@ -1763,7 +1763,7 @@ void Testbed::visualize_nerf_cameras(ImDrawList* list, const mat4& world2proj) {
 
 }
 
-void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix) {
+void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix, vec3* pos_to_translate, mat3* rotate, float* scale, bool* dirty_marker) {
 	mat4 view2world = camera_matrix;
 	mat4 world2view = inverse(view2world);
 
@@ -1846,6 +1846,62 @@ void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix)
 				m_render_aabb.max += new_cen - old_cen;
 			}
 
+			reset_accumulation();
+		}
+	}
+
+	if (pos_to_translate) {
+		// if (m_testbed_mode == ETestbedMode::Nerf || m_testbed_mode == ETestbedMode::Volume) {
+		// 	visualize_cube(list, world2proj, m_render_aabb.min, m_render_aabb.max, m_render_aabb_to_local);
+		// }
+
+		ImGuiIO& io = ImGui::GetIO();
+		// float flx = focal.x;
+		float fly = focal.y;
+		float zfar = m_ndc_zfar;
+		float znear = m_ndc_znear;
+		mat4 view2proj_guizmo = transpose(mat4{
+			fly * 2.0f / aspect, 0.0f,       0.0f,                            0.0f,
+			0.0f,                -fly * 2.f, 0.0f,                            0.0f,
+			0.0f,                0.0f,       (zfar + znear) / (zfar - znear), -(2.0f * zfar * znear) / (zfar - znear),
+			0.0f,                0.0f,       1.0f,                            0.0f,
+		});
+
+		ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+		static mat4 matrix_pos = mat4::identity();
+		static mat4 world2view_guizmo_pos = mat4::identity();
+
+		vec3 cen = transpose(m_render_aabb_to_local) * m_render_aabb.center();
+		if (!ImGuizmo::IsUsing()) {
+			// The the guizmo is being used, it handles updating its matrix on its own.
+			// Outside interference can only lead to trouble.
+			if (rotate) {
+				matrix_pos = mat4 {
+					(*rotate)[0][0], (*rotate)[0][1], (*rotate)[0][2], 0.0f,
+					(*rotate)[1][0], (*rotate)[1][1], (*rotate)[1][2], 0.0f,
+					(*rotate)[2][0], (*rotate)[2][1], (*rotate)[2][2], 0.0f,
+					0.0f        , 0.0f        , 0.0f        , 1.0f
+				};
+			}
+			if (pos_to_translate) matrix_pos[3].rgb() = *pos_to_translate;
+
+			// Additionally, the world2view transform must stay fixed, else the guizmo will incorrectly
+			// interpret the state from past frames. Special handling is necessary here, because below
+			// we emulate world translation and rotation through (inverse) camera movement.
+			world2view_guizmo_pos = world2view;
+		}
+
+		// auto prev_matrix = matrix_pos;
+
+		if (ImGuizmo::Manipulate((const float*)&world2view_guizmo_pos, (const float*)&view2proj_guizmo, m_camera_path.m_gizmo_op, ImGuizmo::LOCAL, (float*)&matrix_pos, NULL, NULL)) {
+			if (pos_to_translate) {
+				*pos_to_translate = matrix_pos[3].rgb();
+			}
+			if (rotate) {
+				*rotate = mat3(matrix_pos);
+			}
+			if (dirty_marker) *dirty_marker = true;
 			reset_accumulation();
 		}
 	}

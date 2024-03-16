@@ -54,6 +54,16 @@ __global__ void debug_shade(uint32_t n_elements, vec4* __restrict__ rgba, vec3 c
 __global__ void print_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth);
 __global__ void debug_uv_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth, ivec2 resolution);
 
+enum WorldObjectType {
+    None,
+    LightObj,
+    VirtualObjectObj
+};
+
+static const char * world_object_names[] = {
+    "None", "Light", "Virtual Object"
+};
+
 class Timer {
  public:
   std::chrono::system_clock::time_point reset() {

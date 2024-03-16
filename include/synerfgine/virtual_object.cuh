@@ -34,6 +34,11 @@ public:
     const mat3& get_rotate() const { return rot; }
     const vec3& get_translate() const { return pos; }
     float get_scale() const { return scale; }
+
+    mat3& get_rotate_mut() { return rot; }
+    vec3& get_translate_mut() { return pos; }
+    float& get_scale_mut() { return scale; }
+
     int32_t get_mat_idx() const { return material_id; }
     TriangleBvhNode* gpu_node()  { return triangles_bvh->nodes_gpu(); }
     Triangle* gpu_triangles() { return triangles_gpu.data(); }

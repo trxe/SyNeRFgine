@@ -27,6 +27,7 @@ public:
 
 private:
     void imgui();
+    void imguizmo();
     void init_buffers();
     void try_resize();
     void set_dead() { m_display.set_dead(); }
@@ -49,7 +50,6 @@ private:
         view.render_aabb_to_local = m_testbed->m_render_aabb_to_local;
         view.min_mip = 0;
         view.max_mip = m_testbed->m_nerf.max_cascade;
-        view.n_steps = 20; // hard coded
         view.cone_angle_constant = m_testbed->m_nerf.cone_angle_constant;
         m_testbed->m_nerf.density_grid.data();
         return view;
@@ -73,6 +73,14 @@ private:
     INIT_BENCHMARK();
 	float m_render_ms{30.0f};
 	float m_last_target_fps{0.0f};
+
+    // for imguizmo
+    WorldObjectType m_transform_type{WorldObjectType::None};
+    uint32_t m_transform_idx{0};
+    vec3* m_pos_to_translate = nullptr;
+    mat3* m_rot_to_rotate = nullptr;
+    float* m_scale_to_scale = nullptr;
+    bool* m_obj_dirty_marker = nullptr;
 
     cudaStream_t m_stream_id;
 
