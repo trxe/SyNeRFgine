@@ -88,18 +88,26 @@ __global__ void transform_payload(
 	vec3* __restrict__ dst_normal,
 	mat3 rotation,
 	vec3 translation,
-	float scale
+	float scale,
+	bool o2w
 ) {
 	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
 	if (idx >= n_elements) return;
-	rotation = scale * rotation;
-	dst_origin[idx] = rotation * src_origin[idx] + scale * translation;
-	dst_dir[idx] = rotation * src_dir[idx];
-	dst_normal[idx] = rotation * src_normal[idx];
+	if (!o2w) { // world space to object space
+		rotation = scale * rotation;
+		dst_origin[idx] = rotation * (src_origin[idx] + translation);
+		dst_dir[idx] = rotation * src_dir[idx];
+		dst_normal[idx] = rotation * src_normal[idx];
+	} else { // object space to world space
+		dst_origin[idx] = rotation * (src_origin[idx] * scale) + translation;
+		dst_dir[idx] = rotation * src_dir[idx] * scale;
+		dst_normal[idx] = rotation * src_normal[idx] * scale;
+	}
 }
 
 __global__ void shade_color(
 	uint32_t n_elements,
+	uint32_t obj_id,
 	const vec3* __restrict__ world_origin,
 	const vec3* __restrict__ world_dir,
 	const vec3* __restrict__ world_normal,
@@ -110,6 +118,8 @@ __global__ void shade_color(
 	uint32_t light_count,
 	Material* __restrict__ materials,
 	uint32_t material_count,
+	ObjectTransform* __restrict__ obj_transforms,
+	uint32_t object_count,
 	vec3* __restrict__ out_color,
 	float* __restrict__ out_depth
 ) {
@@ -121,15 +131,26 @@ __global__ void shade_color(
 	if (mat_id < 0 || mat_id >= material_count || !is_alive[idx]) return;
 
 	vec3 pos = world_origin[idx];
-	vec3 N = world_normal[idx];
+	vec3 N = normalize(world_normal[idx]);
 	vec3 V = -normalize(world_dir[idx]);
 	Material* mat = materials+mat_id;
 	out_color[idx] = mat->ka;
 	for (size_t i = 0; i < light_count; ++i) {
 		Light* light = world_lights+i;
+		float full_d = length2(light->pos - pos);
+		float shadow_depth = full_d;
 		vec3 L = normalize(light->pos - pos);
 		vec3 R = reflect(L, N);
-		out_color[idx] += max(0.0f, dot(L, N)) * mat->kd + pow(max(0.0f, dot(R, V)), mat->n) * mat->ks;
+		vec3 tmp_col = max(0.0f, dot(L, N)) * mat->kd + pow(max(0.0f, dot(R, V)), mat->n) * mat->ks;
+		for (size_t t = 0; t < object_count; ++t) {
+			if (t == obj_id) continue;
+			ObjectTransform obj = obj_transforms[t];
+			pos = inverse(obj.rot) / obj.scale * (pos - obj.pos);
+			L = inverse(obj.rot) / obj.scale * L;
+			auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.g_node, obj.g_tris);
+			if (hit >= 0) shadow_depth = min(d, shadow_depth);
+		}
+		out_color[idx] += smoothstep(shadow_depth / full_d) * tmp_col;
 	}
 }
 
@@ -144,9 +165,11 @@ __global__ void transfer_color(
 	if (idx >= n_elements || src_color == nullptr || src_depth == nullptr) return;
 	vec3 scol = src_color[idx];
 	float sdep = src_depth[idx];
-	frame_buffer[idx] = vec4(scol, 1.0);
-	depth_buffer[idx] = sdep;
-	// if (idx % 1000 == 0) printf("SYN %d: local_depth %f, payload.t %f \n", idx, depth_buffer[idx], sdep);
+	float currdep = depth_buffer[idx];
+	if (sdep < currdep) {
+		frame_buffer[idx] = vec4(scol, 1.0);
+		depth_buffer[idx] = sdep;
+	}
 }
 
 void RayTracer::enlarge(const ivec2& res) {
@@ -250,22 +273,14 @@ void RayTracer::render(
 			m_rays[1].normal,
 			inverse(o2w_rot),
 			-o2w_trans,
-			1.0/o2w_scale
+			1.0/o2w_scale,
+			false
 		);
 		sync();
-		// linear_kernel(test_intersect_aabb, 0, m_stream_ray, n_elements,
-		// 	test_box,
-		// 	m_rays[1].origin,
-		// 	m_rays[1].dir,
-		// 	m_rays[1].normal,
-		// 	m_rays[1].mat_idx,
-		// 	m_rays[1].t,
-		// 	m_rays[1].alive
-		// );
 		bvh->ray_trace_gpu(
 			n_elements,
 			m_rays[1].origin,
-			m_rays[0].dir,
+			m_rays[1].dir,
 			m_rays[1].normal,
 			m_rays[1].t,
 			m_rays[1].mat_idx,
@@ -284,10 +299,12 @@ void RayTracer::render(
 			m_rays[1].normal,
 			o2w_rot,
 			o2w_trans,
-			o2w_scale
+			o2w_scale,
+			true
 		);
 		sync();
 		linear_kernel(shade_color, 0, m_stream_ray, n_elements,
+			obj.get_id(),
 			m_rays[1].origin,
 			m_rays[1].dir,
 			m_rays[1].normal,
@@ -298,9 +315,12 @@ void RayTracer::render(
 			d_lights.size(),
 			d_materials.data(),
 			d_materials.size(),
+			d_world.data(),
+			d_world.size(),
 			m_rays[1].rgb,
 			m_rays[1].depth
 		);
+		sync();
 		linear_kernel(transfer_color, 0, m_stream_ray, n_elements,
 			buffer_selector(m_rays[1], m_buffer_to_show),
 			m_rays[1].depth,

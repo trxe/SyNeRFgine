@@ -35,6 +35,16 @@ static const char * img_buffer_type_names[] = {
 	// "Alive"
 };
 
+struct ObjectTransform {
+	NGP_HOST_DEVICE ObjectTransform(TriangleBvhNode* g_node, Triangle* g_tris, const mat3& rot, const vec3& pos, const float& scale) :
+		g_node(g_node), g_tris(g_tris), rot(rot), pos(pos), scale(scale) {}
+	TriangleBvhNode* g_node;
+	Triangle* g_tris;
+	mat3 rot;
+	vec3 pos;
+	float scale;
+};
+
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
 	void copy_from_other_async(const RaysSoa& other, cudaStream_t stream) {
@@ -103,8 +113,18 @@ class RayTracer {
 		);
 
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
+
 		void sync() {
 			CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream_ray));
+		}
+
+		void set_objs(std::vector<VirtualObject>& vos) {
+			h_world.clear();
+			for (auto& obj : vos) {
+				h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), obj.get_translate(), obj.get_scale());
+			}
+			d_world.check_guards();
+			d_world.resize_and_copy_from_host(h_world);
 		}
 
 		CudaRenderBuffer& render_buffer() { return m_render_buffer; }
@@ -166,6 +186,8 @@ class RayTracer {
 
 		GPUMemory<Material> d_materials;
 		GPUMemory<Light> d_lights;
+		std::vector<ObjectTransform> h_world;
+		GPUMemory<ObjectTransform> d_world;
 		ImgBufferType m_buffer_to_show{ImgBufferType::Final};
 
 };

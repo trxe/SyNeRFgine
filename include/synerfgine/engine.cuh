@@ -64,7 +64,8 @@ private:
     std::vector<float> m_syn_depth_cpu;
 
     INIT_BENCHMARK();
-	float m_render_ms = 0.0f;
+	float m_render_ms{30.0f};
+	float m_last_target_fps{0.0f};
 
     cudaStream_t m_stream_id;
 

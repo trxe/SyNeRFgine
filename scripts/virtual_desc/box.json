@@ -1,16 +1,22 @@
 {
     "lights": [
         {
-            "pos" : [ 0.0, 4.0, 0.0 ],
-            "intensity" : 1.0
+            "pos" : [ 1.0, 1.0, -1.0 ],
+            "intensity" : -1.0
         }
     ],
     "objfile": [
         {
             "file": "../data/obj/rock.obj",
-            "pos" : [ 0.0, 0.0, 0.0 ],
-            "material": 0,
-            "primitives-per-leaf": 2
+            "pos" : [ 1.0, 0.6, -1.0 ],
+            "scale" : 0.1,
+            "material": 0
+        },
+        {
+            "file": "../data/obj/smallbox.obj",
+            "pos" : [ 1.0, 0.3, -1.0 ],
+            "scale" : 0.1,
+            "material": 1
         }
     ],
     "materials": [

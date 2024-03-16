@@ -22,6 +22,7 @@
 #include <tiny-cuda-nn/gpu_memory.h>
 
 #include <memory>
+#define BVH_BRANCH_FACTOR 2 
 
 namespace ngp {
 
@@ -56,8 +57,10 @@ private:
 
 using FixedIntStack = FixedStack<int>;
 
+template <uint32_t N, typename T>
+__host__ __device__ void sorting_network(T values[N]);
 
-__host__ __device__ std::pair<int, float> trianglebvh_ray_intersect(const vec3& ro, const vec3& rd, const TriangleBvhNode* __restrict__ bvhnodes, const Triangle* __restrict__ triangles);
+__host__ __device__ std::pair<int, float> ray_intersect_nodes(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles);
 
 class TriangleBvh {
 public:

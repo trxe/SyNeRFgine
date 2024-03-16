@@ -9,9 +9,12 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 	std::string warn;
 	std::string err;
     file_path = fs::path(config["file"].get<std::string>());
-    auto a = config["pos"];
-    auto prims_per_leaf = config["primitives-per-leaf"].get<int>();
-    pos = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+	scale = config.contains("scale") ? config["scale"].get<float>() : 1.0;
+    auto prims_per_leaf = config.contains("primitives-per-leaf") ? config["primitives-per-leaf"].get<int>() : 4;
+	if (config.contains("pos")) {
+		auto a = config["pos"];
+		pos = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+	}
     name = fs::path(file_path).basename();
     material_id = config["material"].get<uint32_t>();
 
@@ -74,10 +77,12 @@ void VirtualObject::imgui() {
 	std::string unique_pos = fmt::format("[{}] pos", id);
 	std::string unique_scale = fmt::format("[{}] scale", id);
 	std::string title = fmt::format("Object [{}]", id);
+	std::string unique_mat_id = fmt::format("[{}] mat id", id);
 	if (ImGui::TreeNode(title.c_str())) {
 		ImGui::InputFloat("Draggable bounds", &g_vo_pos_bound);
 		if (ImGui::SliderFloat3(unique_pos.c_str(), pos.data(), -g_vo_pos_bound, g_vo_pos_bound)) { }
 		if (ImGui::SliderFloat(unique_scale.c_str(), &this->scale, 0.0, g_vo_pos_bound)) { }
+		if (ImGui::InputInt(unique_mat_id.c_str(), (int*)&this->material_id)) {}
 		ImGui::TreePop();
 	}
 	ImGui::Separator();

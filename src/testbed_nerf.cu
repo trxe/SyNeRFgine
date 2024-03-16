@@ -1866,8 +1866,6 @@ void Testbed::render_nerf(
 
 	Lens lens = m_nerf.render_with_lens_distortion ? m_nerf.render_lens : Lens{};
 
-	auto resolution = render_buffer.resolution;
-
 	tracer.init_rays_from_camera(
 		render_buffer.spp,
 		nerf_network->padded_output_width(),

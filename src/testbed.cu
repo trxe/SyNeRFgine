@@ -2044,6 +2044,7 @@ void Testbed::mouse_wheel() {
 		return;
 	}
 
+	m_render_skip_due_to_lack_of_camera_movement_counter = false;
 	float scale_factor = pow(1.1f, -delta);
 	set_scale(m_scale * scale_factor);
 
@@ -2099,6 +2100,7 @@ void Testbed::mouse_drag() {
 
 			reset_accumulation(true);
 		}
+		m_render_skip_due_to_lack_of_camera_movement_counter = true;
 	}
 
 	// Right held
@@ -2110,6 +2112,7 @@ void Testbed::mouse_drag() {
 
 		m_slice_plane_z += -rel.y * m_bounding_radius;
 		reset_accumulation();
+		m_render_skip_due_to_lack_of_camera_movement_counter = true;
 	}
 
 	// Middle pressed
@@ -2128,6 +2131,7 @@ void Testbed::mouse_drag() {
 		}
 
 		translate_camera(translation, mat3(m_camera));
+		m_render_skip_due_to_lack_of_camera_movement_counter = true;
 	}
 }
 
@@ -4294,6 +4298,7 @@ void Testbed::render(
 	if (!m_render_skip_due_to_lack_of_camera_movement_counter) {
 		reset_accumulation(false);
 		view.render_buffer->clear_frame(stream);
+		m_render_skip_due_to_lack_of_camera_movement_counter = true;
 	}
 	assert(
 		view.device == &primary_device()

@@ -30,10 +30,12 @@ class VirtualObject {
 public:
     VirtualObject(uint32_t id, const nlohmann::json& config);
     ~VirtualObject() { triangles_gpu.free_memory(); }
+    uint32_t get_id() { return id; }
     const mat3& get_rotate() const { return rot; }
     const vec3& get_translate() const { return pos; }
     float get_scale() const { return scale; }
-    int32_t get_mat_idx() const { return static_cast<int32_t>(material_id); }
+    int32_t get_mat_idx() const { return material_id; }
+    TriangleBvhNode* gpu_node()  { return triangles_bvh->nodes_gpu(); }
     Triangle* gpu_triangles() { return triangles_gpu.data(); }
     std::shared_ptr<TriangleBvh> bvh() { return triangles_bvh; }
     void imgui();
@@ -48,7 +50,7 @@ private:
     std::vector<Triangle> triangles_cpu;
 	GPUMemory<Triangle> triangles_gpu;
     std::shared_ptr<ngp::TriangleBvh> triangles_bvh;
-    uint32_t material_id;
+    int32_t material_id;
     uint32_t id;
 };
 

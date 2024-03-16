@@ -261,10 +261,60 @@ __host__ __device__ void sorting_network(T values[N]) {
 }
 
 template <uint32_t BRANCHING_FACTOR>
+__host__ __device__ std::pair<int, float> ray_intersect_nodes_f(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles) {
+	uint32_t px = threadIdx.x + blockIdx.x * blockDim.x;
+	FixedIntStack query_stack;
+	query_stack.push(0);
+
+	float mint = MAX_DIST;
+	int shortest_idx = -1;
+
+	while (!query_stack.empty()) {
+		int idx = query_stack.pop();
+
+		const TriangleBvhNode& node = bvhnodes[idx];
+
+		if (node.left_idx < 0) {
+			int end = -node.right_idx-1;
+			for (int i = -node.left_idx-1; i < end; ++i) {
+				float t = triangles[i].ray_intersect(ro, rd);
+				if (t < mint) {
+					mint = t;
+					shortest_idx = i;
+				}
+			}
+		} else {
+			DistAndIdx children[BRANCHING_FACTOR];
+
+			uint32_t first_child = node.left_idx;
+
+			NGP_PRAGMA_UNROLL
+			for (uint32_t i = 0; i < BRANCHING_FACTOR; ++i) {
+				children[i] = {bvhnodes[i+first_child].bb.ray_intersect(ro, rd).x, i+first_child};
+			}
+
+			sorting_network<BRANCHING_FACTOR>(children);
+
+			NGP_PRAGMA_UNROLL
+			for (uint32_t i = 0; i < BRANCHING_FACTOR; ++i) {
+				if (children[i].dist < mint) {
+					query_stack.push(children[i].idx);
+				}
+			}
+		}
+	}
+
+	return {shortest_idx, mint};
+}
+
+__host__ __device__ std::pair<int, float> ngp::ray_intersect_nodes(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles) {
+	return ray_intersect_nodes_f<BVH_BRANCH_FACTOR>(ro, rd, bvhnodes, triangles);
+}
+
+template <uint32_t BRANCHING_FACTOR>
 class TriangleBvhWithBranchingFactor : public TriangleBvh {
 public:
 	__host__ __device__ static std::pair<int, float> ray_intersect(const vec3& ro, const vec3& rd, const TriangleBvhNode* __restrict__ bvhnodes, const Triangle* __restrict__ triangles) {
-		uint32_t px = threadIdx.x + blockIdx.x * blockDim.x;
 		FixedIntStack query_stack;
 		query_stack.push(0);
 
@@ -691,7 +741,6 @@ private:
 #endif //NGP_OPTIX
 };
 
-#define BVH_BRANCH_FACTOR 2 
 using TriangleBvh4 = TriangleBvhWithBranchingFactor<BVH_BRANCH_FACTOR>;
 
 std::unique_ptr<TriangleBvh> TriangleBvh::make() {

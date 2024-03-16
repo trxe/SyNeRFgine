@@ -20,6 +20,7 @@ void Engine::set_virtual_world(const std::string& config_fp) {
     for (uint32_t i = 0; i < light_conf.size(); ++i) {
         m_lights.emplace_back(i, light_conf[i]);
     }
+	m_raytracer.set_objs(m_objects);
 }
 
 void Engine::init(int res_width, int res_height, const std::string& frag_fp, Testbed* nerf) {
@@ -46,16 +47,14 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
 
 void Engine::try_resize() {
     ivec2 curr_window_res = m_display.get_window_res();
-    if (curr_window_res != m_next_frame_resolution || !m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter) {
+    if (curr_window_res != m_next_frame_resolution || !m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter || 
+            m_last_target_fps != m_testbed->m_dynamic_res_target_fps) {
         m_display.set_window_res(m_next_frame_resolution);
         m_testbed->m_window_res = m_next_frame_resolution;
         auto& view = nerf_render_buffer_view();
-        auto nerf_view = view.render_buffer->view();
-        uint32_t nerf_res = product(nerf_view.resolution);
-        uint32_t n_pixels_full_res = product(curr_window_res);
-		float pixel_ratio = ((float)nerf_res / (float)n_pixels_full_res);
-		float last_factor = std::sqrt(pixel_ratio);
-		float factor = std::sqrt(pixel_ratio / m_render_ms * 1000.0f / m_testbed->m_dynamic_res_target_fps);
+        m_last_target_fps = m_testbed->m_dynamic_res_target_fps;
+		float factor = 5.0f / m_testbed->m_dynamic_res_target_fps;
+        // tlog::success() << "Scaling full resolution by " << factor;
         auto new_res = downscale_resolution(m_next_frame_resolution, factor);
         view.resize(new_res);
         sync(m_stream_id);
@@ -91,7 +90,7 @@ bool Engine::frame() {
     m_testbed->handle_user_input();
     imgui();
 	ImDrawList* list = ImGui::GetBackgroundDrawList();
-    m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera);
+    // m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera);
 
     m_testbed->apply_camera_smoothing(__timer.get_ave_time("nerf"));
 
@@ -100,38 +99,14 @@ bool Engine::frame() {
     auto nerf_view = view.render_buffer->view();
     __timer.reset();
     {
-        // vec2 focal_length = m_testbed->calc_focal_length(
-        //     nerf_view.resolution, 
-        //     m_testbed->m_relative_focal_length, 
-        //     m_testbed->m_fov_axis, 
-        //     m_testbed->m_zoom);
-        // vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
         sync(m_stream_id);
-        // m_testbed->primary_device().set_render_buffer_view(nerf_view);
         m_testbed->render( m_stream_id, view );
-        // m_testbed->render( m_stream_id, view, screen_center, focal_length);
-        // m_testbed->render_frame(
-        //     m_stream_id,
-        //     view.camera0,
-        //     view.camera1,
-        //     view.prev_camera,
-        //     screen_center,
-        //     view.relative_focal_length,
-        //     view.rolling_shutter,
-        //     view.foveation,
-        //     view.prev_foveation,
-        //     view.visualized_dimension,
-        //     *view.render_buffer
-        // );
         sync(m_stream_id);
         view.prev_camera = view.camera0;
         view.prev_foveation = view.foveation;
 
         ivec2 nerf_res = nerf_view.resolution;
         auto n_elements = product(nerf_res);
-        // linear_kernel(debug_shade, 0, m_stream_id, n_elements, nerf_view.frame_buffer, vec3(1.0, 0.0, 0.0), nerf_view.depth_buffer, 0.0);
-        // linear_kernel(print_shade, 0, m_stream_id, n_elements, nerf_view.frame_buffer, nerf_view.depth_buffer);
-        // sync();
     }
     m_render_ms = (float)__timer.log_time("nerf");
     m_testbed->m_frame_ms.set(m_render_ms);
