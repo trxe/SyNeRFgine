@@ -45,6 +45,13 @@ private:
         view.screen_center = m_testbed->m_screen_center;
         view.render_buffer->set_hidden_area_mask(nullptr);
         view.foveation = {};
+        view.render_aabb = m_testbed->m_render_aabb;
+        view.render_aabb_to_local = m_testbed->m_render_aabb_to_local;
+        view.min_mip = 0;
+        view.max_mip = m_testbed->m_nerf.max_cascade;
+        view.n_steps = 20; // hard coded
+        view.cone_angle_constant = m_testbed->m_nerf.cone_angle_constant;
+        m_testbed->m_nerf.density_grid.data();
         return view;
     }
 

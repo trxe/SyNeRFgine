@@ -130,7 +130,8 @@ bool Engine::frame() {
             screen_center,
             nerf_view.spp,
             focal_length,
-            m_testbed->m_snap_to_pixel_centers
+            m_testbed->m_snap_to_pixel_centers,
+            m_testbed->m_nerf.density_grid_bitfield.data()
         );
     }
     m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);

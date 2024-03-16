@@ -947,7 +947,16 @@ public:
 
 		vec2 relative_focal_length;
 		vec2 screen_center;
+		
+		// optional stuff
 		vec4 rolling_shutter = vec4(vec3(0.0), 1.0);
+		BoundingBox render_aabb;
+		mat4x3 render_aabb_to_local;
+		uint32_t n_steps = 10;
+		uint32_t min_mip = 0; 
+		uint32_t max_mip = 10; 
+		float cone_angle_constant = 1.0f;
+
 
 		CudaDevice* device = nullptr;
 		void resize(const ivec2& size) {

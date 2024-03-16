@@ -109,7 +109,8 @@ class RayTracer {
 			const vec2& screen_center,
 			uint32_t sample_index,
 			const vec2& focal_length,
-			bool snap_to_pixel_centers
+			bool snap_to_pixel_centers,
+			const uint8_t* density_grid_bitfield
 		);
 
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);

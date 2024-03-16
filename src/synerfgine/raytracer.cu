@@ -1,4 +1,5 @@
 #include <synerfgine/raytracer.cuh>
+#include <neural-graphics-primitives/nerf_device.cuh>
 
 namespace sng {
 __global__ void test_intersect_aabb(
@@ -108,6 +109,7 @@ __global__ void transform_payload(
 __global__ void shade_color(
 	uint32_t n_elements,
 	uint32_t obj_id,
+	// for Syn Obj
 	const vec3* __restrict__ world_origin,
 	const vec3* __restrict__ world_dir,
 	const vec3* __restrict__ world_normal,
@@ -120,6 +122,15 @@ __global__ void shade_color(
 	uint32_t material_count,
 	ObjectTransform* __restrict__ obj_transforms,
 	uint32_t object_count,
+	// for NeRF shadows
+	BoundingBox render_aabb,
+	mat3 render_aabb_to_local,
+	ivec2 focal_length,
+	uint32_t n_steps,
+	const uint8_t* __restrict__ density_grid,
+	uint32_t min_mip,
+	uint32_t max_mip,
+	float cone_angle_constant,
 	vec3* __restrict__ out_color,
 	float* __restrict__ out_depth
 ) {
@@ -138,10 +149,21 @@ __global__ void shade_color(
 	for (size_t i = 0; i < light_count; ++i) {
 		Light* light = world_lights+i;
 		float full_d = length2(light->pos - pos);
-		float shadow_depth = full_d;
+		float shadow_depth = 0.0f;
 		vec3 L = normalize(light->pos - pos);
+		vec3 invL = vec3(1.0f) / L;
+		float cone_angle = calc_cone_angle(dot(L, L), focal_length, cone_angle_constant);
 		vec3 R = reflect(L, N);
 		vec3 tmp_col = max(0.0f, dot(L, N)) * mat->kd + pow(max(0.0f, dot(R, V)), mat->n) * mat->ks;
+		for (uint32_t j = 0; j < n_steps; ++j) {
+			shadow_depth = if_unoccupied_advance_to_next_occupied_voxel(shadow_depth, cone_angle, {pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+			if (shadow_depth >= full_d) {
+				break;
+			}
+			float dt = calc_dt(shadow_depth, cone_angle);
+			shadow_depth += dt;
+		}
+
 		for (size_t t = 0; t < object_count; ++t) {
 			if (t == obj_id) continue;
 			ObjectTransform obj = obj_transforms[t];
@@ -150,6 +172,7 @@ __global__ void shade_color(
 			auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.g_node, obj.g_tris);
 			if (hit >= 0) shadow_depth = min(d, shadow_depth);
 		}
+
 		out_color[idx] += smoothstep(shadow_depth / full_d) * tmp_col;
 	}
 }
@@ -246,7 +269,8 @@ void RayTracer::render(
 	const vec2& screen_center,
 	uint32_t sample_index,
 	const vec2& focal_length,
-	bool snap_to_pixel_centers
+	bool snap_to_pixel_centers,
+	const uint8_t* density_grid_bitfield
 ) {
 	auto res = m_render_buffer.out_resolution();
     uint32_t n_elements = product(res);
@@ -317,6 +341,14 @@ void RayTracer::render(
 			d_materials.size(),
 			d_world.data(),
 			d_world.size(),
+			view.render_aabb,
+			view.render_aabb_to_local,
+			focal_length,
+			view.n_steps,
+			density_grid_bitfield,
+			view.min_mip,
+			view.max_mip,
+			view.cone_angle_constant,
 			m_rays[1].rgb,
 			m_rays[1].depth
 		);
