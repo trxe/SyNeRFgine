@@ -12,6 +12,7 @@
 #include <unordered_map>
 #include <tinylogger/tinylogger.h>
 #include <filesystem/path.h>
+#include <fmt/format.h>
 #include <json/json.hpp>
 
 #define PT_SEED 1999
@@ -169,6 +170,10 @@ public:
     }
 
 };
+
+static tlog::Stream& operator<<(tlog::Stream& ostr, const vec3& v) {
+    return ostr << "[" << v.r << ", " << v.g << ", " << v.b << "]";
+}
 
 
 }

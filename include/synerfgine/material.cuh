@@ -5,6 +5,7 @@
 #include <tiny-cuda-nn/common.h>
 #include <tiny-cuda-nn/common_device.h>
 #include <json/json.hpp>
+#include <fmt/format.h>
 
 #include <imgui/imgui.h>
 #include <imguizmo/ImGuizmo.h>
@@ -35,6 +36,7 @@ struct Material {
         } else {
             throw std::runtime_error(fmt::format("Material type {} not supported", type_str));
         }
+        tlog::success() << "Set [" << type_str << "] material " << id << " ka = " << ka << ";  kd = "<<  kd << ";  n = " << n << "; ";
     }
 
     __host__ void imgui() {

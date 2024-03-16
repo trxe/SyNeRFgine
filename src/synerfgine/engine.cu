@@ -12,10 +12,13 @@ void Engine::set_virtual_world(const std::string& config_fp) {
     for (uint32_t i = 0; i < mat_conf.size(); ++i) {
         m_materials.emplace_back(i, mat_conf[i]);
     }
-    for (const auto& m: m_materials) { m.print(); }
     nlohmann::json& obj_conf = config["objfile"];
     for (uint32_t i = 0; i < obj_conf.size(); ++i) {
         m_objects.emplace_back(i, obj_conf[i]);
+    }
+    nlohmann::json& light_conf = config["lights"];
+    for (uint32_t i = 0; i < light_conf.size(); ++i) {
+        m_lights.emplace_back(i, light_conf[i]);
     }
 }
 
