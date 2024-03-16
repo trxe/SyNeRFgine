@@ -73,6 +73,9 @@ void Engine::imgui() {
         if (ImGui::CollapsingHeader("Objects", ImGuiTreeNodeFlags_DefaultOpen)) {
             for (auto& m : m_objects) { m.imgui(); }
         }
+        if (ImGui::CollapsingHeader("Lights", ImGuiTreeNodeFlags_DefaultOpen)) {
+            for (auto& m : m_lights) { m.imgui(); }
+        }
         m_raytracer.imgui();
     }
     ImGui::End();
@@ -147,6 +150,7 @@ bool Engine::frame() {
         m_raytracer.render(
             m_materials, 
             m_objects,
+            m_lights,
             view, 
             screen_center,
             nerf_view.spp,

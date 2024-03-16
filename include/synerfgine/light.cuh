@@ -16,10 +16,28 @@ struct Light {
         intensity  = config["intensity"].get<float>(); 
         tlog::success() << "Set point light position " << pos << " at intensity " << intensity;
     }
+
+    __host__ void imgui() {
+        std::string unique_pos = fmt::format("[{}] pos", id);
+        std::string unique_int = fmt::format("[{}] intensity", id);
+        std::string title = fmt::format("Light [{}]", id);
+        if (ImGui::TreeNode(title.c_str())) {
+            if (ImGui::SliderFloat3(unique_pos.c_str(), pos.data(), -2.0, 2.0)) {
+                is_dirty = true;
+            }
+            if (ImGui::SliderFloat(unique_int.c_str(), &intensity, 0.0, 1.0)) {
+                is_dirty = true;
+            }
+            ImGui::TreePop();
+        }
+        ImGui::Separator();
+    }
+
     uint32_t id;
     vec3 pos;
     vec3 color;
     float intensity;
+    bool is_dirty{true};
 
 };
 

@@ -30,6 +30,7 @@ struct Material {
         std::string type_str {config["type"].get<std::string>()}; 
         auto& a = config["kd"];
         ka = kd = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+        ka *= 0.05f;
         n  = config["n"].get<float>(); 
         if (type_str == "lambertian") {
             type = MaterialType::Lambertian;
@@ -46,6 +47,7 @@ struct Material {
         if (ImGui::TreeNode(title.c_str())) {
             if (ImGui::ColorPicker3(unique_kd.c_str(), kd.data())) {
                 ka = kd;
+                ka *= 0.05f;
                 is_dirty = true;
             }
             if (ImGui::SliderFloat(unique_n.c_str(), &n, 0.0, 256.0)) {
@@ -82,7 +84,7 @@ struct Material {
     vec3 ks;
     float n;
     MaterialType type;
-    bool is_dirty;
+    bool is_dirty{true};
 };
 
 }

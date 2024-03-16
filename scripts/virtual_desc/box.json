@@ -1,7 +1,7 @@
 {
     "lights": [
         {
-            "pos" : [ 4.0, 0.0, 0.0 ],
+            "pos" : [ 0.0, 4.0, 0.0 ],
             "intensity" : 1.0
         }
     ],
@@ -9,7 +9,7 @@
         {
             "file": "../data/obj/rock.obj",
             "pos" : [ 0.0, 0.0, 0.0 ],
-            "material": 5,
+            "material": 0,
             "primitives-per-leaf": 2
         }
     ],
@@ -19,9 +19,9 @@
             "type": "lambertian",
             "n": 64.0,
             "kd": [
-                1.0,
                 0.0,
-                0.5
+                0.0,
+                1.0
             ]
         },
         {

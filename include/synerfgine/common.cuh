@@ -24,6 +24,9 @@ namespace fs = filesystem;
 
 __host__ __device__ inline float ffmin(float a, float b) { return a < b ? a : b; }
 __host__ __device__ inline float ffmax(float a, float b) { return a > b ? a : b; }
+__host__ __device__ inline vec3 reflect(const vec3& incident, const vec3& normal) { 
+    return 2.0f * dot(incident, normal) * normal - incident;
+}
 __host__ __device__ inline ivec2 downscale_resolution(const ivec2& resolution, float scale) {
     return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution);
 }

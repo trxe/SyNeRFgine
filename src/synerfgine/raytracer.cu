@@ -87,20 +87,56 @@ __global__ void transform_payload(
 	vec3* __restrict__ dst_dir,
 	vec3* __restrict__ dst_normal,
 	mat3 rotation,
-	vec3 translation
+	vec3 translation,
+	float scale
 ) {
 	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
 	if (idx >= n_elements) return;
-	dst_origin[idx] = rotation * src_origin[idx] + translation;
+	rotation = scale * rotation;
+	dst_origin[idx] = rotation * src_origin[idx] + scale * translation;
 	dst_dir[idx] = rotation * src_dir[idx];
 	dst_normal[idx] = rotation * src_normal[idx];
+}
+
+__global__ void shade_color(
+	uint32_t n_elements,
+	const vec3* __restrict__ world_origin,
+	const vec3* __restrict__ world_dir,
+	const vec3* __restrict__ world_normal,
+	const int32_t* __restrict__ mat_idxs,
+	const float* __restrict__ depths,
+	const bool* __restrict__ is_alive,
+	Light* __restrict__ world_lights,
+	uint32_t light_count,
+	Material* __restrict__ materials,
+	uint32_t material_count,
+	vec3* __restrict__ out_color,
+	float* __restrict__ out_depth
+) {
+	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
+	if (idx >= n_elements) return;
+	int32_t mat_id = mat_idxs[idx];
+	out_depth[idx] = depths[idx];
+
+	if (mat_id < 0 || mat_id >= material_count || !is_alive[idx]) return;
+
+	vec3 pos = world_origin[idx];
+	vec3 N = world_normal[idx];
+	vec3 V = -normalize(world_dir[idx]);
+	Material* mat = materials+mat_id;
+	out_color[idx] = mat->ka;
+	for (size_t i = 0; i < light_count; ++i) {
+		Light* light = world_lights+i;
+		vec3 L = normalize(light->pos - pos);
+		vec3 R = reflect(L, N);
+		out_color[idx] += max(0.0f, dot(L, N)) * mat->kd + pow(max(0.0f, dot(R, V)), mat->n) * mat->ks;
+	}
 }
 
 __global__ void transfer_color(
 	uint32_t n_elements,
 	const vec3* __restrict__ src_color,
 	const float* __restrict__ src_depth,
-	const bool* __restrict__ src_alive,
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer
 ) {
@@ -108,12 +144,8 @@ __global__ void transfer_color(
 	if (idx >= n_elements || src_color == nullptr || src_depth == nullptr) return;
 	vec3 scol = src_color[idx];
 	float sdep = src_depth[idx];
+	frame_buffer[idx] = vec4(scol, 1.0);
 	depth_buffer[idx] = sdep;
-	if (src_alive[idx]) {
-		frame_buffer[idx] = vec4(normalize(scol) * 0.5f + vec3(0.5f), 1.0);
-	} else {
-		frame_buffer[idx] = vec4(vec3(0.0), 1.0);
-	}
 	// if (idx % 1000 == 0) printf("SYN %d: local_depth %f, payload.t %f \n", idx, depth_buffer[idx], sdep);
 }
 
@@ -122,9 +154,9 @@ void RayTracer::enlarge(const ivec2& res) {
     size_t n_elements = product(res);
 	n_elements = next_multiple(n_elements, size_t(BATCH_SIZE_GRANULARITY));
 	auto scratch = allocate_workspace_and_distribute<
-		vec4, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[0]
-		vec4, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[1]
-		vec4, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays_hit
+		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[0]
+		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[1]
+		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays_hit
 
 		uint32_t,
 		uint32_t
@@ -178,14 +210,15 @@ void RayTracer::init_rays_from_camera(
 
 	// m_n_rays_initialized = res.x * res.y;
 
-	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[1].rgba, 0, m_n_rays_initialized * sizeof(vec4), m_stream_ray));
+	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[1].rgb, 0, m_n_rays_initialized * sizeof(vec3), m_stream_ray));
 	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[1].depth, 0, m_n_rays_initialized * sizeof(float), m_stream_ray));
 	sync();
 }
 
 void RayTracer::render(
-	const std::vector<Material>& h_materials, 
+	std::vector<Material>& h_materials, 
 	std::vector<VirtualObject>& h_vo, 
+	std::vector<Light>& h_light, 
 	const Testbed::View& view, 
 	const vec2& screen_center,
 	uint32_t sample_index,
@@ -194,6 +227,7 @@ void RayTracer::render(
 ) {
 	auto res = m_render_buffer.out_resolution();
     uint32_t n_elements = product(res);
+	set_gpu_materials_light(h_materials, h_light);
     // linear_kernel(debug_uv_shade, 0, m_stream_ray, n_elements, m_render_buffer.frame_buffer(), m_render_buffer.depth_buffer(), res);
 	init_rays_from_camera(
 		sample_index,
@@ -206,6 +240,7 @@ void RayTracer::render(
 		std::shared_ptr<TriangleBvh> bvh = obj.bvh();
 		auto& o2w_rot = obj.get_rotate();
 		auto& o2w_trans = obj.get_translate();
+		float o2w_scale = obj.get_scale();
 		linear_kernel(transform_payload, 0, m_stream_ray, n_elements,
 			m_rays[0].origin,
 			m_rays[0].dir,
@@ -214,7 +249,8 @@ void RayTracer::render(
 			m_rays[1].dir,
 			m_rays[1].normal,
 			inverse(o2w_rot),
-			-o2w_trans
+			-o2w_trans,
+			1.0/o2w_scale
 		);
 		sync();
 		// linear_kernel(test_intersect_aabb, 0, m_stream_ray, n_elements,
@@ -229,7 +265,7 @@ void RayTracer::render(
 		bvh->ray_trace_gpu(
 			n_elements,
 			m_rays[1].origin,
-			m_rays[1].dir,
+			m_rays[0].dir,
 			m_rays[1].normal,
 			m_rays[1].t,
 			m_rays[1].mat_idx,
@@ -239,10 +275,35 @@ void RayTracer::render(
 			m_stream_ray
 		);
 		sync();
-		linear_kernel(transfer_color, 0, m_stream_ray, n_elements,
-			buffer_selector(m_rays[1], m_buffer_to_show),
+		linear_kernel(transform_payload, 0, m_stream_ray, n_elements,
+			m_rays[1].origin,
+			m_rays[1].dir,
+			m_rays[1].normal,
+			m_rays[1].origin,
+			m_rays[1].dir,
+			m_rays[1].normal,
+			o2w_rot,
+			o2w_trans,
+			o2w_scale
+		);
+		sync();
+		linear_kernel(shade_color, 0, m_stream_ray, n_elements,
+			m_rays[1].origin,
+			m_rays[1].dir,
+			m_rays[1].normal,
+			m_rays[1].mat_idx,
 			m_rays[1].t,
 			m_rays[1].alive,
+			d_lights.data(),
+			d_lights.size(),
+			d_materials.data(),
+			d_materials.size(),
+			m_rays[1].rgb,
+			m_rays[1].depth
+		);
+		linear_kernel(transfer_color, 0, m_stream_ray, n_elements,
+			buffer_selector(m_rays[1], m_buffer_to_show),
+			m_rays[1].depth,
 			m_render_buffer.frame_buffer(),
 			m_render_buffer.depth_buffer()
 		);

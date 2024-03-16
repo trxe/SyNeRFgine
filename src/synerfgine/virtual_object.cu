@@ -72,10 +72,12 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 
 void VirtualObject::imgui() {
 	std::string unique_pos = fmt::format("[{}] pos", id);
+	std::string unique_scale = fmt::format("[{}] scale", id);
 	std::string title = fmt::format("Object [{}]", id);
 	if (ImGui::TreeNode(title.c_str())) {
 		ImGui::InputFloat("Draggable bounds", &g_vo_pos_bound);
 		if (ImGui::SliderFloat3(unique_pos.c_str(), pos.data(), -g_vo_pos_bound, g_vo_pos_bound)) { }
+		if (ImGui::SliderFloat(unique_scale.c_str(), &this->scale, 0.0, g_vo_pos_bound)) { }
 		ImGui::TreePop();
 	}
 	ImGui::Separator();
