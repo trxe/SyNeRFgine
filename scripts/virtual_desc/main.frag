@@ -43,14 +43,14 @@ void main() {
     vec4 nerf = texture(nerf_rgba, tex_coords.xy);
     float nd = texture(nerf_depth, tex_coords.xy).r;
 
-    // if (sd < nd) {
-    //     frag_color = vec4(syn.rgb, 1.0);
-    //     gl_FragDepth = sd;
-    // } else if (nd < max_nd) {
-        // frag_color = vec4(nerf.rgb, 1.0);
-        // gl_FragDepth = nd;
-    // }
+    if (sd < nd) {
+        frag_color = vec4(syn.rgb, 1.0);
+        gl_FragDepth = sd;
+    } else if (nd < max_nd) {
+        frag_color = vec4(nerf.rgb, 1.0);
+        gl_FragDepth = nd;
+    }
     // frag_color = vec4(syn.rgb, 1.0) * 0.5 + vec4(nerf.rgb, 1.0);
-    frag_color = vec4(0.0, nd, 0.0, 1.0);
-    gl_FragDepth = sd;
+    // frag_color = vec4(nd, 0.0, 0.0, 1.0);
+    // gl_FragDepth = nd;
 }

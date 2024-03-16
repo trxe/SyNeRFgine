@@ -68,6 +68,7 @@ class GLTexture;
 class Testbed {
 public:
 	friend class sng::Engine;
+	struct View;
 	Testbed(ETestbedMode mode = ETestbedMode::None);
 	~Testbed();
 
@@ -324,6 +325,11 @@ public:
 		const mat4x3& camera_matrix,
 		const vec2& screen_center,
 		const Foveation& foveation
+	);
+
+	void render(
+		cudaStream_t stream,
+		Testbed::View& view
 	);
 
 	void render_frame(

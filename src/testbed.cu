@@ -4282,6 +4282,39 @@ __global__ void vr_overlay_hands_kernel(
 	surf2Dwrite(to_float4(color), surface, x * sizeof(float4), y);
 }
 
+void Testbed::render(
+	cudaStream_t stream,
+	Testbed::View& view
+) {
+	if (!m_network) {
+		return;
+	}
+
+	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+	if (!m_render_skip_due_to_lack_of_camera_movement_counter) {
+		reset_accumulation(false);
+		view.render_buffer->clear_frame(stream);
+	}
+	assert(
+		view.device == &primary_device()
+	);
+
+	view.render_buffer->set_color_space(m_color_space);
+	view.render_buffer->set_tonemap_curve(m_tonemap_curve);
+
+	vec2 focal_length = calc_focal_length(view.render_buffer->in_resolution(), m_relative_focal_length, m_fov_axis, m_zoom);
+	vec2 screen_center = render_screen_center(view.screen_center);
+
+	if (!m_render_ground_truth && m_testbed_mode == ETestbedMode::Nerf) {
+		render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
+			focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
+	}
+	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+
+	view.render_buffer->accumulate(m_exposure, stream);
+	view.render_buffer->tonemap(m_exposure, m_background_color, EColorSpace::SRGB, m_ndc_znear, m_ndc_zfar, m_snap_to_pixel_centers, stream);
+}
+
 void Testbed::render_frame(
 	cudaStream_t stream,
 	const mat4x3& camera_matrix0,

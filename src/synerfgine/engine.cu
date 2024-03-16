@@ -57,8 +57,8 @@ void Engine::try_resize() {
         view.resize(new_res);
         sync(m_stream_id);
 
-        // m_raytracer.enlarge(m_next_frame_resolution);
-        m_raytracer.enlarge(new_res);
+        m_raytracer.enlarge(m_next_frame_resolution);
+        // m_raytracer.enlarge(new_res);
     }
 }
 
@@ -94,31 +94,29 @@ bool Engine::frame() {
     auto nerf_view = view.render_buffer->view();
     __timer.reset();
     {
-        vec2 focal_length = m_testbed->calc_focal_length(
-            nerf_view.resolution, 
-            m_testbed->m_relative_focal_length, 
-            m_testbed->m_fov_axis, 
-            m_testbed->m_zoom);
-        vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
+        // vec2 focal_length = m_testbed->calc_focal_length(
+        //     nerf_view.resolution, 
+        //     m_testbed->m_relative_focal_length, 
+        //     m_testbed->m_fov_axis, 
+        //     m_testbed->m_zoom);
+        // vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
         sync(m_stream_id);
-        m_testbed->primary_device().set_render_buffer_view(nerf_view);
-        if (!m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter) {
-            m_testbed->reset_accumulation(false);
-            nerf_view.clear(m_stream_id);
-        }
-        m_testbed->render_frame(
-            m_stream_id,
-            view.camera0,
-            view.camera1,
-            view.prev_camera,
-            screen_center,
-            view.relative_focal_length,
-            view.rolling_shutter,
-            view.foveation,
-            view.prev_foveation,
-            view.visualized_dimension,
-            *view.render_buffer
-        );
+        // m_testbed->primary_device().set_render_buffer_view(nerf_view);
+        m_testbed->render( m_stream_id, view );
+        // m_testbed->render( m_stream_id, view, screen_center, focal_length);
+        // m_testbed->render_frame(
+        //     m_stream_id,
+        //     view.camera0,
+        //     view.camera1,
+        //     view.prev_camera,
+        //     screen_center,
+        //     view.relative_focal_length,
+        //     view.rolling_shutter,
+        //     view.foveation,
+        //     view.prev_foveation,
+        //     view.visualized_dimension,
+        //     *view.render_buffer
+        // );
         sync(m_stream_id);
         view.prev_camera = view.camera0;
         view.prev_foveation = view.foveation;
