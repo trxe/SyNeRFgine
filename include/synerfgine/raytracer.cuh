@@ -35,16 +35,6 @@ static const char * img_buffer_type_names[] = {
 	// "Alive"
 };
 
-struct ObjectTransform {
-	NGP_HOST_DEVICE ObjectTransform(TriangleBvhNode* g_node, Triangle* g_tris, const mat3& rot, const vec3& pos, const float& scale) :
-		g_node(g_node), g_tris(g_tris), rot(rot), pos(pos), scale(scale) {}
-	TriangleBvhNode* g_node;
-	Triangle* g_tris;
-	mat3 rot;
-	vec3 pos;
-	float scale;
-};
-
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
 	void copy_from_other_async(const RaysSoa& other, cudaStream_t stream) {

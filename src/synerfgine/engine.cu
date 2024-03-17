@@ -135,9 +135,14 @@ bool Engine::frame() {
     imgui();
 	ImDrawList* list = ImGui::GetBackgroundDrawList();
     m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera, m_pos_to_translate, m_rot_to_rotate, m_scale_to_scale, m_obj_dirty_marker);
-    if (m_transform_type == WorldObjectType::VirtualObjectObj && m_obj_dirty_marker && *m_obj_dirty_marker) {
+
+    bool is_any_obj_dirty = false;
+    for (auto& m : m_objects) {
+        is_any_obj_dirty = is_any_obj_dirty || m.is_dirty;
+        m.is_dirty = false;
+    }
+    if (is_any_obj_dirty) {
         update_gpu_objects();
-        *m_obj_dirty_marker = false;
     }
 
     m_testbed->apply_camera_smoothing(__timer.get_ave_time("nerf"));

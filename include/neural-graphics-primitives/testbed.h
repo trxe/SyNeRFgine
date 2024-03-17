@@ -41,6 +41,8 @@
 #endif
 
 #include <thread>
+#include <synerfgine/common.cuh>
+#include <synerfgine/light.cuh>
 
 struct GLFWwindow;
 
@@ -284,6 +286,22 @@ public:
 
 	class CudaDevice;
 
+	void render_nerf_with_shadow(
+		cudaStream_t stream,
+		CudaDevice& device,
+		const CudaRenderBufferView& render_buffer,
+		const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+		const uint8_t* density_grid_bitfield,
+		const vec2& focal_length,
+		const mat4x3& camera_matrix0,
+		const mat4x3& camera_matrix1,
+		const vec4& rolling_shutter,
+		const vec2& screen_center,
+		const Foveation& foveation,
+		int visualized_dimension,
+		const GPUMemory<sng::ObjectTransform>& world_objects,
+		const GPUMemory<sng::Light>& world_lights
+	);
 	void render_nerf(
 		cudaStream_t stream,
 		CudaDevice& device,

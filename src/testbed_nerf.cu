@@ -1306,6 +1306,19 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 	}
 }
 
+__global__ void get_shadow_coeffs(
+	const uint32_t n_elements,
+	mat4x3 camera_matrix,
+	float* __restrict__ depth,
+	NerfPayload* __restrict__ payloads
+) {
+	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (i >= n_elements) return;
+	NerfPayload& payload = payloads[i];
+	vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[i];
+
+}
+
 __global__ void shade_kernel_nerf(
 	const uint32_t n_elements,
 	bool gbuffer_hard_edges,
@@ -1830,6 +1843,168 @@ void Testbed::Nerf::Training::update_extra_dims() {
 	}
 
 	CUDA_CHECK_THROW(cudaMemcpyAsync(extra_dims_gpu.data(), extra_dims_cpu.data(), extra_dims_opt.size() * n_extra_dims * sizeof(float), cudaMemcpyHostToDevice));
+}
+
+void Testbed::render_nerf_with_shadow(
+	cudaStream_t stream,
+	CudaDevice& device,
+	const CudaRenderBufferView& render_buffer,
+	const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+	const uint8_t* density_grid_bitfield,
+	const vec2& focal_length,
+	const mat4x3& camera_matrix0,
+	const mat4x3& camera_matrix1,
+	const vec4& rolling_shutter,
+	const vec2& screen_center,
+	const Foveation& foveation,
+	int visualized_dimension,
+	const GPUMemory<sng::ObjectTransform>& world_objects,
+	const GPUMemory<sng::Light>& world_lights
+) {
+	float plane_z = m_slice_plane_z + m_scale;
+	if (m_render_mode == ERenderMode::Slice) {
+		plane_z = -plane_z;
+	}
+
+	ERenderMode render_mode = visualized_dimension > -1 ? ERenderMode::EncodingVis : m_render_mode;
+
+	const float* extra_dims_gpu = m_nerf.get_rendering_extra_dims(stream);
+
+	NerfTracer tracer;
+
+	// Our motion vector code can't undo grid distortions -- so don't render grid distortion if DLSS is enabled.
+	// (Unless we're in distortion visualization mode, in which case the distortion grid is fine to visualize.)
+	auto grid_distortion =
+		m_nerf.render_with_lens_distortion && (!m_dlss || m_render_mode == ERenderMode::Distortion) ?
+		m_distortion.inference_view() :
+		Buffer2DView<const vec2>{};
+
+	Lens lens = m_nerf.render_with_lens_distortion ? m_nerf.render_lens : Lens{};
+
+	tracer.init_rays_from_camera(
+		render_buffer.spp,
+		nerf_network->padded_output_width(),
+		nerf_network->n_extra_dims(),
+		render_buffer.resolution,
+		focal_length,
+		camera_matrix0,
+		camera_matrix1,
+		rolling_shutter,
+		screen_center,
+		m_parallax_shift,
+		m_snap_to_pixel_centers,
+		m_render_aabb,
+		m_render_aabb_to_local,
+		m_render_near_distance,
+		plane_z,
+		m_aperture_size,
+		foveation,
+		lens,
+		m_envmap.inference_view(),
+		grid_distortion,
+		render_buffer.frame_buffer,
+		render_buffer.depth_buffer,
+		render_buffer.hidden_area_mask ? render_buffer.hidden_area_mask->const_view() : Buffer2DView<const uint8_t>{},
+		density_grid_bitfield,
+		m_nerf.show_accel,
+		m_nerf.max_cascade,
+		m_nerf.cone_angle_constant,
+		render_mode,
+		stream
+	);
+
+	float depth_scale = 1.0f / m_nerf.training.dataset.scale;
+	bool render_2d = m_render_mode == ERenderMode::Slice || m_render_mode == ERenderMode::Distortion;
+
+	uint32_t n_hit;
+	if (render_2d) {
+		n_hit = tracer.n_rays_initialized();
+	} else {
+		n_hit = tracer.trace(
+			nerf_network,
+			m_render_aabb,
+			m_render_aabb_to_local,
+			m_aabb,
+			focal_length,
+			m_nerf.cone_angle_constant,
+			density_grid_bitfield,
+			render_mode,
+			camera_matrix1,
+			depth_scale,
+			m_visualized_layer,
+			visualized_dimension,
+			m_nerf.rgb_activation,
+			m_nerf.density_activation,
+			m_nerf.show_accel,
+			m_nerf.max_cascade,
+			m_nerf.render_min_transmittance,
+			m_nerf.glow_y_cutoff,
+			m_nerf.glow_mode,
+			extra_dims_gpu,
+			stream
+		);
+	}
+	RaysNerfSoa& rays_hit = render_2d ? tracer.rays_init() : tracer.rays_hit();
+
+	if (render_2d) {
+		// Store colors in the normal buffer
+		uint32_t n_elements = next_multiple(n_hit, BATCH_SIZE_GRANULARITY);
+		const uint32_t floats_per_coord = sizeof(NerfCoordinate) / sizeof(float) + nerf_network->n_extra_dims();
+		const uint32_t extra_stride = nerf_network->n_extra_dims() * sizeof(float); // extra stride on top of base NerfCoordinate struct
+
+		GPUMatrix<float> positions_matrix{floats_per_coord, n_elements, stream};
+		GPUMatrix<float> rgbsigma_matrix{4, n_elements, stream};
+
+		linear_kernel(generate_nerf_network_inputs_at_current_position, 0, stream, n_hit, m_aabb, rays_hit.payload, PitchedPtr<NerfCoordinate>((NerfCoordinate*)positions_matrix.data(), 1, 0, extra_stride), extra_dims_gpu);
+
+		if (visualized_dimension == -1) {
+			nerf_network->inference(stream, positions_matrix, rgbsigma_matrix);
+			linear_kernel(compute_nerf_rgba_kernel, 0, stream, n_hit, (vec4*)rgbsigma_matrix.data(), m_nerf.rgb_activation, m_nerf.density_activation, 0.01f, false);
+		} else {
+			nerf_network->visualize_activation(stream, m_visualized_layer, visualized_dimension, positions_matrix, rgbsigma_matrix);
+		}
+
+		linear_kernel(shade_kernel_nerf, 0, stream,
+			n_hit,
+			m_nerf.render_gbuffer_hard_edges,
+			camera_matrix1,
+			depth_scale,
+			(vec4*)rgbsigma_matrix.data(),
+			nullptr,
+			rays_hit.payload,
+			m_render_mode,
+			m_nerf.training.linear_colors,
+			render_buffer.frame_buffer,
+			render_buffer.depth_buffer
+		);
+		return;
+	}
+
+	linear_kernel(shade_kernel_nerf, 0, stream,
+		n_hit,
+		m_nerf.render_gbuffer_hard_edges,
+		camera_matrix1,
+		depth_scale,
+		rays_hit.rgba,
+		rays_hit.depth,
+		rays_hit.payload,
+		m_render_mode,
+		m_nerf.training.linear_colors,
+		render_buffer.frame_buffer,
+		render_buffer.depth_buffer
+	);
+
+	if (render_mode == ERenderMode::Cost) {
+		std::vector<NerfPayload> payloads_final_cpu(n_hit);
+		CUDA_CHECK_THROW(cudaMemcpyAsync(payloads_final_cpu.data(), rays_hit.payload, n_hit * sizeof(NerfPayload), cudaMemcpyDeviceToHost, stream));
+		CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+
+		size_t total_n_steps = 0;
+		for (uint32_t i = 0; i < n_hit; ++i) {
+			total_n_steps += payloads_final_cpu[i].n_steps;
+		}
+		tlog::info() << "Total steps per hit= " << total_n_steps << "/" << n_hit << " = " << ((float)total_n_steps/(float)n_hit);
+	}
 }
 
 void Testbed::render_nerf(

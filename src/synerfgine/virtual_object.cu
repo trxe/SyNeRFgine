@@ -81,8 +81,12 @@ void VirtualObject::imgui() {
 	if (ImGui::TreeNode(title.c_str())) {
 		// ImGui::InputFloat("Draggable bounds", &g_vo_pos_bound);
 		// if (ImGui::SliderFloat3(unique_pos.c_str(), pos.data(), -g_vo_pos_bound, g_vo_pos_bound)) { }
-		if (ImGui::SliderFloat(unique_scale.c_str(), &this->scale, 0.0, g_vo_pos_bound)) { }
-		if (ImGui::InputInt(unique_mat_id.c_str(), (int*)&this->material_id)) {}
+		if (ImGui::SliderFloat(unique_scale.c_str(), &this->scale, 0.0, g_vo_pos_bound)) { 
+			is_dirty = true;
+		}
+		if (ImGui::InputInt(unique_mat_id.c_str(), (int*)&this->material_id)) {
+			is_dirty = false;
+		}
 		ImGui::TreePop();
 	}
 	ImGui::Separator();

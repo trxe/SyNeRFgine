@@ -2,27 +2,6 @@
 #include <neural-graphics-primitives/nerf_device.cuh>
 
 namespace sng {
-__global__ void test_intersect_aabb(
-	uint32_t n_elements,
-	BoundingBox aabb,
-	vec3* __restrict__ origin,
-	vec3* __restrict__ dir,
-	vec3* __restrict__ normal,
-	int32_t* __restrict__ mat_idx,
-	float* __restrict__ t,
-	bool* __restrict__ alive
-) {
-	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
-	if (idx >= n_elements) return;
-	vec2 ts = aabb.ray_intersect(origin[idx], dir[idx]);
-	t[idx] = ts.x;
-	if (ts.x < 10000.0) {
-		normal[idx] = normalize(vec3(ts.x, ts.y, 0.0));
-	} else {
-		normal[idx] = vec3(0.0, 0.0, 0.0);
-	}
-}
-
 __global__ void init_rays_with_payload_kernel_nerf(
 	uint32_t sample_index,
 	ivec2 resolution,
@@ -74,9 +53,6 @@ __global__ void init_rays_with_payload_kernel_nerf(
 	t[idx] = 0.0;
 	mat_idx[idx] = -1;
 	alive[idx] = true;
-
-	// DEBUGGER
-	// frame_buffer[idx].rgb() = dir[idx];
 }
 
 __global__ void transform_payload(
@@ -89,20 +65,21 @@ __global__ void transform_payload(
 	vec3* __restrict__ dst_normal,
 	mat3 rotation,
 	vec3 translation,
-	float scale,
+	float scale_val,
 	bool o2w
 ) {
 	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
 	if (idx >= n_elements) return;
 	if (!o2w) { // world space to object space
+		mat3 scale = scale_val * mat3::identity();
 		rotation = scale * rotation;
 		dst_origin[idx] = rotation * (src_origin[idx] + translation);
 		dst_dir[idx] = rotation * src_dir[idx];
 		dst_normal[idx] = rotation * src_normal[idx];
 	} else { // object space to world space
-		dst_origin[idx] = rotation * (src_origin[idx] * scale) + translation;
-		dst_dir[idx] = rotation * src_dir[idx] * scale;
-		dst_normal[idx] = rotation * src_normal[idx] * scale;
+		dst_origin[idx] = rotation * (src_origin[idx] * scale_val) + translation;
+		dst_dir[idx] = rotation * src_dir[idx] * scale_val;
+		dst_normal[idx] = rotation * src_normal[idx] * scale_val;
 	}
 }
 
@@ -170,8 +147,9 @@ __global__ void shade_color(
 		for (size_t t = 0; t < object_count; ++t) {
 			if (t == obj_id) continue;
 			ObjectTransform obj = obj_transforms[t];
-			pos = inverse(obj.rot) / obj.scale * (pos - obj.pos);
-			L = inverse(obj.rot) / obj.scale * L;
+			mat3 scale = mat3::identity() / obj.scale;
+			pos = inverse(obj.rot) * scale * (pos - obj.pos);
+			L = inverse(obj.rot) * scale * L;
 			auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.g_node, obj.g_tris);
 			if (hit >= 0) shadow_depth = min(d, shadow_depth);
 		}

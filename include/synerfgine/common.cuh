@@ -2,6 +2,8 @@
 #include <curand_kernel.h>
 #include <neural-graphics-primitives/common.h>
 #include <neural-graphics-primitives/common_device.cuh>
+#include <neural-graphics-primitives/triangle.cuh>
+#include <neural-graphics-primitives/triangle_bvh.cuh>
 
 #include <algorithm>
 #include <chrono>
@@ -62,6 +64,16 @@ enum WorldObjectType {
 
 static const char * world_object_names[] = {
     "None", "Light", "Virtual Object"
+};
+
+struct ObjectTransform {
+	NGP_HOST_DEVICE ObjectTransform(TriangleBvhNode* g_node, Triangle* g_tris, const mat3& rot, const vec3& pos, const float& scale) :
+		g_node(g_node), g_tris(g_tris), rot(rot), pos(pos), scale(scale) {}
+	TriangleBvhNode* g_node;
+	Triangle* g_tris;
+	mat3 rot;
+	vec3 pos;
+	float scale;
 };
 
 class Timer {
