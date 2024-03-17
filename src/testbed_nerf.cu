@@ -1306,17 +1306,53 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 	}
 }
 
-__global__ void get_shadow_coeffs(
+__global__ void shade_with_shadow(
 	const uint32_t n_elements,
 	mat4x3 camera_matrix,
+	vec4* __restrict__ rgba,
 	float* __restrict__ depth,
-	NerfPayload* __restrict__ payloads
+	NerfPayload* __restrict__ payloads,
+	sng::Light* __restrict__ lights,
+	uint32_t light_count,
+	sng::ObjectTransform* __restrict__ objs,
+	uint32_t obj_count,
+	bool show_syn_shadow,
+	vec4* __restrict__ frame_buffer,
+	float* __restrict__ depth_buffer
 ) {
 	const uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
 	if (i >= n_elements) return;
+	float shadow_depths = 1.0f;
+	if (!show_syn_shadow) return;
 	NerfPayload& payload = payloads[i];
 	vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[i];
+	for (size_t i = 0; i < light_count; ++i) {
+		sng::Light& light = lights[i];
+		float full_d = length2(light.pos - pos);
+		vec3 L = normalize(light.pos - pos);
+		vec3 invL = vec3(1.0f) / L;
+		float shadow_depth = full_d;
 
+		for (size_t t = 0; t < obj_count; ++t) {
+			sng::ObjectTransform& obj = objs[t];
+			mat3 scale = mat3::identity() / obj.scale;
+			pos = inverse(obj.rot) * scale * (pos - obj.pos);
+			L = inverse(obj.rot) * scale * L;
+			auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.g_node, obj.g_tris);
+			if (hit >= 0) shadow_depth = min(d, shadow_depth);
+		}
+
+		shadow_depths = min(shadow_depths, smoothstep(shadow_depth / full_d));
+	}
+
+	// Accumulate in linear colors
+	vec4 tmp = rgba[i];
+	tmp.rgb() = srgb_to_linear(tmp.rgb()) * shadow_depths;
+
+	frame_buffer[payload.idx] = tmp + frame_buffer[payload.idx] * (1.0f - tmp.a);
+	if (tmp.a > 0.2f) {
+		depth_buffer[payload.idx] = depth[i];
+	}
 }
 
 __global__ void shade_kernel_nerf(
@@ -1859,7 +1895,8 @@ void Testbed::render_nerf_with_shadow(
 	const Foveation& foveation,
 	int visualized_dimension,
 	const GPUMemory<sng::ObjectTransform>& world_objects,
-	const GPUMemory<sng::Light>& world_lights
+	const GPUMemory<sng::Light>& world_lights,
+	bool show_shadow
 ) {
 	float plane_z = m_slice_plane_z + m_scale;
 	if (m_render_mode == ERenderMode::Slice) {
@@ -1980,16 +2017,17 @@ void Testbed::render_nerf_with_shadow(
 		return;
 	}
 
-	linear_kernel(shade_kernel_nerf, 0, stream,
+	linear_kernel(shade_with_shadow, 0, stream,
 		n_hit,
-		m_nerf.render_gbuffer_hard_edges,
 		camera_matrix1,
-		depth_scale,
 		rays_hit.rgba,
 		rays_hit.depth,
 		rays_hit.payload,
-		m_render_mode,
-		m_nerf.training.linear_colors,
+		world_lights.data(),
+		world_lights.size(),
+		world_objects.data(),
+		world_objects.size(),
+		show_shadow,
 		render_buffer.frame_buffer,
 		render_buffer.depth_buffer
 	);

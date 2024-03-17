@@ -21,16 +21,48 @@ void Engine::set_virtual_world(const std::string& config_fp) {
     for (uint32_t i = 0; i < light_conf.size(); ++i) {
         m_lights.emplace_back(i, light_conf[i]);
     }
-    update_gpu_objects();
+    update_world_objects();
 }
 
-void Engine::update_gpu_objects() {
-    std::vector<ObjectTransform> h_world;
-    for (auto& obj : m_objects) {
-        h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), obj.get_translate(), obj.get_scale());
+void Engine::update_world_objects() {
+    bool needs_reset = false;
+    bool is_any_obj_dirty = false;
+    for (auto& m : m_objects) {
+        is_any_obj_dirty = is_any_obj_dirty || m.is_dirty;
+        m.is_dirty = false;
     }
-    d_world.check_guards();
-    d_world.resize_and_copy_from_host(h_world);
+    if (is_any_obj_dirty) {
+        needs_reset = true;
+        std::vector<ObjectTransform> h_world;
+        for (auto& obj : m_objects) {
+            h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), obj.get_translate(), obj.get_scale());
+        }
+        d_world.check_guards();
+        d_world.resize_and_copy_from_host(h_world);
+    }
+    is_any_obj_dirty = false;
+    for (auto& m : m_materials) {
+        is_any_obj_dirty = is_any_obj_dirty || m.is_dirty;
+        m.is_dirty = false;
+    }
+    if (is_any_obj_dirty) {
+        needs_reset = true;
+        d_materials.check_guards();
+        d_materials.resize_and_copy_from_host(m_materials);
+    }
+    is_any_obj_dirty = false;
+    for (auto& l : m_lights) {
+        is_any_obj_dirty = is_any_obj_dirty || l.is_dirty;
+        l.is_dirty = false;
+    }
+    if (is_any_obj_dirty) {
+        needs_reset = true;
+        d_lights.check_guards();
+        d_lights.resize_and_copy_from_host(m_lights);
+    }
+    if (needs_reset && m_testbed) {
+        m_testbed->reset_accumulation();
+    }
 }
 
 void Engine::init(int res_width, int res_height, const std::string& frag_fp, Testbed* nerf) {
@@ -86,6 +118,7 @@ void Engine::imgui() {
             for (auto& m : m_lights) { m.imgui(); }
         }
         m_raytracer.imgui();
+		ImGui::Checkbox("View Virtual Object shadows on NeRF", &m_view_syn_shadow);
         if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
             if (ImGui::Combo("Mode", (int*)&m_transform_type, world_object_names, sizeof(world_object_names) / sizeof(const char*))) {
                 m_transform_idx = 0;
@@ -135,16 +168,7 @@ bool Engine::frame() {
     imgui();
 	ImDrawList* list = ImGui::GetBackgroundDrawList();
     m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera, m_pos_to_translate, m_rot_to_rotate, m_scale_to_scale, m_obj_dirty_marker);
-
-    bool is_any_obj_dirty = false;
-    for (auto& m : m_objects) {
-        is_any_obj_dirty = is_any_obj_dirty || m.is_dirty;
-        m.is_dirty = false;
-    }
-    if (is_any_obj_dirty) {
-        update_gpu_objects();
-    }
-
+    update_world_objects();
     m_testbed->apply_camera_smoothing(__timer.get_ave_time("nerf"));
 
     auto& view = nerf_render_buffer_view();
@@ -153,7 +177,7 @@ bool Engine::frame() {
     __timer.reset();
     {
         sync(m_stream_id);
-        m_testbed->render( m_stream_id, view );
+        m_testbed->render( m_stream_id, view, d_world, d_lights, m_view_syn_shadow);
         sync(m_stream_id);
         view.prev_camera = view.camera0;
         view.prev_foveation = view.foveation;
@@ -176,9 +200,9 @@ bool Engine::frame() {
             m_testbed->m_zoom);
         vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
         m_raytracer.render(
-            m_materials, 
             m_objects,
-            m_lights,
+            d_materials,
+            d_lights,
             view, 
             screen_center,
             nerf_view.spp,

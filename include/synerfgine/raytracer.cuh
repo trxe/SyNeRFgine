@@ -92,9 +92,9 @@ class RayTracer {
 		uint32_t n_rays_initialized() const { return m_n_rays_initialized; }
 		ivec2 resolution() const { return m_render_buffer.out_resolution(); }
 		void render(
-			std::vector<Material>& h_materials, 
 			std::vector<VirtualObject>& h_vo, 
-			std::vector<Light>& h_light, 
+			const GPUMemory<Material>& materials, 
+			const GPUMemory<Light>& lights, 
 			const Testbed::View& view, 
 			const vec2& screen_center,
 			uint32_t sample_index,
@@ -134,31 +134,6 @@ class RayTracer {
 			}
 		}
 
-		void set_gpu_materials_light(std::vector<Material>& materials, std::vector<Light>& lights) {
-			{
-				bool is_dirty = false;
-				for (auto& m : materials) {
-					is_dirty = is_dirty || m.is_dirty;
-					m.is_dirty = false;
-				}
-				if (is_dirty) {
-					d_materials.check_guards();
-					d_materials.resize_and_copy_from_host(materials);
-				}
-			}
-			{
-				bool is_dirty = false;
-				for (auto& l : lights) {
-					is_dirty = is_dirty || l.is_dirty;
-					l.is_dirty = false;
-				}
-				if (is_dirty) {
-					d_lights.check_guards();
-					d_lights.resize_and_copy_from_host(lights);
-				}
-			}
-		}
-
 		RaysSoa m_rays[2];
 		RaysSoa m_rays_hit;
         CudaRenderBuffer m_render_buffer {m_rgba_texture, m_depth_texture};
@@ -167,8 +142,6 @@ class RayTracer {
 		uint32_t m_n_rays_initialized = 0;
 		GPUMemoryArena::Allocation m_scratch_alloc;
 
-		GPUMemory<Material> d_materials;
-		GPUMemory<Light> d_lights;
 		ImgBufferType m_buffer_to_show{ImgBufferType::Final};
 
 		bool m_view_nerf_shadow{true};

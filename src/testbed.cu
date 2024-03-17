@@ -4344,7 +4344,10 @@ __global__ void vr_overlay_hands_kernel(
 
 void Testbed::render(
 	cudaStream_t stream,
-	Testbed::View& view
+	Testbed::View& view,
+	const GPUMemory<sng::ObjectTransform>& world_objects,
+	const GPUMemory<sng::Light>& world_lights,
+	bool show_shadow
 ) {
 	if (!m_network) {
 		return;
@@ -4367,8 +4370,9 @@ void Testbed::render(
 	vec2 screen_center = render_screen_center(view.screen_center);
 
 	if (!m_render_ground_truth && m_testbed_mode == ETestbedMode::Nerf) {
-		render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
-			focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
+		render_nerf_with_shadow(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
+			focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension, 
+			world_objects, world_lights, show_shadow);
 	}
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 

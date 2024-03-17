@@ -300,7 +300,8 @@ public:
 		const Foveation& foveation,
 		int visualized_dimension,
 		const GPUMemory<sng::ObjectTransform>& world_objects,
-		const GPUMemory<sng::Light>& world_lights
+		const GPUMemory<sng::Light>& world_lights,
+		bool show_shadow
 	);
 	void render_nerf(
 		cudaStream_t stream,
@@ -347,7 +348,10 @@ public:
 
 	void render(
 		cudaStream_t stream,
-		Testbed::View& view
+		Testbed::View& view,
+		const GPUMemory<sng::ObjectTransform>& world_objects,
+		const GPUMemory<sng::Light>& world_light,
+		bool show_shadow
 	);
 
 	void render_frame(
