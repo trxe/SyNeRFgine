@@ -7,16 +7,16 @@
     ],
     "objfile": [
         {
-            "file": "../data/obj/rock.obj",
-            "pos" : [ 0.0, 0.6, 0.2 ],
-            "scale" : 0.4,
-            "material": 0
+            "file": "../data/obj/smallbox.obj",
+            "pos" : [ 0.0, 0.6, 0.3 ],
+            "scale" : 0.08,
+            "material": 1
         },
         {
-            "file": "../data/obj/smallbox.obj",
-            "pos" : [ 0.0, -0.2, 0.3 ],
-            "scale" : 0.4,
-            "material": 1
+            "file": "../data/obj/rock.obj",
+            "pos" : [ 0.0, 1.0, 0.2 ],
+            "scale" : 0.1,
+            "material": 0
         }
     ],
     "materials": [

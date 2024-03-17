@@ -21,7 +21,6 @@ void Engine::set_virtual_world(const std::string& config_fp) {
     for (uint32_t i = 0; i < light_conf.size(); ++i) {
         m_lights.emplace_back(i, light_conf[i]);
     }
-    update_world_objects();
 }
 
 void Engine::update_world_objects() {
@@ -63,6 +62,7 @@ void Engine::update_world_objects() {
     if (needs_reset && m_testbed) {
         m_testbed->reset_accumulation();
     }
+    CUDA_CHECK_THROW(cudaDeviceSynchronize());
 }
 
 void Engine::init(int res_width, int res_height, const std::string& frag_fp, Testbed* nerf) {

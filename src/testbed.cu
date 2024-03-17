@@ -4373,6 +4373,8 @@ void Testbed::render(
 		render_nerf_with_shadow(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
 			focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension, 
 			world_objects, world_lights, show_shadow);
+		// render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
+		// 	focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
 	}
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 

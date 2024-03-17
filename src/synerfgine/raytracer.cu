@@ -125,12 +125,12 @@ __global__ void shade_color(
 	Material* mat_p = materials+mat_id;
 	out_color[idx] = mat_p->ka;
 	for (size_t i = 0; i < light_count; ++i) {
-		Light& light = world_lights[i];
-		float full_d = length2(light.pos - pos);
-		vec3 L = normalize(light.pos - pos);
-		vec3 invL = vec3(1.0f) / L;
-		float cone_angle = calc_cone_angle(1.0, focal_length, cone_angle_constant);
-		vec3 R = reflect(L, N);
+		const Light& light = world_lights[i];
+		const float full_d = length2(light.pos - pos);
+		const vec3 L = normalize(light.pos - pos);
+		const vec3 invL = vec3(1.0f) / L;
+		const float cone_angle = calc_cone_angle(1.0, focal_length, cone_angle_constant);
+		const vec3 R = reflect(L, N);
 		vec3 tmp_col = max(0.0f, dot(L, N)) * mat_p->kd * light.intensity + pow(max(0.0f, dot(R, V)), mat_p->n) * mat_p->ks;
 		float nerf_shadow = 0.0;
 		for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
@@ -148,9 +148,9 @@ __global__ void shade_color(
 			if (t == obj_id) continue;
 			ObjectTransform obj = obj_transforms[t];
 			mat3 scale = mat3::identity() / obj.scale;
-			pos = inverse(obj.rot) * scale * (pos - obj.pos);
-			L = inverse(obj.rot) * scale * L;
-			auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.g_node, obj.g_tris);
+			vec3 pos_obj = inverse(obj.rot) * scale * (pos - obj.pos);
+			vec3 L_obj = inverse(obj.rot) * scale * L;
+			auto [hit, d] = ngp::ray_intersect_nodes(pos_obj, L_obj, obj.g_node, obj.g_tris);
 			if (hit >= 0) shadow_depth = min(d, shadow_depth);
 		}
 		out_color[idx] += smoothstep(min(nerf_shadow, shadow_depth) / full_d) * tmp_col;
