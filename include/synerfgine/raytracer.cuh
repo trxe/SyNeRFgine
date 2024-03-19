@@ -35,6 +35,15 @@ static const char * img_buffer_type_names[] = {
 	// "Alive"
 };
 
+enum ImgFilterType {
+	Original,
+	Bilateral,
+};
+
+static const char * img_filter_type_names[] = {
+	"Original",
+	"Bilateral",
+};
 
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
@@ -87,6 +96,7 @@ class RayTracer {
 			bool snap_to_pixel_centers
 		);
 
+		int filter_type() const { return static_cast<int>(m_filter_to_use); }
 		void enlarge(const ivec2& resolution);
 		RaysSoa& rays_hit() { return m_rays_hit; }
 		RaysSoa& rays_init() { return m_rays[0]; }
@@ -145,6 +155,7 @@ class RayTracer {
 		GPUMemoryArena::Allocation m_scratch_alloc;
 
 		ImgBufferType m_buffer_to_show{ImgBufferType::Final};
+		ImgFilterType m_filter_to_use{ImgFilterType::Bilateral};
 
 		bool m_view_nerf_shadow{true};
 		int m_n_steps{20};

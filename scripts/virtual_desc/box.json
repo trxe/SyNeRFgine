@@ -1,14 +1,15 @@
 {
     "lights": [
         {
-            "pos" : [ -1.0, 1.0, 1.0 ],
+            "pos" : [ -2.09, 1.0, 0.72 ],
+            "size" : 0.04,
             "intensity" : 1.0
         }
     ],
     "objfile": [
         {
             "file": "../data/obj/smallbox.obj",
-            "pos" : [ 1.0, 0.76, 1.29 ],
+            "pos" : [ -0.82, 0.65, 0.47 ],
             "scale" : 0.260,
             "material": 0
         },

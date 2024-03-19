@@ -147,7 +147,7 @@ void Display::begin_frame() {
 }
 
 void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLint syn_rgba, GLint syn_depth, GLint rgba_filter_mode, 
-	GLint nerf_rgba, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution, const ivec2& nerf_res, const ivec2& syn_res) {
+	GLint nerf_rgba, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution, const ivec2& nerf_res, const ivec2& syn_res, int filter_type) {
 	if (m_blit_program == 0) {
 		return;
 	}
@@ -248,7 +248,7 @@ void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLin
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-bool Display::present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_res, const ivec2& syn_res, const Foveation& fov) {
+bool Display::present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_res, const ivec2& syn_res, const Foveation& fov, int filter_type) {
 	if (!m_glfw_window) {
 		throw std::runtime_error{"Window must be initialized to be presented."};
 	}
@@ -264,10 +264,11 @@ bool Display::present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint sy
 	glEnable(GL_BLEND);
 	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
 	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	glUniform1i(glGetUniformLocation(m_blit_program, "filter_type"), filter_type);
 
     ivec2 extent = {(int)((float)m_window_res.x / nerf_res.x), (int)((float)m_window_res.y / nerf_res.y)};
 	ivec2 top_left{0, m_window_res.y - extent.y};
-	transfer_texture(fov, syn_rgba_texid, syn_depth_texid, GL_LINEAR, nerf_rgba_texid, nerf_depth_texid, m_framebuffer, top_left, extent, nerf_res, syn_res);
+	transfer_texture(fov, syn_rgba_texid, syn_depth_texid, GL_LINEAR, nerf_rgba_texid, nerf_depth_texid, m_framebuffer, top_left, extent, nerf_res, syn_res, filter_type);
 	glFinish();
 
 	// IMGUI

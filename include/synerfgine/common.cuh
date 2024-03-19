@@ -36,6 +36,8 @@ __host__ __device__ inline ivec2 scale_resolution(const ivec2& resolution, float
     return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution * 16);
 }
 
+__global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state);
+
 // Always initialize the benchmarker, __timer should not be redeclared in the
 // current context.
 #define INIT_BENCHMARK() Timer __timer;

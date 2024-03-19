@@ -109,6 +109,7 @@ __global__ void shade_color(
 	uint32_t min_mip,
 	uint32_t max_mip,
 	float cone_angle_constant,
+	curandState_t* rand_state,
 	vec3* __restrict__ out_color,
 	float* __restrict__ out_depth
 ) {
@@ -126,8 +127,11 @@ __global__ void shade_color(
 	out_color[idx] = mat_p->ka;
 	for (size_t i = 0; i < light_count; ++i) {
 		const Light& light = world_lights[i];
-		const float full_d = length2(light.pos - pos);
-		const vec3 L = normalize(light.pos - pos);
+		vec3 lightpos = light.sample(rand_state[idx]);
+		// const float full_d = length2(light.pos - pos);
+		// const vec3 L = normalize(light.pos - pos);
+		const float full_d = length2(lightpos - pos);
+		const vec3 L = normalize(lightpos - pos);
 		const vec3 invL = vec3(1.0f) / L;
 		const vec3 R = reflect(L, N);
 		vec3 tmp_col = max(0.0f, dot(L, N)) * mat_p->kd * light.intensity + pow(max(0.0f, dot(R, V)), mat_p->n) * mat_p->ks;
@@ -204,6 +208,8 @@ void RayTracer::enlarge(const ivec2& res) {
 	m_hit_counter = std::get<25>(scratch);
 	m_alive_counter = std::get<26>(scratch);
 	sync();
+	linear_kernel(init_rand_state, 0, m_stream_ray, n_elements, m_rand_state);
+	sync();
 }
 
 void RayTracer::init_rays_from_camera(
@@ -257,7 +263,6 @@ void RayTracer::render(
 ) {
 	auto res = m_render_buffer.out_resolution();
     uint32_t n_elements = product(res);
-    // linear_kernel(debug_uv_shade, 0, m_stream_ray, n_elements, m_render_buffer.frame_buffer(), m_render_buffer.depth_buffer(), res);
 	init_rays_from_camera(
 		sample_index,
 		focal_length, 
@@ -332,6 +337,7 @@ void RayTracer::render(
 			view.min_mip,
 			view.max_mip,
 			view.cone_angle_constant,
+			m_rand_state,
 			m_rays[1].rgb,
 			m_rays[1].depth
 		);
@@ -354,16 +360,17 @@ void RayTracer::load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu
 }
 
 void RayTracer::imgui() {
-	// constexpr int img_buffer_type_count = sizeof(img_buffer_type_names) / sizeof(img_buffer_type_names[0]);
+	constexpr int img_filter_type_count = sizeof(img_filter_type_names) / sizeof(img_filter_type_names[0]);
 	if (ImGui::CollapsingHeader("Raytracer", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::Checkbox("View NeRF shadows on Virtual Objects", &m_view_nerf_shadow);
 		ImGui::InputInt("Number of shadow steps", &m_n_steps);
-		// ImGui::SetNextItemOpen(true);
-		// if (ImGui::TreeNode("Display Buffer")) {
-		// 	if (ImGui::Combo("Buffer Type", (int*)&m_buffer_to_show, img_buffer_type_names, img_buffer_type_count)) {
-		// 	}
-		// 	ImGui::TreePop();
-		// }
+		ImGui::SetNextItemOpen(true);
+		if (ImGui::TreeNode("Display Filter")) {
+			if (ImGui::Combo("Filter Type", (int*)&m_filter_to_use, img_filter_type_names, img_filter_type_count)) {
+				tlog::success() << "Filter type id changed to: " << (int) m_filter_to_use;
+			}
+			ImGui::TreePop();
+		}
 	}
 }
 

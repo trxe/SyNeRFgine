@@ -18,6 +18,12 @@ __global__ void print_shade(uint32_t n_elements, vec4* __restrict__ rgba, float*
     }
 }
 
+__global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state) {
+    uint64_t idx = threadIdx.x + blockIdx.x * blockDim.x;
+    if (idx >= n_elements) return;
+    curand_init(static_cast<uint64_t>(PT_SEED),  idx, (uint64_t)0, rand_state+idx);
+}
+
 __global__ void debug_uv_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth, ivec2 resolution) {
     uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
     if (idx >= n_elements) return;
