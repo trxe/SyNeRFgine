@@ -22,13 +22,19 @@ struct Light {
         std::string unique_int = fmt::format("[{}] intensity", id);
         std::string title = fmt::format("Light [{}]", id);
         if (ImGui::TreeNode(title.c_str())) {
-            // if (ImGui::SliderFloat3(unique_pos.c_str(), pos.data(), -2.0, 2.0)) {
-            //     is_dirty = true;
-            // }
+            ImGui::Text("Position: %f, %f, %f", pos.x, pos.y, pos.z);
             if (ImGui::SliderFloat(unique_int.c_str(), &intensity, 0.0, 1.0)) { is_dirty = true; }
             ImGui::TreePop();
         }
         ImGui::Separator();
+    }
+
+    __device__ vec3 sample(curandState_t& rand_state, float max_var) {
+        vec3 offset = {
+            fractf(curand_uniform(&rand_state)),
+            fractf(curand_uniform(&rand_state)),
+            fractf(curand_uniform(&rand_state)) };
+        return pos + offset * max_var;
     }
 
     uint32_t id;

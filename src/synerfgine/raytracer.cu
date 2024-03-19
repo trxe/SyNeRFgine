@@ -129,17 +129,16 @@ __global__ void shade_color(
 		const float full_d = length2(light.pos - pos);
 		const vec3 L = normalize(light.pos - pos);
 		const vec3 invL = vec3(1.0f) / L;
-		const float cone_angle = calc_cone_angle(1.0, focal_length, cone_angle_constant);
 		const vec3 R = reflect(L, N);
 		vec3 tmp_col = max(0.0f, dot(L, N)) * mat_p->kd * light.intensity + pow(max(0.0f, dot(R, V)), mat_p->n) * mat_p->ks;
-		float nerf_shadow = 0.0;
+		float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
 		for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
-			nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle, {pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+			nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
 			if (nerf_shadow >= full_d) {
 				nerf_shadow = full_d;
 				break;
 			}
-			float dt = calc_dt(nerf_shadow, cone_angle);
+			float dt = calc_dt(nerf_shadow, cone_angle_constant);
 			nerf_shadow += dt;
 		}
 		float shadow_depth = full_d;
@@ -184,6 +183,7 @@ void RayTracer::enlarge(const ivec2& res) {
 		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[1]
 		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays_hit
 
+		curandState_t,
 		uint32_t,
 		uint32_t
 	>(
@@ -191,6 +191,7 @@ void RayTracer::enlarge(const ivec2& res) {
 		n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
 		n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
 		n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
+		n_elements,
 		32, // 2 full cache lines to ensure no overlap
 		32  // 2 full cache lines to ensure no overlap
 	);
@@ -199,8 +200,9 @@ void RayTracer::enlarge(const ivec2& res) {
 	m_rays[1].set(std::get<8>(scratch), std::get<9>(scratch), std::get<10>(scratch), std::get<11>(scratch), std::get<12>(scratch), std::get<13>(scratch), std::get<14>(scratch), std::get<15>(scratch), n_elements);
 	m_rays_hit.set(std::get<16>(scratch), std::get<17>(scratch), std::get<18>(scratch), std::get<19>(scratch), std::get<20>(scratch), std::get<21>(scratch), std::get<22>(scratch), std::get<23>(scratch), n_elements);
 
-	m_hit_counter = std::get<24>(scratch);
-	m_alive_counter = std::get<25>(scratch);
+	m_rand_state = std::get<24>(scratch);
+	m_hit_counter = std::get<25>(scratch);
+	m_alive_counter = std::get<26>(scratch);
 	sync();
 }
 

@@ -43,7 +43,7 @@ public:
     GLFWwindow* init_window(int resw, int resh, const std::string& frag_fp);
 	void destroy();
 	void begin_frame();
-	bool present( GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_extent, const Foveation& fov); 
+	bool present( GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_res, const ivec2& syn_res, const Foveation& fov); 
 	bool is_alive() { return m_is_init; }
 	void set_dead() { m_is_init = false; }
 
@@ -55,7 +55,7 @@ private:
 	void init_imgui();
 	void init_opengl_shaders(const std::string& frag_fp);
 	void transfer_texture(const Foveation& foveation, [[maybe_unused]] GLint syn_rgba, GLint nerf_rgba, GLint rgba_filter_mode, 
-		[[maybe_unused]] GLint syn_depth, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution);
+		[[maybe_unused]] GLint syn_depth, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution, const ivec2& nerf_res, const ivec2& syn_res);
 
 	ivec2 m_window_res = ivec2(0);
 

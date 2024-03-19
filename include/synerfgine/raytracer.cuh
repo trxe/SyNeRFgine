@@ -35,6 +35,7 @@ static const char * img_buffer_type_names[] = {
 	// "Alive"
 };
 
+
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
 	void copy_from_other_async(const RaysSoa& other, cudaStream_t stream) {
@@ -139,6 +140,7 @@ class RayTracer {
         CudaRenderBuffer m_render_buffer {m_rgba_texture, m_depth_texture};
 		uint32_t* m_hit_counter;
 		uint32_t* m_alive_counter;
+		curandState_t* m_rand_state;
 		uint32_t m_n_rays_initialized = 0;
 		GPUMemoryArena::Allocation m_scratch_alloc;
 

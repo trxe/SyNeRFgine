@@ -32,6 +32,9 @@ __host__ __device__ inline vec3 reflect(const vec3& incident, const vec3& normal
 __host__ __device__ inline ivec2 downscale_resolution(const ivec2& resolution, float scale) {
     return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution);
 }
+__host__ __device__ inline ivec2 scale_resolution(const ivec2& resolution, float scale) {
+    return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution * 16);
+}
 
 // Always initialize the benchmarker, __timer should not be redeclared in the
 // current context.

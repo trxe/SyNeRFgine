@@ -29,7 +29,7 @@ private:
     void imgui();
     void imguizmo();
     void init_buffers();
-    void try_resize();
+    void resize();
     void update_world_objects();
     void set_dead() { m_display.set_dead(); }
     void sync(cudaStream_t stream) { 
@@ -68,7 +68,7 @@ private:
     GPUMemory<ObjectTransform> d_world;
     GPUMemory<Material> d_materials;
     GPUMemory<Light> d_lights;
-    bool m_view_syn_shadow;
+    bool m_view_syn_shadow{true};
 
     std::vector<vec4> m_nerf_rgba_cpu;
     std::vector<float> m_nerf_depth_cpu;
@@ -86,6 +86,10 @@ private:
     mat3* m_rot_to_rotate = nullptr;
     float* m_scale_to_scale = nullptr;
     bool* m_obj_dirty_marker = nullptr;
+
+    // for imgui
+    bool m_show_ui{true};
+    float m_relative_vo_scale{4.0};
 
     cudaStream_t m_stream_id;
 

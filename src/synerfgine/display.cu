@@ -147,7 +147,7 @@ void Display::begin_frame() {
 }
 
 void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLint syn_rgba, GLint syn_depth, GLint rgba_filter_mode, 
-	GLint nerf_rgba, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution) {
+	GLint nerf_rgba, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution, const ivec2& nerf_res, const ivec2& syn_res) {
 	if (m_blit_program == 0) {
 		return;
 	}
@@ -176,6 +176,10 @@ void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLin
 	auto nerf_depth_uniform = glGetUniformLocation(m_blit_program, "nerf_depth");
 	glUniform1i(nerf_rgba_uniform, 2);
 	glUniform1i(nerf_depth_uniform, 3);
+
+	glUniform2f(glGetUniformLocation(m_blit_program, "nerf_resolution"), nerf_res.x, nerf_res.y);
+	glUniform2f(glGetUniformLocation(m_blit_program, "syn_resolution"), syn_res.x, syn_res.y);
+	glUniform2f(glGetUniformLocation(m_blit_program, "full_resolution"), resolution.x, resolution.y);
 
 	auto bind_warp = [&](const ngp::FoveationPiecewiseQuadratic& warp, const std::string& uniform_name) {
 		glUniform1f(glGetUniformLocation(m_blit_program, (uniform_name + ".al").c_str()), warp.al);
@@ -244,7 +248,7 @@ void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLin
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-bool Display::present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_extent, const Foveation& fov) {
+bool Display::present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_res, const ivec2& syn_res, const Foveation& fov) {
 	if (!m_glfw_window) {
 		throw std::runtime_error{"Window must be initialized to be presented."};
 	}
@@ -261,9 +265,9 @@ bool Display::present(GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint sy
 	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
 	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-    ivec2 extent = {(int)((float)m_window_res.x / nerf_extent.x), (int)((float)m_window_res.y / nerf_extent.y)};
+    ivec2 extent = {(int)((float)m_window_res.x / nerf_res.x), (int)((float)m_window_res.y / nerf_res.y)};
 	ivec2 top_left{0, m_window_res.y - extent.y};
-	transfer_texture(fov, syn_rgba_texid, syn_depth_texid, GL_LINEAR, nerf_rgba_texid, nerf_depth_texid, m_framebuffer, top_left, extent);
+	transfer_texture(fov, syn_rgba_texid, syn_depth_texid, GL_LINEAR, nerf_rgba_texid, nerf_depth_texid, m_framebuffer, top_left, extent, nerf_res, syn_res);
 	glFinish();
 
 	// IMGUI

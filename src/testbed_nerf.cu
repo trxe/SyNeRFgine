@@ -1308,6 +1308,7 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 
 __global__ void shade_with_shadow(
 	const uint32_t n_elements,
+	ivec2 resolution,
 	mat4x3 camera_matrix,
 	vec4* __restrict__ rgba,
 	float* __restrict__ depth,
@@ -1322,39 +1323,97 @@ __global__ void shade_with_shadow(
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
+	uint32_t x = idx % resolution.x;
+	uint32_t y = idx / resolution.x;
+	// extra check
+	if (idx != y * resolution.x + x) { return; }
 	float overall_shadow_depth = 1.0f;
-	if (!show_syn_shadow) return;
 	NerfPayload& payload = payloads[idx];
-	const vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx];
-	for (uint32_t i = 0; i < light_count; ++i) {
-		const sng::Light& light = lights[i];
-		const float full_d = length2(light.pos - pos);
-		const vec3 L = normalize(light.pos - pos);
-		float shadow_depth = full_d;
-
-		for (uint32_t t = 0; t < obj_count; ++t) {
-			const sng::ObjectTransform& obj = objs[t];
-			mat3 scale = mat3::identity() / obj.scale;
-			mat3 rot = inverse(obj.rot);
-			vec3 pos_obj = scale * rot * (pos - obj.pos);
-			vec3 L_obj = scale * rot * L;
-			auto [hit, d] = ngp::ray_intersect_nodes(pos_obj, L_obj, obj.g_node, obj.g_tris);
-			if (hit >= 0) { 
-				shadow_depth = min(d, shadow_depth);
+	vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx];
+	if (show_syn_shadow) {
+		// TODO: Average out neighbouring positions
+		// VERSION 1: Position average [ not good at all. ]
+		/*
+		vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx];
+		float divv = 1.0f;
+		for (int dx = -1 ; dx < 1; ++dx) {
+			for (int dy = -1 ; dy < 1; ++dy) {
+				int cx = min(0, max(resolution.x-1, dx+x));
+				int cy = min(0, max(resolution.y-1, dy+y));
+				int sample_idx = cy * resolution.x + cx;
+				vec3 sample_dir = payloads[sample_idx].dir;
+				pos += camera_matrix[3] + sample_dir / dot(sample_dir, camera_matrix[2]) * depth[sample_idx];
+				// pos += camera_matrix[3] + payloads[idx].dir / dot(payload.dir, camera_matrix[2]) * depth[idx];
+				divv += 1.0f;
 			}
 		}
+		pos /= divv;
+		*/
+		// VERSION 2: Depth average [ Improved, but flickers due to changing camera_matrix. ]
+		/*
+		float depthhh = 0.0f;
+		float divv = 1.0f;
+		for (int dx = -1 ; dx < 1; ++dx) {
+			for (int dy = -1 ; dy < 1; ++dy) {
+				int cx = min(0, max(resolution.x-1, dx+x));
+				int cy = min(0, max(resolution.y-1, dy+y));
+				int sample_idx = cy * resolution.x + cx;
+				depthhh += depth[sample_idx];
+				// pos += camera_matrix[3] + payloads[idx].dir / dot(payload.dir, camera_matrix[2]) * depth[idx];
+				divv += 1.0f;
+			}
+		}
+		vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depthhh / divv+ 0.001f;
+		*/
+		for (uint32_t i = 0; i < light_count; ++i) {
+			const sng::Light& light = lights[i];
+			const float full_d = length2(light.pos - pos);
+			const vec3 L = normalize(light.pos - pos);
+			float shadow_depth = full_d;
 
-		overall_shadow_depth = min(overall_shadow_depth, smoothstep(shadow_depth / full_d));
+			for (uint32_t t = 0; t < obj_count; ++t) {
+				const sng::ObjectTransform& obj = objs[t];
+				mat3 scale = mat3::identity() / obj.scale;
+				mat3 rot = inverse(obj.rot);
+				vec3 pos_obj = scale * rot * (pos - obj.pos);
+				vec3 L_obj = scale * rot * L;
+				auto [hit, d] = ngp::ray_intersect_nodes(pos_obj, L_obj, obj.g_node, obj.g_tris);
+				if (hit >= 0) { 
+					shadow_depth = min(d, shadow_depth);
+				}
+			}
+
+			overall_shadow_depth = min(overall_shadow_depth, smoothstep(shadow_depth / full_d));
+		}
 	}
+	__syncthreads();
+	// VERSION 3: Blending depths [ results in flickering objects. ]
+	// float tmpd = depth[idx];
+	// depth[idx] = overall_shadow_depth;
+	// float depthhh = 0.0f;
+	// float divv = 1.0f;
+	// for (int dx = -1 ; dx < 1; ++dx) {
+	// 	for (int dy = -1 ; dy < 1; ++dy) {
+	// 		int cx = min(0, max(resolution.x-1, dx+x));
+	// 		int cy = min(0, max(resolution.y-1, dy+y));
+	// 		int sample_idx = cy * resolution.x + cx;
+	// 		depthhh += depth[sample_idx];
+	// 		// pos += camera_matrix[3] + payloads[idx].dir / dot(payload.dir, camera_matrix[2]) * depth[idx];
+	// 		divv += 1.0f;
+	// 	}
+	// }
+	// overall_shadow_depth = depthhh / divv;
 
 	// Accumulate in linear colors
 	vec4 tmp = rgba[idx];
+	// vec4 tmp = vec4((pos - 0.5f) / 2.0f + 0.5f, 1.0);
 	tmp.rgb() = srgb_to_linear(tmp.rgb()) * overall_shadow_depth;
 
 	frame_buffer[payload.idx] = tmp + frame_buffer[payload.idx] * (1.0f - tmp.a);
 	if (tmp.a > 0.2f) {
 		depth_buffer[payload.idx] = depth[idx];
 	}
+	// depth[idx] = tmpd;
 }
 
 __global__ void shade_kernel_nerf(
@@ -1927,7 +1986,7 @@ void Testbed::render_nerf_with_shadow(
 		render_buffer.resolution,
 		focal_length,
 		camera_matrix0,
-		camera_matrix1,
+		camera_matrix0,
 		rolling_shutter,
 		screen_center,
 		m_parallax_shift,
@@ -2021,7 +2080,8 @@ void Testbed::render_nerf_with_shadow(
 
 	linear_kernel(shade_with_shadow, 0, stream,
 		n_hit,
-		camera_matrix1,
+		render_buffer.resolution,
+		camera_matrix0,
 		rays_hit.rgba,
 		rays_hit.depth,
 		rays_hit.payload,

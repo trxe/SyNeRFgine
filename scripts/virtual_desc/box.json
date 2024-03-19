@@ -8,15 +8,15 @@
     "objfile": [
         {
             "file": "../data/obj/smallbox.obj",
-            "pos" : [ 0.0, 0.6, 0.3 ],
-            "scale" : 0.08,
-            "material": 1
+            "pos" : [ 1.0, 0.76, 1.29 ],
+            "scale" : 0.260,
+            "material": 0
         },
         {
             "file": "../data/obj/rock.obj",
-            "pos" : [ 0.0, 1.0, 0.2 ],
-            "scale" : 0.1,
-            "material": 0
+            "pos" : [ 1.1, -0.37, 0.9 ],
+            "scale" : 0.297,
+            "material": 1
         }
     ],
     "materials": [
