@@ -321,14 +321,22 @@ void main() {
     // vec3 col = main_filter(view_coords);
     // frag_color = vec4(col, 1.0);
     // vec3 nerf = smartDeNoise(nerf_rgba, view_coords.xy, 2.0, nerf_pixel_size, 0.2).rgb;
-    float d = shade_edge_detection(syn_rgba, syn_pixel_size, view_coords, 1.0);
+    float d = shade_edge_detection(syn_rgba, syn_pixel_size, view_coords, 2.0);
     vec3 syn = mix( bilateral_filter(syn_rgba, syn_pixel_size, tex_coords),
-                    box_filter(syn_rgba, syn_pixel_size, view_coords.xy, 2).rgb,
+                    box_filter(syn_rgba, syn_pixel_size, view_coords.xy, 3).rgb,
                     d);
     // vec3 syn = bilateral_filter(syn_rgba, syn_pixel_size, tex_coords);
     // vec3 syn = texture(syn_rgba, tex_coords).rgb;
     // vec3 syn = smartDeNoise(syn_rgba, view_coords.xy, 2.0, syn_pixel_size, 0.2).rgb;
-    vec3 nerf = texture(nerf_rgba, tex_coords).rgb;
+    // BOX LOW PASS
+    vec4 nerf_box = box_filter(nerf_rgba, nerf_pixel_size * 3, view_coords.xy, 6);
+    float lnb = luma(nerf_box);
+    vec3 nerf;
+    if (luma(nerf_box) < 0.6) {
+        nerf = mix(vec3(0.0), texture(nerf_rgba, tex_coords).rgb, lnb);
+    } else {
+        nerf = texture(nerf_rgba, tex_coords).rgb;
+    }
     // float mask = shade_edge_detection(view_coords);
     // syn = vec4(vec3(d), 1.0) * 0.5 + syn * 0.5;
     frag_color = vec4( sd < nd ? syn : nerf, 1.0 );
