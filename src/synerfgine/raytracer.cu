@@ -185,7 +185,7 @@ void RayTracer::enlarge(const ivec2& res) {
 	auto scratch = allocate_workspace_and_distribute<
 		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[0]
 		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[1]
-		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays_hit
+		// vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays_hit
 
 		curandState_t,
 		uint32_t,
@@ -194,7 +194,7 @@ void RayTracer::enlarge(const ivec2& res) {
 		m_stream_ray, &m_scratch_alloc,
 		n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
 		n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
-		n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
+		// n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
 		n_elements,
 		32, // 2 full cache lines to ensure no overlap
 		32  // 2 full cache lines to ensure no overlap
@@ -202,11 +202,14 @@ void RayTracer::enlarge(const ivec2& res) {
 
 	m_rays[0].set(std::get<0>(scratch), std::get<1>(scratch), std::get<2>(scratch), std::get<3>(scratch), std::get<4>(scratch), std::get<5>(scratch), std::get<6>(scratch), std::get<7>(scratch), n_elements);
 	m_rays[1].set(std::get<8>(scratch), std::get<9>(scratch), std::get<10>(scratch), std::get<11>(scratch), std::get<12>(scratch), std::get<13>(scratch), std::get<14>(scratch), std::get<15>(scratch), n_elements);
-	m_rays_hit.set(std::get<16>(scratch), std::get<17>(scratch), std::get<18>(scratch), std::get<19>(scratch), std::get<20>(scratch), std::get<21>(scratch), std::get<22>(scratch), std::get<23>(scratch), n_elements);
+	// m_rays_hit.set(std::get<16>(scratch), std::get<17>(scratch), std::get<18>(scratch), std::get<19>(scratch), std::get<20>(scratch), std::get<21>(scratch), std::get<22>(scratch), std::get<23>(scratch), n_elements);
 
-	m_rand_state = std::get<24>(scratch);
-	m_hit_counter = std::get<25>(scratch);
-	m_alive_counter = std::get<26>(scratch);
+	m_rand_state = std::get<16>(scratch);
+	m_hit_counter = std::get<17>(scratch);
+	m_alive_counter = std::get<18>(scratch);
+	// m_rand_state = std::get<24>(scratch);
+	// m_hit_counter = std::get<25>(scratch);
+	// m_alive_counter = std::get<26>(scratch);
 	sync();
 	linear_kernel(init_rand_state, 0, m_stream_ray, n_elements, m_rand_state);
 	sync();

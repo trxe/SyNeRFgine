@@ -43,7 +43,7 @@ public:
     GLFWwindow* init_window(int resw, int resh, const std::string& frag_fp);
 	void destroy();
 	void begin_frame();
-	bool present( GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_res, const ivec2& syn_res, const Foveation& fov, int filter_type); 
+	bool present( const vec3& clear_color, GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_res, const ivec2& syn_res, const Foveation& fov, int filter_type); 
 	bool is_alive() { return m_is_init; }
 	void set_dead() { m_is_init = false; }
 

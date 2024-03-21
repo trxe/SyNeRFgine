@@ -69,6 +69,11 @@ private:
     GPUMemory<Material> d_materials;
     GPUMemory<Light> d_lights;
     bool m_view_syn_shadow{true};
+    float m_depth_epsilon_shadow{0.023f};
+    vec3 m_default_at_pos{0.0};
+    vec3 m_default_view_dir{0.0};
+    float m_default_zoom{1.0f};
+    vec3 m_default_clear_color{0.0};
 
     std::vector<vec4> m_nerf_rgba_cpu;
     std::vector<float> m_nerf_depth_cpu;
@@ -88,7 +93,7 @@ private:
     bool* m_obj_dirty_marker = nullptr;
 
     // for imgui
-    bool m_show_ui{true};
+    bool m_show_ui{false};
     float m_relative_vo_scale{4.0};
 
     cudaStream_t m_stream_id;

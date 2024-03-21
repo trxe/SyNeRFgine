@@ -1318,6 +1318,7 @@ __global__ void shade_with_shadow(
 	const sng::ObjectTransform* __restrict__ objs,
 	uint32_t obj_count,
 	bool show_syn_shadow,
+	float depth_epsilon_threshold,
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer
 ) {
@@ -1329,7 +1330,7 @@ __global__ void shade_with_shadow(
 	if (idx != y * resolution.x + x) { return; }
 	float overall_shadow_depth = 1.0f;
 	NerfPayload& payload = payloads[idx];
-	vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx];
+	vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx] - depth_epsilon_threshold;
 	if (show_syn_shadow) {
 		// TODO: Average out neighbouring positions
 		// VERSION 1: Position average [ not good at all. ]
@@ -1955,6 +1956,7 @@ void Testbed::render_nerf_with_shadow(
 	const vec2& screen_center,
 	const Foveation& foveation,
 	int visualized_dimension,
+	const float& depth_epsilon_shadow,
 	const GPUMemory<sng::ObjectTransform>& world_objects,
 	const GPUMemory<sng::Light>& world_lights,
 	bool show_shadow
@@ -2090,6 +2092,7 @@ void Testbed::render_nerf_with_shadow(
 		world_objects.data(),
 		world_objects.size(),
 		show_shadow,
+		depth_epsilon_shadow,
 		render_buffer.frame_buffer,
 		render_buffer.depth_buffer
 	);

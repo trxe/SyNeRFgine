@@ -11,10 +11,15 @@
     "cmake.debugConfig": {
         "args": [
             "--snapshot",
-            // "..\\data\\nerf\\garden.ingp",
-            "..\\data\\nerf\\fox\\base.ingp",
+            // "..\\data\\nerf\\bonsai.ingp",
+            // "..\\data\\nerf\\bicycle.ingp",
+            "..\\data\\nerf\\garden.ingp",
+            // "..\\data\\nerf\\fox\\base.ingp",
             "--virtual",
-            "..\\scripts\\virtual_desc\\box.json",
+            // "..\\scripts\\virtual_desc\\boxbicycle.json",
+            "..\\scripts\\virtual_desc\\boxvase.json",
+            // "..\\scripts\\virtual_desc\\box.json",
+            // "..\\scripts\\virtual_desc\\boxtop.json",
             "--frag",
             "..\\scripts\\virtual_desc\\main.frag",
             "--width",

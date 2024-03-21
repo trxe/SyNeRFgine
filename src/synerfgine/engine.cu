@@ -9,6 +9,21 @@ namespace sng {
 
 void Engine::set_virtual_world(const std::string& config_fp) {
     nlohmann::json config = File::read_json(config_fp);
+    if (config.count("camera")) {
+        nlohmann::json& cam_conf = config["camera"];
+        if (cam_conf.count("view")) {
+            m_default_view_dir = {cam_conf["view"][0], cam_conf["view"][1], cam_conf["view"][2]};
+        }
+        if (cam_conf.count("at")) {
+            m_default_at_pos = {cam_conf["at"][0], cam_conf["at"][1], cam_conf["at"][2]};
+        }
+        if (cam_conf.count("zoom")) {
+            m_default_zoom = cam_conf["zoom"];
+        }
+        if (cam_conf.count("clear_color")) {
+            m_default_clear_color = {cam_conf["clear_color"][0], cam_conf["clear_color"][1], cam_conf["clear_color"][2]};
+        }
+    }
     nlohmann::json& mat_conf = config["materials"];
     for (uint32_t i = 0; i < mat_conf.size(); ++i) {
         m_materials.emplace_back(i, mat_conf[i]);
@@ -84,7 +99,13 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
 		if (engine) { engine->set_dead(); }
 	});
     Testbed::CudaDevice& device = m_testbed->primary_device();
+    if (length2(m_default_view_dir) != 0.0f) {
+        m_testbed->set_view_dir(m_default_view_dir);
+        m_testbed->set_look_at(m_default_at_pos);
+        m_testbed->set_scale(m_default_zoom);
+    }
     m_stream_id = device.stream();
+    m_testbed->m_imgui.enabled = m_show_ui;
 }
 
 void Engine::resize() {
@@ -108,6 +129,13 @@ void Engine::imgui() {
     }
     if (m_show_ui) {
         if (ImGui::Begin("Synthetic World")) {
+            if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+                if (ImGui::Button("Reset Camera") && length2(m_default_view_dir) != 0.0f) {
+                    m_testbed->set_view_dir(m_default_view_dir);
+                    m_testbed->set_look_at(m_default_at_pos);
+                    m_testbed->set_scale(m_default_zoom);
+                }
+            }
             if (ImGui::CollapsingHeader("Materials", ImGuiTreeNodeFlags_DefaultOpen)) {
                 for (auto& m : m_materials) { m.imgui(); }
             }
@@ -118,11 +146,15 @@ void Engine::imgui() {
                 for (auto& m : m_lights) { m.imgui(); }
             }
             m_raytracer.imgui();
-            ImGui::Checkbox("View Virtual Object shadows on NeRF", &m_view_syn_shadow);
-            if (ImGui::SliderFloat("Relative scale of Virtual Scene", &m_relative_vo_scale, 0.5, 10.0)) {
-                resize();
+            if (ImGui::CollapsingHeader("NeRF", ImGuiTreeNodeFlags_DefaultOpen)) {
+                ImGui::Checkbox("View Virtual Object shadows on NeRF", &m_view_syn_shadow);
+                if (ImGui::SliderFloat("NeRF Epsilon offset", &m_depth_epsilon_shadow, 0.0, 0.1)) {
+                    m_is_dirty = true;
+                }
+                if (ImGui::SliderFloat("Relative scale of Virtual Scene", &m_relative_vo_scale, 0.5, 10.0)) {
+                    resize();
+                }
             }
-
             if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
                 if (ImGui::Combo("Mode", (int*)&m_transform_type, world_object_names, sizeof(world_object_names) / sizeof(const char*))) {
                     m_transform_idx = 0;
@@ -186,7 +218,7 @@ bool Engine::frame() {
     __timer.reset();
     {
         sync(m_stream_id);
-        m_testbed->render( m_stream_id, view, d_world, d_lights, m_view_syn_shadow);
+        m_testbed->render( m_stream_id, view, d_world, d_lights, m_view_syn_shadow, m_depth_epsilon_shadow);
         sync(m_stream_id);
         view.prev_camera = view.camera0;
         view.prev_foveation = view.foveation;
@@ -224,7 +256,7 @@ bool Engine::frame() {
     m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);
     GLuint syn_rgba_texid = m_raytracer.m_rgba_texture->texture();
     GLuint syn_depth_texid = m_raytracer.m_depth_texture->texture();
-    m_display.present(nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, m_testbed->m_n_views(0), m_raytracer.resolution(), view.foveation, m_raytracer.filter_type());
+    m_display.present(m_default_clear_color, nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, view.render_buffer->out_resolution(), m_raytracer.resolution(), view.foveation, m_raytracer.filter_type());
     return m_display.is_alive();
 }
 
