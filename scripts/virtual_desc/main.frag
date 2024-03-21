@@ -312,6 +312,10 @@ void main() {
     vec4 view_coords = vec4(tex_coords, 1.0, 1.0);
     float sd = texture(syn_depth, tex_coords).r;
     float nd = texture(nerf_depth, tex_coords).r;
+    // vec3 syn = texture(syn_rgba, tex_coords).rgb;
+    // vec3 nerf = texture(nerf_rgba, tex_coords).rgb;
+
+    // frag_color = vec4( sd < nd ? syn : nerf, 1.0 );
 
     // antialiasing for syn
     // vec4 syn;
@@ -328,6 +332,7 @@ void main() {
     // vec3 syn = bilateral_filter(syn_rgba, syn_pixel_size, tex_coords);
     // vec3 syn = texture(syn_rgba, tex_coords).rgb;
     // vec3 syn = smartDeNoise(syn_rgba, view_coords.xy, 2.0, syn_pixel_size, 0.2).rgb;
+
     // BOX LOW PASS
     vec4 nerf_box = box_filter(nerf_rgba, nerf_pixel_size * 3, view_coords.xy, 6);
     float lnb = luma(nerf_box);
@@ -337,9 +342,6 @@ void main() {
     } else {
         nerf = texture(nerf_rgba, tex_coords).rgb;
     }
-    // float mask = shade_edge_detection(view_coords);
-    // syn = vec4(vec3(d), 1.0) * 0.5 + syn * 0.5;
     frag_color = vec4( sd < nd ? syn : nerf, 1.0 );
-    // frag_color = vec4(syn.rgb, 1.0);
     gl_FragDepth = sd;
 }

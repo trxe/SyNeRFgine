@@ -1,6 +1,6 @@
 #pragma once
 
-// #include <synerfgine/display.h>
+#include <curand_kernel.h>
 
 #include <neural-graphics-primitives/render_buffer.h>
 #include <neural-graphics-primitives/testbed.h>
@@ -68,6 +68,7 @@ private:
     GPUMemory<ObjectTransform> d_world;
     GPUMemory<Material> d_materials;
     GPUMemory<Light> d_lights;
+    GPUMemory<curandState_t> d_rand_state;
     bool m_view_syn_shadow{true};
     float m_depth_epsilon_shadow{0.023f};
     vec3 m_default_at_pos{0.0};

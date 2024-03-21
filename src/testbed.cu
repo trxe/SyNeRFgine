@@ -4347,6 +4347,7 @@ void Testbed::render(
 	Testbed::View& view,
 	const GPUMemory<sng::ObjectTransform>& world_objects,
 	const GPUMemory<sng::Light>& world_lights,
+	GPUMemory<curandState_t>& rand_states,
 	bool show_shadow,
 	const float& depth_epsilon_shadow
 ) {
@@ -4373,7 +4374,7 @@ void Testbed::render(
 	if (!m_render_ground_truth && m_testbed_mode == ETestbedMode::Nerf) {
 		render_nerf_with_shadow(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
 			focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension, 
-			depth_epsilon_shadow, world_objects, world_lights, show_shadow);
+			depth_epsilon_shadow, world_objects, world_lights, rand_states, show_shadow);
 		// render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
 		// 	focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
 	}

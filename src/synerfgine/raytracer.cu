@@ -353,7 +353,6 @@ void RayTracer::render(
 		);
 		sync();
 	}
-	sync();
 }
 
 void RayTracer::load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu) {

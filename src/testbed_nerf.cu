@@ -1317,6 +1317,7 @@ __global__ void shade_with_shadow(
 	uint32_t light_count,
 	const sng::ObjectTransform* __restrict__ objs,
 	uint32_t obj_count,
+	curandState_t* __restrict__ rand_state,
 	bool show_syn_shadow,
 	float depth_epsilon_threshold,
 	vec4* __restrict__ frame_buffer,
@@ -1368,8 +1369,9 @@ __global__ void shade_with_shadow(
 		*/
 		for (uint32_t i = 0; i < light_count; ++i) {
 			const sng::Light& light = lights[i];
-			const float full_d = length2(light.pos - pos);
-			const vec3 L = normalize(light.pos - pos);
+			const vec3 lightpos = light.sample(rand_state[idx]);
+			const float full_d = length2(lightpos - pos);
+			const vec3 L = normalize(lightpos - pos);
 			float shadow_depth = full_d;
 
 			for (uint32_t t = 0; t < obj_count; ++t) {
@@ -1959,6 +1961,7 @@ void Testbed::render_nerf_with_shadow(
 	const float& depth_epsilon_shadow,
 	const GPUMemory<sng::ObjectTransform>& world_objects,
 	const GPUMemory<sng::Light>& world_lights,
+	const GPUMemory<curandState_t>& rand_states,
 	bool show_shadow
 ) {
 	float plane_z = m_slice_plane_z + m_scale;
@@ -2091,6 +2094,7 @@ void Testbed::render_nerf_with_shadow(
 		world_lights.size(),
 		world_objects.data(),
 		world_objects.size(),
+		rand_states.data(),
 		show_shadow,
 		depth_epsilon_shadow,
 		render_buffer.frame_buffer,

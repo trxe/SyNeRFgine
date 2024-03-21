@@ -23,6 +23,9 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("clear_color")) {
             m_default_clear_color = {cam_conf["clear_color"][0], cam_conf["clear_color"][1], cam_conf["clear_color"][2]};
         }
+        if (cam_conf.count("show_ui_start")) {
+            m_show_ui = cam_conf["show_ui_start"];
+        }
     }
     nlohmann::json& mat_conf = config["materials"];
     for (uint32_t i = 0; i < mat_conf.size(); ++i) {
@@ -117,6 +120,8 @@ void Engine::resize() {
     // tlog::success() << "Scaling full resolution by " << factor;
     auto new_res = downscale_resolution(m_next_frame_resolution, factor);
     view.resize(new_res);
+    d_rand_state.resize(product(new_res));
+    linear_kernel(init_rand_state, 0, m_stream_id, d_rand_state.size(), d_rand_state.data());
     sync(m_stream_id);
 
     m_raytracer.enlarge(scale_resolution(new_res, m_relative_vo_scale));
@@ -216,44 +221,42 @@ bool Engine::frame() {
 
     auto nerf_view = view.render_buffer->view();
     __timer.reset();
-    {
-        sync(m_stream_id);
-        m_testbed->render( m_stream_id, view, d_world, d_lights, m_view_syn_shadow, m_depth_epsilon_shadow);
-        sync(m_stream_id);
-        view.prev_camera = view.camera0;
-        view.prev_foveation = view.foveation;
 
-        ivec2 nerf_res = nerf_view.resolution;
-        auto n_elements = product(nerf_res);
-    }
+    m_testbed->render( m_stream_id, view, d_world, d_lights, d_rand_state, m_view_syn_shadow, m_depth_epsilon_shadow);
+
+    vec2 focal_length = m_testbed->calc_focal_length(
+        m_raytracer.resolution(),
+        m_testbed->m_relative_focal_length, 
+        m_testbed->m_fov_axis, 
+        m_testbed->m_zoom);
+    vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
+    m_raytracer.render(
+        m_objects,
+        d_materials,
+        d_lights,
+        view, 
+        screen_center,
+        nerf_view.spp,
+        focal_length,
+        m_testbed->m_snap_to_pixel_centers,
+        m_testbed->m_nerf.density_grid_bitfield.data(),
+        d_world
+    );
+
+    sync(m_stream_id);
+    view.prev_camera = view.camera0;
+    view.prev_foveation = view.foveation;
+
+    ivec2 nerf_res = nerf_view.resolution;
+    auto n_elements = product(nerf_res);
     m_render_ms = (float)__timer.log_time("nerf");
     m_testbed->m_frame_ms.set(m_render_ms);
     m_testbed->m_rgba_render_textures.front()->load_gpu(nerf_view.frame_buffer, nerf_view.resolution, m_nerf_rgba_cpu);
     m_testbed->m_depth_render_textures.front()->load_gpu(nerf_view.depth_buffer, nerf_view.resolution, 1, m_nerf_depth_cpu);
+
+    m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);
     GLuint nerf_rgba_texid = m_testbed->m_rgba_render_textures.front()->texture();
     GLuint nerf_depth_texid = m_testbed->m_depth_render_textures.front()->texture();
-
-    {
-        vec2 focal_length = m_testbed->calc_focal_length(
-            m_raytracer.resolution(),
-            m_testbed->m_relative_focal_length, 
-            m_testbed->m_fov_axis, 
-            m_testbed->m_zoom);
-        vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
-        m_raytracer.render(
-            m_objects,
-            d_materials,
-            d_lights,
-            view, 
-            screen_center,
-            nerf_view.spp,
-            focal_length,
-            m_testbed->m_snap_to_pixel_centers,
-            m_testbed->m_nerf.density_grid_bitfield.data(),
-            d_world
-        );
-    }
-    m_raytracer.load(m_syn_rgba_cpu, m_syn_depth_cpu);
     GLuint syn_rgba_texid = m_raytracer.m_rgba_texture->texture();
     GLuint syn_depth_texid = m_raytracer.m_depth_texture->texture();
     m_display.present(m_default_clear_color, nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, view.render_buffer->out_resolution(), m_raytracer.resolution(), view.foveation, m_raytracer.filter_type());
