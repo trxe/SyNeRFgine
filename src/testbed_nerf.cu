@@ -1384,11 +1384,7 @@ __global__ void shade_with_shadow(
 
 			for (uint32_t t = 0; t < obj_count; ++t) {
 				const sng::ObjectTransform& obj = objs[t];
-				mat3 scale = mat3::identity() / obj.scale;
-				mat3 rot = inverse(obj.rot);
-				vec3 pos_obj = scale * rot * (pos - obj.pos);
-				vec3 L_obj = scale * rot * L;
-				auto [hit, d] = ngp::ray_intersect_nodes(pos_obj, L_obj, obj.g_node, obj.g_tris);
+				auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
 				if (hit >= 0) { 
 					shadow_depth = min(d, shadow_depth);
 				}

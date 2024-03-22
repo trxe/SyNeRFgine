@@ -83,6 +83,52 @@ __global__ void transform_payload(
 	}
 }
 
+__global__ void raytrace(uint32_t n_elements, 
+	const vec3* __restrict__ src_positions, 
+	const vec3* __restrict__ src_directions, 
+	vec3* __restrict__ next_positions, 
+	vec3* __restrict__ next_directions, 
+	vec3* __restrict__ normals, 
+	float* __restrict__ t, 
+	int32_t* __restrict__ mat_idx,
+	bool* __restrict__ alive,
+	const Material* __restrict__ materials,
+	size_t mat_count,
+	const ObjectTransform* __restrict__ world,
+	size_t world_count,
+	curandState_t* __restrict__ rand_state
+) {
+	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= n_elements) return;
+
+	auto src_pos = src_positions[i];
+	auto src_dir = src_directions[i];
+	float d = MAX_DEPTH();
+	vec3 next_pos = src_pos;
+	vec3 next_dir = src_dir;
+	vec3 normal = vec3(0.0);
+	int32_t material = -1;
+	bool is_alive = false;
+
+	for (size_t w = 0; w < world_count; ++w) {
+		const ObjectTransform& obj = world[w];
+		auto p = ngp::ray_intersect_nodes(src_pos, src_dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+		if (p.first >= 0 && p.second < d) {
+			d = p.second;
+			next_pos = src_pos + p.second * src_dir;
+			normal = obj.scale * (obj.rot * (obj.g_tris[p.first].normal() + obj.pos));
+			materials[obj.mat_id].scatter(next_pos, normal, next_dir, rand_state[i]);
+			material = w;
+			is_alive = true;
+		}
+	}
+	next_positions[i] = next_pos;
+	t[i] = d;
+	normals[i] = normal;
+	mat_idx[i] = material;
+	alive[i] = is_alive;
+}
+
 __global__ void shade_color(
 	uint32_t n_elements,
 	uint32_t obj_id,
@@ -150,10 +196,7 @@ __global__ void shade_color(
 		for (size_t t = 0; t < object_count; ++t) {
 			if (t == obj_id) continue;
 			ObjectTransform obj = obj_transforms[t];
-			mat3 scale = mat3::identity() / obj.scale;
-			vec3 pos_obj = inverse(obj.rot) * scale * (pos - obj.pos);
-			vec3 L_obj = inverse(obj.rot) * scale * L;
-			auto [hit, d] = ngp::ray_intersect_nodes(pos_obj, L_obj, obj.g_node, obj.g_tris);
+			auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
 			if (hit >= 0) shadow_depth = min(d, shadow_depth);
 		}
 		out_color[idx] += smoothstep(min(nerf_shadow, shadow_depth) / full_d) * tmp_col;
@@ -291,6 +334,7 @@ void RayTracer::render(
 			false
 		);
 		sync();
+
 		bvh->ray_trace_gpu(
 			n_elements,
 			m_rays[1].origin,

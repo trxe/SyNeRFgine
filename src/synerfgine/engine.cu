@@ -52,7 +52,7 @@ void Engine::update_world_objects() {
         needs_reset = true;
         std::vector<ObjectTransform> h_world;
         for (auto& obj : m_objects) {
-            h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), obj.get_translate(), obj.get_scale());
+            h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), obj.get_translate(), obj.get_scale(), obj.get_mat_idx());
         }
         d_world.check_guards();
         d_world.resize_and_copy_from_host(h_world);

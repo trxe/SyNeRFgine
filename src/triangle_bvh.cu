@@ -262,7 +262,6 @@ __host__ __device__ void sorting_network(T values[N]) {
 
 template <uint32_t BRANCHING_FACTOR>
 __host__ __device__ std::pair<int, float> ray_intersect_nodes_f(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles) {
-	uint32_t px = threadIdx.x + blockIdx.x * blockDim.x;
 	FixedIntStack query_stack;
 	query_stack.push(0);
 
@@ -309,6 +308,14 @@ __host__ __device__ std::pair<int, float> ray_intersect_nodes_f(const vec3& ro, 
 
 __host__ __device__ std::pair<int, float> ngp::ray_intersect_nodes(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles) {
 	return ray_intersect_nodes_f<BVH_BRANCH_FACTOR>(ro, rd, bvhnodes, triangles);
+}
+
+__host__ __device__ std::pair<int, float> ray_intersect_nodes(const vec3& ro, const vec3& rd, const float& scale, const vec3& pos, const mat3& rot, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles) {
+	mat3 m_scale = mat3::identity() / scale;
+	mat3 m_rotate = inverse(rot);
+	vec3 oro = m_scale * m_rotate * (ro - pos);
+	vec3 ord = m_scale * m_rotate * rd;
+	return ray_intersect_nodes_f<BVH_BRANCH_FACTOR>(oro, ord, bvhnodes, triangles);
 }
 
 template <uint32_t BRANCHING_FACTOR>
