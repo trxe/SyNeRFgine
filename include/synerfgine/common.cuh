@@ -37,6 +37,7 @@ __host__ __device__ inline ivec2 scale_resolution(const ivec2& resolution, float
 }
 
 __global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state);
+__device__ vec4 box_filter_vec4(uint32_t idx, ivec2 resolution, vec4* __restrict__ buffer, int kernel_size);
 
 // Always initialize the benchmarker, __timer should not be redeclared in the
 // current context.

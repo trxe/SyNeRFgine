@@ -328,7 +328,8 @@ void main() {
     float d = shade_edge_detection(syn_rgba, syn_pixel_size, view_coords, 2.0);
     vec3 syn = mix( bilateral_filter(syn_rgba, syn_pixel_size, tex_coords),
                     box_filter(syn_rgba, syn_pixel_size, view_coords.xy, 3).rgb,
-                    d);
+                    d );
+    // vec3 syn = box_filter(syn_rgba, syn_pixel_size, view_coords.xy, 3).rgb;
     // vec3 syn = bilateral_filter(syn_rgba, syn_pixel_size, tex_coords);
     // vec3 syn = texture(syn_rgba, tex_coords).rgb;
     // vec3 syn = smartDeNoise(syn_rgba, view_coords.xy, 2.0, syn_pixel_size, 0.2).rgb;

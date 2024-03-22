@@ -36,6 +36,7 @@
 #include <filesystem/directory.h>
 #include <filesystem/path.h>
 
+#include <synerfgine/common.cuh>
 
 #ifdef copysign
 #undef copysign
@@ -1325,13 +1326,20 @@ __global__ void shade_with_shadow(
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
-	uint32_t x = idx % resolution.x;
-	uint32_t y = idx / resolution.x;
+	// uint32_t x = idx % resolution.x;
+	// uint32_t y = idx / resolution.x;
 	// extra check
-	if (idx != y * resolution.x + x) { return; }
+	// if (idx != y * resolution.x + x) { return; }
 	float overall_shadow_depth = 1.0f;
 	NerfPayload& payload = payloads[idx];
 	vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx] - depth_epsilon_threshold;
+	// VERSION 4: Blend within the position buffer [not a great option at all]
+	// vec4 orig = frame_buffer[idx];
+	// frame_buffer[idx].rgb() = pos;
+	// __syncthreads();
+	// vec3 blurpos = sng::box_filter_vec4(idx, resolution, frame_buffer, 3);
+	// __syncthreads();
+	// frame_buffer[idx] = orig;
 	if (show_syn_shadow) {
 		// TODO: Average out neighbouring positions
 		// VERSION 1: Position average [ not good at all. ]
@@ -1369,9 +1377,9 @@ __global__ void shade_with_shadow(
 		*/
 		for (uint32_t i = 0; i < light_count; ++i) {
 			const sng::Light& light = lights[i];
-			const vec3 lightpos = light.sample(rand_state[idx]);
-			const float full_d = length2(lightpos - pos);
-			const vec3 L = normalize(lightpos - pos);
+			// const vec3 lightpos = light.sample(rand_state[idx]);
+			const float full_d = length2(light.pos - pos);
+			const vec3 L = normalize(light.pos - pos);
 			float shadow_depth = full_d;
 
 			for (uint32_t t = 0; t < obj_count; ++t) {
