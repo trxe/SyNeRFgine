@@ -11,6 +11,10 @@ uniform ivec2 syn_resolution;
 uniform ivec2 full_resolution;
 uniform int filter_type;
 
+uniform int nerf_expand_mult;
+uniform float nerf_shadow_blur_threshold;
+uniform float nerf_blur_kernel_size;
+
 struct FoveationWarp {
     float al, bl, cl;
     float am, bm;
@@ -312,37 +316,42 @@ void main() {
     vec4 view_coords = vec4(tex_coords, 1.0, 1.0);
     float sd = texture(syn_depth, tex_coords).r;
     float nd = texture(nerf_depth, tex_coords).r;
-    // vec3 syn = texture(syn_rgba, tex_coords).rgb;
-    // vec3 nerf = texture(nerf_rgba, tex_coords).rgb;
 
     // frag_color = vec4( sd < nd ? syn : nerf, 1.0 );
 
     // antialiasing for syn
     // vec4 syn;
-    // vec4 msyn = texture(syn_rgba, tex_coords);
     // syn = sd < nd ? msyn : texture(nerf_rgba, tex_coords);
     // float edge_range = max(depth_edge_detection(view_coords), shade_edge_detection(view_coords));
     // vec3 col = main_filter(view_coords);
     // frag_color = vec4(col, 1.0);
     // vec3 nerf = smartDeNoise(nerf_rgba, view_coords.xy, 2.0, nerf_pixel_size, 0.2).rgb;
-    float d = shade_edge_detection(syn_rgba, syn_pixel_size, view_coords, 2.0);
-    vec3 syn = mix( bilateral_filter(syn_rgba, syn_pixel_size, tex_coords),
-                    box_filter(syn_rgba, syn_pixel_size, view_coords.xy, 3).rgb,
-                    d );
+
+    // float d = shade_edge_detection(syn_rgba, syn_pixel_size, view_coords, 2.0);
+    // vec3 syn = mix( bilateral_filter(syn_rgba, syn_pixel_size, tex_coords),
+    //                 box_filter(syn_rgba, syn_pixel_size, view_coords.xy, 3).rgb,
+    //                 d );
+
     // vec3 syn = box_filter(syn_rgba, syn_pixel_size, view_coords.xy, 3).rgb;
     // vec3 syn = bilateral_filter(syn_rgba, syn_pixel_size, tex_coords);
-    // vec3 syn = texture(syn_rgba, tex_coords).rgb;
+    vec3 syn = texture(syn_rgba, tex_coords).rgb;
+    vec3 nerf = texture(nerf_rgba, tex_coords).rgb;
     // vec3 syn = smartDeNoise(syn_rgba, view_coords.xy, 2.0, syn_pixel_size, 0.2).rgb;
 
     // BOX LOW PASS
+    // vec4 nerf_box = box_filter(nerf_rgba, nerf_pixel_size * nerf_expand_mult, view_coords.xy, nerf_blur_kernel_size);
+    /*
     vec4 nerf_box = box_filter(nerf_rgba, nerf_pixel_size * 3, view_coords.xy, 6);
     float lnb = luma(nerf_box);
     vec3 nerf;
+    // if (luma(nerf_box) < nerf_shadow_blur_threshold) {
     if (luma(nerf_box) < 0.6) {
         nerf = mix(vec3(0.0), texture(nerf_rgba, tex_coords).rgb, lnb);
     } else {
         nerf = texture(nerf_rgba, tex_coords).rgb;
     }
+    */
     frag_color = vec4( sd < nd ? syn : nerf, 1.0 );
+    // frag_color = vec4(syn, 1.0);
     gl_FragDepth = sd;
 }

@@ -15,15 +15,15 @@
     ],
     "objfile": [
         {
-            "file": "../data/obj/smallbox.obj",
+            "file": "../data/obj/rock.obj",
             "pos" : [ 0.38, 0.51, 0.158 ],
             "scale" : 0.103,
             "material": 0
         },
         {
-            "file": "../data/obj/rock.obj",
-            "pos" : [ 0.692, 0.071, -0.30 ],
-            "scale" : 0.297,
+            "file": "../data/obj/armadillo.obj",
+            "pos" : [ 0.692, 0.471, -0.30 ],
+            "scale" : 1.00,
             "material": 1
         }
     ],
