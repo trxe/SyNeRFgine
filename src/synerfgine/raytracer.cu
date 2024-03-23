@@ -86,17 +86,31 @@ __global__ void transform_payload(
 __global__ void raytrace(uint32_t n_elements, 
 	const vec3* __restrict__ src_positions, 
 	const vec3* __restrict__ src_directions, 
-	vec3* __restrict__ next_positions, 
-	vec3* __restrict__ next_directions, 
-	vec3* __restrict__ normals, 
-	float* __restrict__ t, 
-	int32_t* __restrict__ mat_idx,
-	bool* __restrict__ alive,
+	// vec3* __restrict__ next_positions, 
+	// vec3* __restrict__ next_directions, 
+	// vec3* __restrict__ normals, 
+	// float* __restrict__ t, 
+	// int32_t* __restrict__ mat_idx,
+	// bool* __restrict__ alive,
+	const Light* __restrict__ lights,
+	size_t light_count,
 	const Material* __restrict__ materials,
 	size_t mat_count,
 	const ObjectTransform* __restrict__ world,
 	size_t world_count,
-	curandState_t* __restrict__ rand_state
+	float cone_angle_constant,
+	uint32_t n_steps,
+	bool show_nerf_shadow, 
+	BoundingBox render_aabb,
+	mat3 render_aabb_to_local,
+	ivec2 focal_length,
+	const uint8_t* __restrict__ density_grid,
+	uint32_t min_mip,
+	uint32_t max_mip,
+	ImgBufferType buffer_type,
+	curandState_t* __restrict__ rand_state,
+	vec4* __restrict__ frame_buffer,
+	float* __restrict__ depth_buffer
 ) {
 	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= n_elements) return;
@@ -106,27 +120,81 @@ __global__ void raytrace(uint32_t n_elements,
 	float d = MAX_DEPTH();
 	vec3 next_pos = src_pos;
 	vec3 next_dir = src_dir;
-	vec3 normal = vec3(0.0);
+	vec3 N = vec3(0.0);
 	int32_t material = -1;
 	bool is_alive = false;
+	int32_t obj_id = -1;
 
+	// tracing
 	for (size_t w = 0; w < world_count; ++w) {
 		const ObjectTransform& obj = world[w];
 		auto p = ngp::ray_intersect_nodes(src_pos, src_dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
 		if (p.first >= 0 && p.second < d) {
 			d = p.second;
 			next_pos = src_pos + p.second * src_dir;
-			normal = obj.scale * (obj.rot * (obj.g_tris[p.first].normal() + obj.pos));
-			materials[obj.mat_id].scatter(next_pos, normal, next_dir, rand_state[i]);
-			material = w;
-			is_alive = true;
+			N = normalize(obj.scale * (obj.rot * (obj.g_tris[p.first].normal() + obj.pos)));
+			is_alive = materials[obj.mat_id].scatter(next_pos, N, next_dir, rand_state[i]);
+			material = obj.mat_id;
+			obj_id = w;
 		}
 	}
+	/*
 	next_positions[i] = next_pos;
+	next_directions[i] = next_dir;
 	t[i] = d;
-	normals[i] = normal;
+	normals[i] = N;
 	mat_idx[i] = material;
 	alive[i] = is_alive;
+
+	frame_buffer[i] = vec4(0.0);
+	*/
+	depth_buffer[i] = d;
+
+	// shading
+	vec3 V = -normalize(src_dir);
+	vec3 col = is_alive ? materials[material].ka : vec3(0.0);
+	for (size_t l = 0; l < light_count && is_alive; ++l) {
+		const Light& light = lights[l];
+		vec3 lightpos = light.sample(rand_state[i]);
+		const float full_d = length2(lightpos - next_pos);
+		const vec3 L = normalize(lightpos - next_pos);
+		const vec3 invL = vec3(1.0f) / L;
+		const vec3 R = reflect(L, N);
+		vec3 tmp_col = max(0.0f, dot(L, N)) * materials[material].kd * light.intensity + pow(max(0.0f, dot(R, V)), materials[material].n) * materials[material].ks;
+		float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
+		for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
+			nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {next_pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+			if (nerf_shadow >= full_d) {
+				nerf_shadow = full_d;
+				break;
+			}
+			float dt = calc_dt(nerf_shadow, cone_angle_constant);
+			nerf_shadow += dt;
+		}
+		float shadow_depth = full_d;
+
+		for (size_t w = 0; w < world_count; ++w) {
+			if (w == obj_id) continue;
+			ObjectTransform obj = world[w];
+			auto [hit, d] = ngp::ray_intersect_nodes(src_pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+			if (hit >= 0) shadow_depth = min(d, shadow_depth);
+		}
+		col += smoothstep(min(nerf_shadow, shadow_depth) / full_d) * tmp_col;
+	}
+	switch (buffer_type) {
+	case ImgBufferType::Normal:
+		frame_buffer[i].rgb() = vec3_to_col(N);
+		break;
+	case ImgBufferType::Direction:
+		frame_buffer[i].rgb() = vec3_to_col(next_dir);
+		break;
+	case ImgBufferType::Origin:
+		frame_buffer[i].rgb() = vec3_to_col(next_pos);
+		break;
+	default:
+		frame_buffer[i].rgb() = col;
+		break;
+	}
 }
 
 __global__ void shade_color(
@@ -222,6 +290,7 @@ __global__ void transfer_color(
 }
 
 void RayTracer::enlarge(const ivec2& res) {
+	if (m_render_buffer.out_resolution() == res) return;
     m_render_buffer.resize(res);
     size_t n_elements = product(res);
 	n_elements = next_multiple(n_elements, size_t(BATCH_SIZE_GRANULARITY));
@@ -316,87 +385,37 @@ void RayTracer::render(
 		screen_center,
 		snap_to_pixel_centers
 	);
-	for (auto& obj : h_vo) {
-		std::shared_ptr<TriangleBvh> bvh = obj.bvh();
-		auto& o2w_rot = obj.get_rotate();
-		auto& o2w_trans = obj.get_translate();
-		float o2w_scale = obj.get_scale();
-		linear_kernel(transform_payload, 0, m_stream_ray, n_elements,
-			m_rays[0].origin,
-			m_rays[0].dir,
-			m_rays[0].normal,
-			m_rays[1].origin,
-			m_rays[1].dir,
-			m_rays[1].normal,
-			inverse(o2w_rot),
-			-o2w_trans,
-			1.0/o2w_scale,
-			false
-		);
-		sync();
 
-		bvh->ray_trace_gpu(
-			n_elements,
-			m_rays[1].origin,
-			m_rays[1].dir,
-			m_rays[1].normal,
-			m_rays[1].t,
-			m_rays[1].mat_idx,
-			m_rays[1].alive,
-			obj.get_mat_idx(),
-			obj.gpu_triangles(),
-			m_stream_ray
-		);
-		sync();
-		linear_kernel(transform_payload, 0, m_stream_ray, n_elements,
-			m_rays[1].origin,
-			m_rays[1].dir,
-			m_rays[1].normal,
-			m_rays[1].origin,
-			m_rays[1].dir,
-			m_rays[1].normal,
-			o2w_rot,
-			o2w_trans,
-			o2w_scale,
-			true
-		);
-		sync();
-		linear_kernel(shade_color, 0, m_stream_ray, n_elements,
-			obj.get_id(),
-			m_rays[1].origin,
-			m_rays[1].dir,
-			m_rays[1].normal,
-			m_rays[1].mat_idx,
-			m_rays[1].t,
-			m_rays[1].alive,
-			lights.data(),
-			lights.size(),
-			materials.data(),
-			materials.size(),
-			world.data(),
-			world.size(),
-			m_view_nerf_shadow,
-			view.render_aabb,
-			view.render_aabb_to_local,
-			focal_length,
-			static_cast<size_t>(m_n_steps),
-			density_grid_bitfield,
-			view.min_mip,
-			view.max_mip,
-			view.cone_angle_constant,
-			m_rand_state,
-			m_rays[1].rgb,
-			m_rays[1].depth
-		);
-		sync();
-		linear_kernel(transfer_color, 0, m_stream_ray, n_elements,
-			buffer_selector(m_rays[1], m_buffer_to_show),
-			m_rays[1].depth,
-			m_render_buffer.frame_buffer(),
-			m_render_buffer.depth_buffer()
-		);
-		sync();
-	}
+	linear_kernel(raytrace, 0, m_stream_ray, n_elements,
+		m_rays[0].origin,
+		m_rays[0].dir,
+		// m_rays[1].origin,
+		// m_rays[1].dir,
+		// m_rays[1].normal,
+		// m_rays[1].t,
+		// m_rays[1].mat_idx,
+		// m_rays[1].alive,
+		lights.data(),
+		lights.size(),
+		materials.data(),
+		materials.size(),
+		world.data(),
+		world.size(),
+		view.cone_angle_constant,
+		static_cast<size_t>(m_n_steps),
+		m_view_nerf_shadow,
+		view.render_aabb,
+		view.render_aabb_to_local,
+		focal_length,
+		density_grid_bitfield,
+		view.min_mip,
+		view.max_mip,
+		m_buffer_to_show,
+		m_rand_state,
+		m_render_buffer.frame_buffer(),
+		m_render_buffer.depth_buffer()
+	);
+	sync();
 }
 
 void RayTracer::load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu) {

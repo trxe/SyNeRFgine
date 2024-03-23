@@ -10,11 +10,35 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 	std::string err;
     file_path = fs::path(config["file"].get<std::string>());
 	scale = config.contains("scale") ? config["scale"].get<float>() : 1.0;
+	g_vo_pos_bound = 2.0f * scale;
     auto prims_per_leaf = config.contains("primitives-per-leaf") ? config["primitives-per-leaf"].get<int>() : 4;
 	if (config.contains("pos")) {
 		auto a = config["pos"];
 		pos = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
 	}
+	if (config.contains("rot")) {
+		auto a = config["rot"];
+		rot = { 
+			a[0].get<float>(), a[1].get<float>(), a[2].get<float>(),
+			a[3].get<float>(), a[4].get<float>(), a[5].get<float>(),
+			a[6].get<float>(), a[7].get<float>(), a[8].get<float>(),
+		};
+	}
+	if (config.contains("anim")) {
+		auto a = config["anim"]["rot_center"];
+		anim_rot_centre = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+		a = config["anim"]["rot_axis"];
+		vec3 ax = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+		float angle = config["anim"]["rot_angle"];
+		float cost = std::cos(angle);
+		float sint = std::sin(angle);
+		anim_next_rot = mat3{
+			cost + ax.x * ax.x * (1.0f - cost),        ax.x * ax.y * (1.0f - cost) - ax.z * sint, ax.x * ax.z * (1.0f - cost) + ax.y * sint, 
+			ax.x * ax.y * (1.0f - cost) + ax.z * sint, cost + ax.y * ax.y * (1.0f - cost),        ax.y * ax.z * (1.0f - cost) - ax.x * sint, 
+			ax.z * ax.y * (1.0f - cost) - ax.y * sint, ax.z * ax.y * (1.0f - cost) + ax.x * sint, cost + ax.z * ax.z * (1.0f - cost) 
+		};
+	}
+
     name = fs::path(file_path).basename();
     material_id = config["material"].get<uint32_t>();
 
@@ -43,7 +67,7 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 
 	vec3 center{0.0};
 	uint32_t tri_count = 0;
-    for(auto& shape : shapes) {
+    for (auto& shape : shapes) {
 		auto& idxs = shape.mesh.indices;
 		auto& verts = attrib.vertices;
 		auto get_vec = [verts=verts, idxs=idxs](size_t i) {
@@ -77,11 +101,19 @@ void VirtualObject::imgui() {
 	// std::string unique_pos = fmt::format("[{}] pos", id);
 	std::string unique_scale = fmt::format("[{}] scale", id);
 	std::string title = fmt::format("Object [{}]", id);
+	std::string unique_pos = fmt::format("Vals [{}]", id);
 	std::string unique_mat_id = fmt::format("[{}] mat id", id);
+	std::string info = fmt::format(
+		"\"pos\" : [ {:.3f}, {:.3f}, {:.3f} ],\n"
+		"\"rot\" : [ {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f} ],\n"
+		"\"scale\" : {:.3f},", 
+		pos.x, pos.y, pos.z, 
+		rot[0][0], rot[0][1], rot[0][2],
+		rot[1][0], rot[1][1], rot[1][2],
+		rot[2][0], rot[2][1], rot[2][2],
+		scale);
 	if (ImGui::TreeNode(title.c_str())) {
-		// ImGui::InputFloat("Draggable bounds", &g_vo_pos_bound);
-		// if (ImGui::SliderFloat3(unique_pos.c_str(), pos.data(), -g_vo_pos_bound, g_vo_pos_bound)) { }
-		ImGui::Text("Position: %f, %f, %f", pos.x, pos.y, pos.z);
+		ImGui::InputTextMultiline(unique_pos.c_str(), info.data(), info.size() + 1, {300, 50});
 		if (ImGui::SliderFloat(unique_scale.c_str(), &this->scale, 0.0, g_vo_pos_bound)) { 
 			is_dirty = true;
 		}

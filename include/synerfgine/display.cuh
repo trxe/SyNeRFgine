@@ -50,6 +50,13 @@ public:
 	const ivec2& get_window_res() const { return m_window_res; }
 	void set_window_res(const ivec2& res)  { m_window_res = res; }
 
+	int m_nerf_expand_mult{3};
+	int m_nerf_blur_kernel_size{6};
+	int m_syn_blur_kernel_size{6};
+	float m_nerf_shadow_blur_threshold{0.6};
+	float m_syn_sigma{8.0};
+	float m_syn_bsigma{0.8};
+
 private:
 	GLFWwindow* init_glfw(int resw, int resh);
 	void init_imgui();

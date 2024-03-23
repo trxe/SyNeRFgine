@@ -185,6 +185,12 @@ void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLin
 	glUniform2iv(syn_res_uniform, 1, syn_res.data());
 	glUniform2iv(full_res_uniform, 1, resolution.data());
 	glUniform1iv(filter_type_uniform, 1, &filter_type);
+	glUniform1iv(glGetUniformLocation(m_blit_program, "nerf_blur_kernel_size"), 1, &m_nerf_blur_kernel_size);
+	glUniform1iv(glGetUniformLocation(m_blit_program, "syn_blur_kernel_size"), 1, &m_syn_blur_kernel_size);
+	glUniform1iv(glGetUniformLocation(m_blit_program, "nerf_expand_mult"), 1, &m_nerf_expand_mult);
+	glUniform1fv(glGetUniformLocation(m_blit_program, "nerf_shadow_blur_threshold"), 1, &m_nerf_shadow_blur_threshold);
+	glUniform1fv(glGetUniformLocation(m_blit_program, "syn_sigma"), 1, &m_syn_sigma);
+	glUniform1fv(glGetUniformLocation(m_blit_program, "syn_bsigma"), 1, &m_syn_bsigma);
 
 	auto bind_warp = [&](const ngp::FoveationPiecewiseQuadratic& warp, const std::string& uniform_name) {
 		glUniform1f(glGetUniformLocation(m_blit_program, (uniform_name + ".al").c_str()), warp.al);

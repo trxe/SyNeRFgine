@@ -1587,6 +1587,8 @@ __global__ void init_rays_with_payload_kernel_nerf(
 
 	if (envmap) {
 		frame_buffer[idx] = read_envmap(envmap, ray.d);
+	} else {
+		frame_buffer[idx].rgb() = vec3(0.0);
 	}
 
 	float t = fmaxf(render_aabb.ray_intersect(render_aabb_to_local * ray.o, render_aabb_to_local * ray.d).x, 0.0f) + 1e-6f;

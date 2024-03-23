@@ -48,4 +48,8 @@ __global__ void debug_uv_shade(uint32_t n_elements, vec4* __restrict__ rgba, flo
     rgba[idx] = {x, y, 0.0, 1.0};
     depth[idx] = 1.0;
 }
+
+__device__ vec3 vec3_to_col(const vec3& v) {
+    return v * 0.5f + vec3(0.5f);
+}
 }

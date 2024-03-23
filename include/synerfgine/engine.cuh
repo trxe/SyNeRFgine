@@ -96,6 +96,8 @@ private:
     // for imgui
     bool m_show_ui{false};
     float m_relative_vo_scale{4.0};
+    bool m_enable_animations{true};
+    float m_anim_speed{1.0f};
 
     cudaStream_t m_stream_id;
 

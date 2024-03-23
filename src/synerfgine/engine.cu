@@ -26,6 +26,34 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("show_ui_start")) {
             m_show_ui = cam_conf["show_ui_start"];
         }
+        if (cam_conf.count("vo_scale")) {
+            m_relative_vo_scale = cam_conf["vo_scale"];
+        }
+        if (cam_conf.count("animation_speed")) {
+            m_anim_speed = cam_conf["animation_speed"];
+            m_enable_animations = true;
+        }
+    }
+    if (config.count("shader")) {
+        nlohmann::json& shader_conf = config["shader"];
+        if (shader_conf.count("nerf_blur_kernel_size")) {
+            m_display.m_nerf_blur_kernel_size = shader_conf["nerf_blur_kernel_size"];
+        }
+        if (shader_conf.count("syn_blur_kernel_size")) {
+            m_display.m_syn_blur_kernel_size =  shader_conf["syn_blur_kernel_size"];
+        }
+        if (shader_conf.count("syn_bsigma")) {
+            m_display.m_syn_bsigma = shader_conf["syn_bsigma"];
+        }
+        if (shader_conf.count("syn_sigma")) {
+            m_display.m_syn_sigma = shader_conf["syn_sigma"];
+        }
+        if (shader_conf.count("nerf_expand_mult")) {
+            m_display.m_nerf_expand_mult = shader_conf["nerf_expand_mult"];
+        }
+        if (shader_conf.count("nerf_shadow_blur_threshold")) {
+            m_display.m_nerf_shadow_blur_threshold = shader_conf["nerf_shadow_blur_threshold"];
+        }
     }
     nlohmann::json& mat_conf = config["materials"];
     for (uint32_t i = 0; i < mat_conf.size(); ++i) {
@@ -48,11 +76,13 @@ void Engine::update_world_objects() {
         is_any_obj_dirty = is_any_obj_dirty || m.is_dirty;
         m.is_dirty = false;
     }
-    if (is_any_obj_dirty) {
+    if (is_any_obj_dirty || m_enable_animations) {
         needs_reset = true;
         std::vector<ObjectTransform> h_world;
         for (auto& obj : m_objects) {
-            h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), obj.get_translate(), obj.get_scale(), obj.get_mat_idx());
+            obj.next_frame(m_anim_speed);
+            h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), 
+                obj.get_translate(), obj.get_scale(), obj.get_mat_idx());
         }
         d_world.check_guards();
         d_world.resize_and_copy_from_host(h_world);
@@ -124,7 +154,7 @@ void Engine::resize() {
     linear_kernel(init_rand_state, 0, m_stream_id, d_rand_state.size(), d_rand_state.data());
     sync(m_stream_id);
 
-    m_raytracer.enlarge(scale_resolution(new_res, m_relative_vo_scale));
+    m_raytracer.enlarge(min(scale_resolution(new_res, m_relative_vo_scale), m_next_frame_resolution));
 }
 
 void Engine::imgui() {
@@ -156,7 +186,9 @@ void Engine::imgui() {
                 if (ImGui::SliderFloat("NeRF Epsilon offset", &m_depth_epsilon_shadow, 0.0, 0.1)) {
                     m_is_dirty = true;
                 }
-                if (ImGui::SliderFloat("Relative scale of Virtual Scene", &m_relative_vo_scale, 0.5, 10.0)) {
+                auto& view = m_testbed->m_views.front();
+                int max_scale = m_display.get_window_res().x / max(1, view.render_buffer->out_resolution().x);
+                if (ImGui::SliderFloat("Relative scale of Virtual Scene", &m_relative_vo_scale, 0.5, max_scale)) {
                     resize();
                 }
             }
@@ -177,6 +209,17 @@ void Engine::imgui() {
                 }
                 ImGui::SliderInt("Obj idx", (int*)&m_transform_idx, 0, max_count);
             }
+        }
+        if (ImGui::CollapsingHeader("Shader", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderInt("nerf_expand_mult", &m_display.m_nerf_expand_mult, 0, 20);
+            ImGui::SliderInt("nerf_blur_kernel_size", &m_display.m_nerf_blur_kernel_size, 0, 20);
+            ImGui::SliderInt("syn_blur_kernel_size", &m_display.m_syn_blur_kernel_size, 0, 20);
+            ImGui::SliderFloat("nerf_shadow_blur_threshold", &m_display.m_nerf_shadow_blur_threshold, 0.0, 1.0);
+            ImGui::SliderFloat("syn_sigma", &m_display.m_syn_sigma, 1.0, 32.0);
+            ImGui::SliderFloat("syn_bsigma", &m_display.m_syn_bsigma, 0.0, 4.0);
+        }
+        if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::SliderFloat("speed", &m_anim_speed, 0.0, 4.0);
         }
         ImGui::End();
     }

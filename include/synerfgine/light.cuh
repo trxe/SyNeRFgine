@@ -23,8 +23,10 @@ struct Light {
         std::string unique_int = fmt::format("[{}] intensity", id);
         std::string unique_size = fmt::format("[{}] area size", id);
         std::string title = fmt::format("Light [{}]", id);
+        std::string unique_val = fmt::format("LVals [{}]", id);
+        std::string info = fmt::format("pos : [{:.3f}, {:.3f}, {:.3f}],", pos.x, pos.y, pos.z);
         if (ImGui::TreeNode(title.c_str())) {
-            ImGui::Text("Position: %f, %f, %f", pos.x, pos.y, pos.z);
+            ImGui::InputTextMultiline(unique_val.c_str(), info.data(), info.size() + 1, {300, 20});
             if (ImGui::SliderFloat(unique_int.c_str(), &intensity, 0.0, 1.0)) { is_dirty = true; }
             if (ImGui::SliderFloat(unique_size.c_str(), &size, 0.0, 1.0)) { is_dirty = true; }
             ImGui::TreePop();

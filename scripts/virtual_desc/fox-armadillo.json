@@ -1,0 +1,38 @@
+{
+    "camera" : {
+        "view" : [0.689,-0.107,-0.717],
+        "at" : [0.387,0.719,0.812],
+        "zoom" : 3.452,
+        "clear_color" : [1.0, 0.0, 0.0],
+        "show_ui_start" : true,
+        "vo_scale" : 6.0
+    },
+    "shader" : {
+        "nerf_blur_kernel_size": 6,
+        "syn_blur_kernel_size": 2
+    },
+    "lights": [
+        {
+            "pos" : [-0.042, 1.708, 1.547],
+            "size" : 0.04,
+            "intensity" : 1.0
+        }
+    ],
+    "objfile": [
+        {
+            "file": "../data/obj/bunny.obj",
+            "pos" : [ -0.140, -0.121, 0.923 ],
+            "rot" : [ -0.048, 0.000, 0.999, 0.000, 1.000, 0.000, -0.999, 0.000, -0.048 ],
+            "scale" : 4.000,
+            "material": 0
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "n": 64.0,
+            "kd": [ 0.8, 0.0, 0.5 ]
+        }
+    ]
+}
