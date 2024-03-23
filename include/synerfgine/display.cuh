@@ -43,19 +43,26 @@ public:
     GLFWwindow* init_window(int resw, int resh, const std::string& frag_fp);
 	void destroy();
 	void begin_frame();
-	bool present( GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_res, const ivec2& syn_res, const Foveation& fov); 
+	bool present( const vec3& clear_color, GLuint nerf_rgba_texid, GLuint nerf_depth_texid, GLuint syn_rgba_texid, GLuint syn_depth_texid, const ivec2& nerf_res, const ivec2& syn_res, const Foveation& fov, int filter_type); 
 	bool is_alive() { return m_is_init; }
 	void set_dead() { m_is_init = false; }
 
 	const ivec2& get_window_res() const { return m_window_res; }
 	void set_window_res(const ivec2& res)  { m_window_res = res; }
 
+	int m_nerf_expand_mult{3};
+	int m_nerf_blur_kernel_size{6};
+	int m_syn_blur_kernel_size{6};
+	float m_nerf_shadow_blur_threshold{0.6};
+	float m_syn_sigma{8.0};
+	float m_syn_bsigma{0.8};
+
 private:
 	GLFWwindow* init_glfw(int resw, int resh);
 	void init_imgui();
 	void init_opengl_shaders(const std::string& frag_fp);
 	void transfer_texture(const Foveation& foveation, [[maybe_unused]] GLint syn_rgba, GLint nerf_rgba, GLint rgba_filter_mode, 
-		[[maybe_unused]] GLint syn_depth, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution, const ivec2& nerf_res, const ivec2& syn_res);
+		[[maybe_unused]] GLint syn_depth, GLint nerf_depth, GLint framebuffer, const ivec2& offset, const ivec2& resolution, const ivec2& nerf_res, const ivec2& syn_res, int filter_type);
 
 	ivec2 m_window_res = ivec2(0);
 

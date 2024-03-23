@@ -32,6 +32,7 @@
 
 #include <tiny-cuda-nn/multi_stream.h>
 #include <tiny-cuda-nn/random.h>
+#include <curand_kernel.h>
 
 #include <json/json.hpp>
 
@@ -299,8 +300,10 @@ public:
 		const vec2& screen_center,
 		const Foveation& foveation,
 		int visualized_dimension,
+		const float& depth_epsilon_shadow,
 		const GPUMemory<sng::ObjectTransform>& world_objects,
 		const GPUMemory<sng::Light>& world_lights,
+		const GPUMemory<curandState_t>& rand_states,
 		bool show_shadow
 	);
 	void render_nerf(
@@ -351,7 +354,9 @@ public:
 		Testbed::View& view,
 		const GPUMemory<sng::ObjectTransform>& world_objects,
 		const GPUMemory<sng::Light>& world_light,
-		bool show_shadow
+		GPUMemory<curandState_t>& rand_states,
+		bool show_shadow,
+		const float& depth_epsilon_shadow
 	);
 
 	void render_frame(

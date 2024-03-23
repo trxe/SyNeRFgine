@@ -70,11 +70,8 @@ struct Material {
         );
     }
 
-    __device__ bool scatter(const Ray& r_in, const HitRecord& rec, vec3& attenuation, Ray& scattered, curandState& rand) const {
-        // auto scatter_direction = rec.normal + Rand::random_unit_vector(&rand);
-        // scattered.o = rec.pos;
-        // scattered.d = scatter_direction;
-        // attenuation = albedo;
+    __device__ bool scatter(const vec3& ro, const vec3& normal, vec3& next_dir, curandState& rand) const {
+        next_dir = normal + Rand::random_unit_vector(&rand);
         return true;
     }
 

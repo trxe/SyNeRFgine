@@ -36,6 +36,9 @@ __host__ __device__ inline ivec2 scale_resolution(const ivec2& resolution, float
     return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution * 16);
 }
 
+__global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state);
+__device__ vec4 box_filter_vec4(uint32_t idx, ivec2 resolution, vec4* __restrict__ buffer, int kernel_size);
+
 // Always initialize the benchmarker, __timer should not be redeclared in the
 // current context.
 #define INIT_BENCHMARK() Timer __timer;
@@ -70,13 +73,14 @@ static const char * world_object_names[] = {
 };
 
 struct ObjectTransform {
-	NGP_HOST_DEVICE ObjectTransform(TriangleBvhNode* g_node, Triangle* g_tris, const mat3& rot, const vec3& pos, const float& scale) :
-		g_node(g_node), g_tris(g_tris), rot(rot), pos(pos), scale(scale) {}
+	NGP_HOST_DEVICE ObjectTransform(TriangleBvhNode* g_node, Triangle* g_tris, const mat3& rot, const vec3& pos, const float& scale, const int32_t& mat_id) :
+		g_node(g_node), g_tris(g_tris), rot(rot), pos(pos), scale(scale), mat_id(mat_id) {}
 	TriangleBvhNode* g_node;
 	Triangle* g_tris;
 	mat3 rot;
 	vec3 pos;
 	float scale;
+    int32_t mat_id;
 };
 
 class Timer {

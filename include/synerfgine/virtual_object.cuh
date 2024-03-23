@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <fstream>
 #include <filesystem>
 #include <string>
@@ -26,6 +27,16 @@ namespace sng {
 constexpr float MIN_DIST = -5.0;
 constexpr float MAX_DIST = 5.0;
 
+enum MovementType {
+    Circle,
+    Line,
+};
+
+struct MovementInfo {
+    float c_radius{1.0f};
+    vec3 c_center{0.0f};
+};
+
 class VirtualObject {
 public:
     VirtualObject(uint32_t id, const nlohmann::json& config);
@@ -38,6 +49,9 @@ public:
     mat3& get_rotate_mut() { return rot; }
     vec3& get_translate_mut() { return pos; }
     float& get_scale_mut() { return scale; }
+    void next_frame(const float& speed) {
+        pos = anim_next_rot * (rot * (pos - anim_rot_centre) + anim_rot_centre);
+    }
 
     int32_t get_mat_idx() const { return material_id; }
     TriangleBvhNode* gpu_node()  { return triangles_bvh->nodes_gpu(); }
@@ -59,6 +73,9 @@ private:
     std::shared_ptr<ngp::TriangleBvh> triangles_bvh;
     int32_t material_id;
     uint32_t id;
+
+    mat3 anim_next_rot{mat3::identity()};
+    vec3 anim_rot_centre{0.0f};
 };
 
 }

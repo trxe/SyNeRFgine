@@ -1,0 +1,48 @@
+{
+    "camera" : {
+        "view" : [ -0.122,-0.992,0.043 ],
+        "at" : [ 0.575,0.697,-0.273 ],
+        "scale" : 3.452,
+        "clear_color" : [ 1.0, 0.0, 0.0 ],
+        "show_ui_start" : false,
+        "animation_speed" : 1.0
+    },
+    "shader" : {
+        "nerf_blur_kernel_size": 0,
+        "syn_blur_kernel_size": 2
+    },
+    "lights": [
+        {
+            "pos" : [ -2.755, 1.000, -0.311 ],
+            "size" : 0.04,
+            "intensity" : 1.0
+        }
+    ],
+    "objfile": [
+        {
+            "file": "../data/obj/rock.obj",
+            "pos" : [ 0.692, 0.071, -0.30 ],
+            "scale" : 0.297,
+            "material": 1,
+            "anim" : {
+                "rot_axis" : [0.0, 1.0, 0.0],
+                "rot_angle" : 0.1,
+                "rot_center" : [0.0, 1.0, 0.0]
+            }
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "n": 64.0,
+            "kd": [ 0.0, 0.0, 1.0 ]
+        },
+        {
+            "id": 1,
+            "type": "lambertian",
+            "n": 28.0,
+            "kd": [ 0.0, 1.0, 0.8 ]
+        }
+    ]
+}

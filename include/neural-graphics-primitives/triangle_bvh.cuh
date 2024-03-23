@@ -61,6 +61,7 @@ template <uint32_t N, typename T>
 __host__ __device__ void sorting_network(T values[N]);
 
 __host__ __device__ std::pair<int, float> ray_intersect_nodes(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles);
+__host__ __device__ std::pair<int, float> ray_intersect_nodes(const vec3& ro, const vec3& rd, const float& scale, const vec3& pos, const mat3& rot, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles);
 
 class TriangleBvh {
 public:

@@ -36,6 +36,7 @@
 #include <filesystem/directory.h>
 #include <filesystem/path.h>
 
+#include <synerfgine/common.cuh>
 
 #ifdef copysign
 #undef copysign
@@ -1317,19 +1318,28 @@ __global__ void shade_with_shadow(
 	uint32_t light_count,
 	const sng::ObjectTransform* __restrict__ objs,
 	uint32_t obj_count,
+	curandState_t* __restrict__ rand_state,
 	bool show_syn_shadow,
+	float depth_epsilon_threshold,
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
-	uint32_t x = idx % resolution.x;
-	uint32_t y = idx / resolution.x;
+	// uint32_t x = idx % resolution.x;
+	// uint32_t y = idx / resolution.x;
 	// extra check
-	if (idx != y * resolution.x + x) { return; }
+	// if (idx != y * resolution.x + x) { return; }
 	float overall_shadow_depth = 1.0f;
 	NerfPayload& payload = payloads[idx];
-	vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx];
+	vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx] - depth_epsilon_threshold;
+	// VERSION 4: Blend within the position buffer [not a great option at all]
+	// vec4 orig = frame_buffer[idx];
+	// frame_buffer[idx].rgb() = pos;
+	// __syncthreads();
+	// vec3 blurpos = sng::box_filter_vec4(idx, resolution, frame_buffer, 3);
+	// __syncthreads();
+	// frame_buffer[idx] = orig;
 	if (show_syn_shadow) {
 		// TODO: Average out neighbouring positions
 		// VERSION 1: Position average [ not good at all. ]
@@ -1367,17 +1377,14 @@ __global__ void shade_with_shadow(
 		*/
 		for (uint32_t i = 0; i < light_count; ++i) {
 			const sng::Light& light = lights[i];
+			// const vec3 lightpos = light.sample(rand_state[idx]);
 			const float full_d = length2(light.pos - pos);
 			const vec3 L = normalize(light.pos - pos);
 			float shadow_depth = full_d;
 
 			for (uint32_t t = 0; t < obj_count; ++t) {
 				const sng::ObjectTransform& obj = objs[t];
-				mat3 scale = mat3::identity() / obj.scale;
-				mat3 rot = inverse(obj.rot);
-				vec3 pos_obj = scale * rot * (pos - obj.pos);
-				vec3 L_obj = scale * rot * L;
-				auto [hit, d] = ngp::ray_intersect_nodes(pos_obj, L_obj, obj.g_node, obj.g_tris);
+				auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
 				if (hit >= 0) { 
 					shadow_depth = min(d, shadow_depth);
 				}
@@ -1580,6 +1587,8 @@ __global__ void init_rays_with_payload_kernel_nerf(
 
 	if (envmap) {
 		frame_buffer[idx] = read_envmap(envmap, ray.d);
+	} else {
+		frame_buffer[idx].rgb() = vec3(0.0);
 	}
 
 	float t = fmaxf(render_aabb.ray_intersect(render_aabb_to_local * ray.o, render_aabb_to_local * ray.d).x, 0.0f) + 1e-6f;
@@ -1955,8 +1964,10 @@ void Testbed::render_nerf_with_shadow(
 	const vec2& screen_center,
 	const Foveation& foveation,
 	int visualized_dimension,
+	const float& depth_epsilon_shadow,
 	const GPUMemory<sng::ObjectTransform>& world_objects,
 	const GPUMemory<sng::Light>& world_lights,
+	const GPUMemory<curandState_t>& rand_states,
 	bool show_shadow
 ) {
 	float plane_z = m_slice_plane_z + m_scale;
@@ -2089,7 +2100,9 @@ void Testbed::render_nerf_with_shadow(
 		world_lights.size(),
 		world_objects.data(),
 		world_objects.size(),
+		rand_states.data(),
 		show_shadow,
+		depth_epsilon_shadow,
 		render_buffer.frame_buffer,
 		render_buffer.depth_buffer
 	);
