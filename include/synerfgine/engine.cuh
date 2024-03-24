@@ -10,6 +10,7 @@
 #include <synerfgine/material.cuh>
 #include <synerfgine/raytracer.cuh>
 #include <synerfgine/virtual_object.cuh>
+#include <synerfgine/probe.cuh>
 
 #include <string>
 #include <vector>
@@ -65,6 +66,7 @@ private:
     std::vector<Material> m_materials;
     std::vector<VirtualObject> m_objects;
     std::vector<Light> m_lights;
+    std::vector<LightProbe> m_probes;
     GPUMemory<ObjectTransform> d_world;
     GPUMemory<Material> d_materials;
     GPUMemory<Light> d_lights;

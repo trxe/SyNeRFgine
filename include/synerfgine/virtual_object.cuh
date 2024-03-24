@@ -21,6 +21,7 @@
 #include <imguizmo/ImGuizmo.h>
 
 #include <synerfgine/common.cuh>
+#include <synerfgine/probe.cuh>
 
 namespace sng {
 

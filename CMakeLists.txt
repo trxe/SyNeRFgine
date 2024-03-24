@@ -274,6 +274,7 @@ list(APPEND NGP_SOURCES
 	src/synerfgine/common.cu
 	src/synerfgine/display.cu
 	src/synerfgine/engine.cu
+	src/synerfgine/probe.cu
 	src/synerfgine/raytracer.cu
 	src/synerfgine/virtual_object.cu
 )

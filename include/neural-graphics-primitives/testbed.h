@@ -58,6 +58,7 @@ template <uint32_t N_DIMS, uint32_t RANK, typename T> class TrainableBuffer;
 
 namespace sng {
 class Engine;
+class LightProbe;
 }
 
 namespace ngp {
@@ -214,7 +215,7 @@ public:
 		RaysNerfSoa& rays_init() { return m_rays[0]; }
 		uint32_t n_rays_initialized() const { return m_n_rays_initialized; }
 
-	private:
+	protected:
 		RaysNerfSoa m_rays[2];
 		RaysNerfSoa m_rays_hit;
 		network_precision_t* m_network_output;

@@ -104,6 +104,7 @@ class RayTracer {
 		ivec2 resolution() const { return m_render_buffer.out_resolution(); }
 		void render(
 			std::vector<VirtualObject>& h_vo, 
+			std::vector<LightProbe>& light_probes, 
 			const GPUMemory<Material>& materials, 
 			const GPUMemory<Light>& lights, 
 			const Testbed::View& view, 

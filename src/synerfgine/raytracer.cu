@@ -109,6 +109,7 @@ __global__ void raytrace(uint32_t n_elements,
 	uint32_t max_mip,
 	ImgBufferType buffer_type,
 	curandState_t* __restrict__ rand_state,
+	LightProbeData* __restrict__ light_probes,
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer
 ) {
@@ -160,7 +161,14 @@ __global__ void raytrace(uint32_t n_elements,
 		const vec3 L = normalize(lightpos - next_pos);
 		const vec3 invL = vec3(1.0f) / L;
 		const vec3 R = reflect(L, N);
+
+		vec4 tmp_refl_col{0.0};
+		float tmp_refl_depth{0.0};
+		LightProbeData& probe_data = light_probes[obj_id];
+		sample_probe(probe_data.position, probe_data.resolution, next_pos, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
+
 		vec3 tmp_col = max(0.0f, dot(L, N)) * materials[material].kd * light.intensity + pow(max(0.0f, dot(R, V)), materials[material].n) * materials[material].ks;
+		tmp_col = tmp_col * 0.5f + tmp_refl_col.rgb() * 0.5f;
 		float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
 		for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
 			nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {next_pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
@@ -366,6 +374,7 @@ void RayTracer::init_rays_from_camera(
 
 void RayTracer::render(
 	std::vector<VirtualObject>& h_vo, 
+	std::vector<LightProbe>& light_probes, 
 	const GPUMemory<Material>& materials, 
 	const GPUMemory<Light>& lights, 
 	const Testbed::View& view, 
@@ -385,6 +394,12 @@ void RayTracer::render(
 		screen_center,
 		snap_to_pixel_centers
 	);
+	std::vector<LightProbeData> probe_data;
+	for (auto& probe : light_probes) {
+		probe_data.push_back(probe.data());
+	}
+	GPUMemory<LightProbeData> g_light_probes;
+	g_light_probes.resize_and_copy_from_host(probe_data);
 
 	linear_kernel(raytrace, 0, m_stream_ray, n_elements,
 		m_rays[0].origin,
@@ -412,6 +427,7 @@ void RayTracer::render(
 		view.max_mip,
 		m_buffer_to_show,
 		m_rand_state,
+		g_light_probes.data(),
 		m_render_buffer.frame_buffer(),
 		m_render_buffer.depth_buffer()
 	);
