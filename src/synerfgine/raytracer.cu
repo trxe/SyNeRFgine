@@ -166,9 +166,10 @@ __global__ void raytrace(uint32_t n_elements,
 		float tmp_refl_depth{0.0};
 		LightProbeData& probe_data = light_probes[obj_id];
 		sample_probe(probe_data.position, probe_data.resolution, next_pos, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
+		const Material& this_mat = materials[material];
 
-		vec3 tmp_col = max(0.0f, dot(L, N)) * materials[material].kd * light.intensity + pow(max(0.0f, dot(R, V)), materials[material].n) * materials[material].ks;
-		tmp_col = tmp_col * 0.5f + tmp_refl_col.rgb() * 0.5f;
+		vec3 tmp_col = max(0.0f, dot(L, N)) * this_mat.kd * light.intensity + pow(max(0.0f, dot(R, V)), this_mat.n) * this_mat.ks;
+		tmp_col = tmp_col * (1.0f - this_mat.rg) + tmp_refl_col.rgb() * this_mat.rg;
 		float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
 		for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
 			nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {next_pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);

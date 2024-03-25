@@ -77,6 +77,7 @@ private:
     vec3 m_default_view_dir{0.0};
     float m_default_zoom{1.0f};
     vec3 m_default_clear_color{0.0};
+    ivec2 m_probe_resolution{32, 32};
 
     std::vector<vec4> m_nerf_rgba_cpu;
     std::vector<float> m_nerf_depth_cpu;
@@ -98,7 +99,7 @@ private:
     // for imgui
     bool m_show_ui{false};
     float m_relative_vo_scale{4.0};
-    bool m_enable_animations{true};
+    bool m_enable_animations{false};
     float m_anim_speed{1.0f};
 
     cudaStream_t m_stream_id;

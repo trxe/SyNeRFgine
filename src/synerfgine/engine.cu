@@ -33,6 +33,9 @@ void Engine::set_virtual_world(const std::string& config_fp) {
             m_anim_speed = cam_conf["animation_speed"];
             m_enable_animations = true;
         }
+        if (cam_conf.count("probe_resolution")) {
+            m_probe_resolution.y = m_probe_resolution.x = cam_conf["probe_resolution"];
+        }
     }
     if (config.count("shader")) {
         nlohmann::json& shader_conf = config["shader"];
@@ -81,20 +84,19 @@ void Engine::update_world_objects() {
         needs_reset = true;
         std::vector<ObjectTransform> h_world;
         for (auto& obj : m_objects) {
-            obj.next_frame(m_anim_speed);
+            if (m_enable_animations) obj.next_frame(m_anim_speed);
             uint32_t obj_id = obj.get_id();
             auto& probe = m_probes[obj_id];
             const uint32_t padded_output_width = m_testbed->m_network->padded_output_width();
             const uint32_t n_extra_dimensions = m_testbed->m_nerf.training.dataset.n_extra_dims();
-            const ivec2 probe_resolution{32, 32};
             const float depth_scale = 1.0f / m_testbed->m_nerf.training.dataset.scale;
             vec2 focal_length = m_testbed->calc_focal_length(
-                probe_resolution,
+                m_probe_resolution,
                 m_testbed->m_relative_focal_length, 
                 m_testbed->m_fov_axis, 
                 m_testbed->m_zoom);
             probe.init_rays_in_sphere(
-                probe_resolution, 
+                m_probe_resolution, 
                 obj.get_translate(), 
                 0, 
                 padded_output_width, n_extra_dimensions,

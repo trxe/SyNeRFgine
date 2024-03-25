@@ -3,7 +3,12 @@
         "view" : [0.764,-0.359,-0.535],
         "at" : [0.570,0.919,-0.345],
         "zoom" : 6.150,
-        "clear_color" : [1.0, 0.0, 0.0]
+        "clear_color" : [1.0, 0.0, 0.0],
+        "probe_resolution": 64
+    },
+    "shader" : {
+        "nerf_blur_kernel_size": 0,
+        "syn_blur_kernel_size": 2
     },
     "lights": [
         {
@@ -33,8 +38,9 @@
             "id": 0,
             "type": "lambertian",
             "n": 64.0,
+            "rg": 1.0,
             "kd": [
-                0.0,
+                1.0,
                 0.0,
                 1.0
             ]
@@ -43,6 +49,7 @@
             "id": 1,
             "type": "lambertian",
             "n": 28.0,
+            "rg": 1.0,
             "kd": [
                 0.0,
                 1.0,

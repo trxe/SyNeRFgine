@@ -23,8 +23,8 @@ enum MaterialType {
 };
 
 struct Material {
-    NGP_HOST_DEVICE Material(uint32_t id, const vec3& kd, float n, MaterialType type) : 
-        id(id), ka(kd), kd(kd), ks(1.0), n(n), type(type) {}
+    NGP_HOST_DEVICE Material(uint32_t id, const vec3& kd, float rg, float n, MaterialType type) : 
+        id(id), ka(kd), kd(kd), ks(1.0), rg(rg), n(n), type(type) {}
 
     __host__ Material(uint32_t id, const nlohmann::json& config) : id(id), ks(1.0) {
         std::string type_str {config["type"].get<std::string>()}; 
@@ -32,6 +32,7 @@ struct Material {
         ka = kd = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
         ka *= 0.05f;
         n  = config["n"].get<float>(); 
+        rg = config.count("rg") ? config["rg"].get<float>() : 0.0;
         if (type_str == "lambertian") {
             type = MaterialType::Lambertian;
         } else {
@@ -42,6 +43,7 @@ struct Material {
 
     __host__ void imgui() {
         std::string unique_kd = fmt::format("[{}] kd", id);
+        std::string unique_rg = fmt::format("[{}] rg", id);
         std::string unique_n = fmt::format("[{}] n", id);
         std::string title = fmt::format("Material [{}]", id);
         if (ImGui::TreeNode(title.c_str())) {
@@ -53,6 +55,9 @@ struct Material {
             if (ImGui::SliderFloat(unique_n.c_str(), &n, 0.0, 256.0)) {
                 is_dirty = true;
             }
+            if (ImGui::SliderFloat(unique_rg.c_str(), &rg, 0.0, 1.0)) {
+                is_dirty = true;
+            }
             ImGui::TreePop();
         }
         ImGui::Separator();
@@ -60,12 +65,13 @@ struct Material {
 
     NGP_HOST_DEVICE void print() const {
         char ctype = type == MaterialType::Lambertian ? 'L' : '?';
-        printf("#%d [%c] ka: {%f, %f, %f}, kd: {%f, %f, %f}, ks: {%f, %f, %f}, n: %f\n", 
+        printf("#%d [%c] ka: {%f, %f, %f}, kd: {%f, %f, %f}, ks: {%f, %f, %f}, rg: %f, n: %f\n", 
             id,
             ctype,
             ka[0], ka[1], ka[2], 
             kd[0], kd[1], kd[2], 
             ks[0], ks[1], ks[2],
+            rg,
             n
         );
     }
@@ -80,6 +86,7 @@ struct Material {
     vec3 kd;
     vec3 ks;
     float n;
+    float rg;
     MaterialType type;
     bool is_dirty{true};
 };

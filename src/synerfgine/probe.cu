@@ -15,7 +15,7 @@ __device__ void sample_probe(
 ) {
     vec2 pix_size {1.0f / (float)resolution.x, 1.0f / (float)resolution.y};
 
-    vec3 dir = position - origin;
+    vec3 dir = normalize(position - origin);
     vec2 uv{0.0};
     uv.y = std::acosf(dir.z);
     uv.x = std::asin(dir.y / std::sinf(uv.y));
@@ -92,7 +92,8 @@ __global__ void init_rays_in_sphere_kernel(ivec2 resolution,
 
 	depth_buffer[idx] = MAX_DEPTH();
 
-    frame_buffer[idx].rgb() = vec3(0.0);
+    // frame_buffer[idx].rgb() = vec3(0.0);
+    frame_buffer[idx].rgb() = vec3_to_col(dir);
 
 	payload.origin = origin;
 	payload.dir = dir;
@@ -217,11 +218,6 @@ void LightProbe::shade(
         render_buffer.depth_buffer
     );
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
-}
-
-void LightProbe::sample_colors(const vec3* positions, vec3* out_rgba, float* out_depth) {
-
-
 }
 
 }
