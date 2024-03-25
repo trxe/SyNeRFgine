@@ -87,7 +87,7 @@ __global__ void init_rays_in_sphere_kernel(ivec2 resolution,
 	uint32_t idx = x + resolution.x * y;
 
 	vec2 uv = vec2{(float)x /(float)resolution.x, (float)y / (float)resolution.y} * 2.0f * M_PI;
-    vec3 dir = { sin(uv.x) * cos(uv.y), sin(uv.x) * sin(uv.y), cos(uv.x) };
+    vec3 dir = { sin(uv.y) * cos(uv.x), sin(uv.y) * sin(uv.x), cos(uv.y) };
 
 	NerfPayload& payload = payloads[idx];
 	payload.max_weight = 0.0f;

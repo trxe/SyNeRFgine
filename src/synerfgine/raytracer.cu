@@ -165,15 +165,20 @@ __global__ void raytrace(uint32_t n_elements,
 		vec4 tmp_refl_col{0.0};
 		float tmp_refl_depth{0.0};
 		LightProbeData& probe_data = light_probes[obj_id];
+		// sample_probe(next_pos, probe_data.resolution, probe_data.position, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
 		sample_probe(probe_data.position, probe_data.resolution, next_pos, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
+		// vec3 centroid_out = normalize(next_pos - probe_data.position);
+		// vec3 tmp_refl_hit_pos = next_pos + tmp_refl_depth * centroid_out;
 		// if (i % 1000 == 0) printf("%d probe res: %d %d; probe pos: %f %f %f; col: %f %f %f; depth %f\n", i, probe_data.resolution.x, probe_data.resolution.y, 
 		// 	probe_data.position.x, probe_data.position.y, probe_data.position.z, 
 		// 	tmp_refl_col.r, tmp_refl_col.g, tmp_refl_col.b, tmp_refl_depth
 		// 	);
 		const Material& this_mat = materials[material];
+		tmp_refl_col.rgb() = tmp_refl_depth < MAX_DEPTH() ? tmp_refl_col.rgb() : vec3(0.0);
 
-		vec3 tmp_col = max(0.0f, dot(L, N)) * this_mat.kd * light.intensity + pow(max(0.0f, dot(R, V)), this_mat.n) * this_mat.ks;
-		tmp_col = tmp_col * (1.0f - this_mat.rg) + tmp_refl_col.rgb() * this_mat.rg;
+		vec3 diffuse = tmp_refl_col.rgb() * this_mat.rg + this_mat.kd * (1.0f - this_mat.rg);
+		// vec3 diffuse = tmp_refl_col.rgb() * rg_contribution + this_mat.kd * (1.0f - rg_contribution);
+		vec3 tmp_col = max(0.0f, dot(L, N)) * diffuse * light.intensity + pow(max(0.0f, dot(R, V)), this_mat.n) * this_mat.ks;
 		float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
 		for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
 			nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {next_pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
