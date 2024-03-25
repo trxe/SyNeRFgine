@@ -94,8 +94,8 @@ __global__ void init_rays_in_sphere_kernel(ivec2 resolution,
 
 	depth_buffer[idx] = MAX_DEPTH();
 
-    frame_buffer[idx].rgb() = vec3(0.0);
-    // frame_buffer[idx].rgb() = vec3_to_col(dir);
+    // frame_buffer[idx].rgb() = vec3(0.0);
+    frame_buffer[idx].rgb() = vec3_to_col(dir);
     // printf("%d test: %f %f %f\n", idx, frame_buffer[idx].r, frame_buffer[idx].g, frame_buffer[idx].b);
 
 	payload.origin = origin;
@@ -170,9 +170,12 @@ void LightProbe::init_rays_in_sphere(
         m_resolution = resolution;
         m_render_buffer.resize(m_resolution);
     }
+    m_position = origin;
+
+    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 	const dim3 threads = { 16, 8, 1 };
 	const dim3 blocks = { div_round_up((uint32_t)resolution.x, threads.x), div_round_up((uint32_t)resolution.y, threads.y), 1 };
-    init_rays_in_sphere_kernel<<< threads, blocks, 0, stream >>> (
+    init_rays_in_sphere_kernel<<<threads, blocks, 0, stream>>> (
         resolution,
         m_position,
         n_steps,
@@ -186,18 +189,6 @@ void LightProbe::init_rays_in_sphere(
 
 	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].rgba, 0, m_n_rays_initialized * sizeof(vec4), stream));
 	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[0].depth, 0, m_n_rays_initialized * sizeof(float), stream));
-
-	linear_kernel(advance_pos_nerf_kernel_sphere, 0, stream,
-		m_n_rays_initialized,
-		render_aabb,
-		render_aabb_to_local,
-		m_rays[0].payload,
-        spp,
-		density_grid,
-		max_mip,
-		cone_angle_constant
-	);
-    CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }
 
 void LightProbe::shade(

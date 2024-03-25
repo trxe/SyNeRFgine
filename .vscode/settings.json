@@ -24,6 +24,7 @@
             // "..\\scripts\\virtual_desc\\fox-armadillo.json",
             "--frag",
             "..\\scripts\\virtual_desc\\main.frag",
+            // "..\\scripts\\virtual_desc\\debug.frag",
             "--width",
             "1280",
             "--height",

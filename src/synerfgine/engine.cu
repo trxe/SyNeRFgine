@@ -92,7 +92,7 @@ void Engine::update_world_objects() {
             const uint32_t n_extra_dimensions = m_testbed->m_nerf.training.dataset.n_extra_dims();
             const float depth_scale = 1.0f / m_testbed->m_nerf.training.dataset.scale;
             constexpr uint32_t target_n_queries = 2 * 1024 * 1024;
-            uint32_t n_steps_between_compaction = clamp(target_n_queries / product(probe.m_resolution), (uint32_t)1, (uint32_t)8);
+            uint32_t n_steps_between_compaction = clamp(target_n_queries / product(m_probe_resolution), (uint32_t)1, (uint32_t)8);
             probe.init_rays_in_sphere(
                 m_probe_resolution, 
                 obj.get_translate(), 
@@ -105,6 +105,8 @@ void Engine::update_world_objects() {
                 m_testbed->m_nerf.cone_angle_constant,
                 n_steps_between_compaction,
                 m_stream_id
+                // , m_raytracer.render_buffer().frame_buffer(),
+                // m_raytracer.render_buffer().depth_buffer()
             );
             vec2 focal_length = {}; // dummy
             auto n_hit = probe.trace_alt(
@@ -359,7 +361,8 @@ bool Engine::frame() {
     GLuint nerf_depth_texid = m_testbed->m_depth_render_textures.front()->texture();
     GLuint syn_rgba_texid = m_raytracer.m_rgba_texture->texture();
     GLuint syn_depth_texid = m_raytracer.m_depth_texture->texture();
-    m_display.present(m_default_clear_color, nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, view.render_buffer->out_resolution(), m_raytracer.resolution(), view.foveation, m_raytracer.filter_type());
+    auto rt_res = m_raytracer.resolution();
+    m_display.present(m_default_clear_color, nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, view.render_buffer->out_resolution(), rt_res, view.foveation, m_raytracer.filter_type());
     return m_display.is_alive();
 }
 

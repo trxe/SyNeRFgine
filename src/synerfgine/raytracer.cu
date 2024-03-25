@@ -166,6 +166,10 @@ __global__ void raytrace(uint32_t n_elements,
 		float tmp_refl_depth{0.0};
 		LightProbeData& probe_data = light_probes[obj_id];
 		sample_probe(probe_data.position, probe_data.resolution, next_pos, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
+		// if (i % 1000 == 0) printf("%d probe res: %d %d; probe pos: %f %f %f; col: %f %f %f; depth %f\n", i, probe_data.resolution.x, probe_data.resolution.y, 
+		// 	probe_data.position.x, probe_data.position.y, probe_data.position.z, 
+		// 	tmp_refl_col.r, tmp_refl_col.g, tmp_refl_col.b, tmp_refl_depth
+		// 	);
 		const Material& this_mat = materials[material];
 
 		vec3 tmp_col = max(0.0f, dot(L, N)) * this_mat.kd * light.intensity + pow(max(0.0f, dot(R, V)), this_mat.n) * this_mat.ks;

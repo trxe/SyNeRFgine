@@ -101,7 +101,9 @@ class RayTracer {
 		// RaysSoa& rays_hit() { return m_rays_hit; }
 		RaysSoa& rays_init() { return m_rays[0]; }
 		uint32_t n_rays_initialized() const { return m_n_rays_initialized; }
-		ivec2 resolution() const { return m_render_buffer.out_resolution(); }
+		ivec2 resolution() const { 
+			return m_render_buffer.out_resolution(); 
+		}
 		void render(
 			std::vector<VirtualObject>& h_vo, 
 			std::vector<LightProbe>& light_probes, 

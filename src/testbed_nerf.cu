@@ -546,7 +546,6 @@ __global__ void composite_kernel_nerf_alt(
 	}
 
 	rgba[i] = local_rgba;
-	rgba[i].rgb() = dir;
 	depth[i] = local_depth;
 }
 
