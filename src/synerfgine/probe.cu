@@ -21,6 +21,8 @@ __device__ void sample_probe(
     uv.x = std::asin(dir.y / std::sinf(uv.y));
     uv /= 2.0f * M_PI;
     ivec2 tex_coords {(int)(uv.x / pix_size.x), (int)(uv.y / pix_size.y)};
+    // uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
+    // if (idx % 1000 == 0) printf("%d tex_coord: %d %d\n", idx, tex_coords.x, tex_coords.y);
     out_rgba = in_rgba[tex_coords.y * resolution.x + tex_coords.x];
     out_depth = in_depth[tex_coords.y * resolution.x + tex_coords.x];
 }
@@ -45,7 +47,6 @@ __global__ void advance_pos_nerf_kernel_sphere(
 	BoundingBox render_aabb,
 	mat4x3 render_aabb_to_local,
     NerfPayload* __restrict__ payloads,
-    vec2 focal_length,
     uint32_t sample_index,
 	const uint8_t* __restrict__ density_grid,
 	uint32_t max_mip,
@@ -71,6 +72,7 @@ __global__ void advance_pos_nerf_kernel_sphere(
 
 __global__ void init_rays_in_sphere_kernel(ivec2 resolution, 
     vec3 origin,
+    uint32_t n_steps,
     NerfPayload* __restrict__ payloads,
     vec4* __restrict__ frame_buffer,
     float* __restrict__ depth_buffer
@@ -92,14 +94,15 @@ __global__ void init_rays_in_sphere_kernel(ivec2 resolution,
 
 	depth_buffer[idx] = MAX_DEPTH();
 
-    // frame_buffer[idx].rgb() = vec3(0.0);
-    frame_buffer[idx].rgb() = vec3_to_col(dir);
+    frame_buffer[idx].rgb() = vec3(0.0);
+    // frame_buffer[idx].rgb() = vec3_to_col(dir);
+    // printf("%d test: %f %f %f\n", idx, frame_buffer[idx].r, frame_buffer[idx].g, frame_buffer[idx].b);
 
 	payload.origin = origin;
 	payload.dir = dir;
 	payload.t = 0;
 	payload.idx = idx;
-	payload.n_steps = 0;
+	payload.n_steps = n_steps;
 	payload.alive = true;
 }
     
@@ -151,15 +154,15 @@ void LightProbe::init_rays_in_sphere(
     uint32_t spp,
     uint32_t padded_output_width,
     uint32_t n_extra_dims,
-    const vec2& focal_length,
     const BoundingBox& render_aabb,
     const mat3& render_aabb_to_local,
-    vec4* frame_buffer,
-    float* depth_buffer,
     const uint8_t* __restrict__ density_grid,
     uint32_t max_mip,
     float cone_angle_constant,
-    cudaStream_t stream
+    uint32_t n_steps,
+    cudaStream_t stream,
+    vec4* frame_buffer,
+    float* depth_buffer
 ) {
     size_t n_pixels = (size_t)resolution.x * resolution.y;
     enlarge(n_pixels, padded_output_width, n_extra_dims, stream);
@@ -172,9 +175,10 @@ void LightProbe::init_rays_in_sphere(
     init_rays_in_sphere_kernel<<< threads, blocks, 0, stream >>> (
         resolution,
         m_position,
+        n_steps,
         m_rays[0].payload,
-        frame_buffer,
-        depth_buffer
+        !frame_buffer ? m_render_buffer.frame_buffer() : frame_buffer,
+        !depth_buffer ? m_render_buffer.depth_buffer() : depth_buffer
     );
     CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 
@@ -188,7 +192,6 @@ void LightProbe::init_rays_in_sphere(
 		render_aabb,
 		render_aabb_to_local,
 		m_rays[0].payload,
-		focal_length,
         spp,
 		density_grid,
 		max_mip,
@@ -200,14 +203,13 @@ void LightProbe::init_rays_in_sphere(
 void LightProbe::shade(
     uint32_t n_hit,
     float depth_scale,
-    const mat4x3& camera_matrix,
     CudaRenderBufferView& render_buffer,
     cudaStream_t stream
 ) {
     linear_kernel(shade_kernel_sphere_nerf, 0, stream, 
         n_hit,
         false, // render_gbuffer_hard_edges
-        camera_matrix,
+        mat4x3(1.0f),
         depth_scale,
         this->rays_hit().rgba,
         this->rays_hit().depth,

@@ -1,3 +1,4 @@
+#include <chrono>
 #include <synerfgine/engine.cuh>
 #include <synerfgine/common.cuh>
 #include <filesystem/path.h>
@@ -90,26 +91,23 @@ void Engine::update_world_objects() {
             const uint32_t padded_output_width = m_testbed->m_network->padded_output_width();
             const uint32_t n_extra_dimensions = m_testbed->m_nerf.training.dataset.n_extra_dims();
             const float depth_scale = 1.0f / m_testbed->m_nerf.training.dataset.scale;
-            vec2 focal_length = m_testbed->calc_focal_length(
-                m_probe_resolution,
-                m_testbed->m_relative_focal_length, 
-                m_testbed->m_fov_axis, 
-                m_testbed->m_zoom);
+            constexpr uint32_t target_n_queries = 2 * 1024 * 1024;
+            uint32_t n_steps_between_compaction = clamp(target_n_queries / product(probe.m_resolution), (uint32_t)1, (uint32_t)8);
             probe.init_rays_in_sphere(
                 m_probe_resolution, 
                 obj.get_translate(), 
                 0, 
                 padded_output_width, n_extra_dimensions,
-                focal_length, m_testbed->m_render_aabb,
+                m_testbed->m_render_aabb,
                 m_testbed->m_render_aabb_to_local, 
-                m_raytracer.render_buffer().frame_buffer(), 
-                m_raytracer.render_buffer().depth_buffer(),
                 m_testbed->m_nerf.density_grid_bitfield.data(),
                 m_testbed->m_nerf.max_cascade,
                 m_testbed->m_nerf.cone_angle_constant,
+                n_steps_between_compaction,
                 m_stream_id
             );
-            auto n_hit = probe.trace(
+            vec2 focal_length = {}; // dummy
+            auto n_hit = probe.trace_alt(
                 m_testbed->m_nerf_network,
                 m_testbed->m_render_aabb,
                 m_testbed->m_render_aabb_to_local,
@@ -136,7 +134,6 @@ void Engine::update_world_objects() {
             probe.shade(
                 n_hit,
                 depth_scale,
-                m_testbed->m_camera,
                 view,
                 m_stream_id
             );

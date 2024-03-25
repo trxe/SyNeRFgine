@@ -38,21 +38,20 @@ public:
         uint32_t spp,
         uint32_t padded_output_width,
         uint32_t n_extra_dims,
-        const vec2& focal_length,
         const BoundingBox& render_aabb,
         const mat3& render_aabb_to_local,
-        vec4* frame_buffer,
-        float* depth_buffer,
         const uint8_t* __restrict__ density_grid,
         uint32_t max_mip,
         float cone_angle_constant,
-        cudaStream_t stream
+        uint32_t n_steps,
+        cudaStream_t stream,
+        vec4* frame_buffer = nullptr,
+        float* depth_buffer = nullptr
     );
 
     void shade(
         uint32_t n_hit,
         float depth_scale,
-        const mat4x3& camera_matrix,
         CudaRenderBufferView& render_buffer,
         cudaStream_t stream
     );
