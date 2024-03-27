@@ -137,22 +137,12 @@ class RayTracer {
         std::shared_ptr<GLTexture> m_depth_texture;
 		cudaStream_t m_stream_ray;
 
-	private:
-		// vec3* buffer_selector(RaysSoa& rays, ImgBufferType to_show) {
-		// 	switch (to_show) {
-		// 	case ImgBufferType::Final: 
-		// 		return rays.rgb;
-		// 	case ImgBufferType::Origin: 
-		// 		return rays.origin;
-		// 	case ImgBufferType::Direction: 
-		// 		return rays.dir;
-		// 	case ImgBufferType::Normal: 
-		// 		return rays.normal;
-		// 	default:
-		// 		return nullptr;
-		// 	}
-		// }
+		bool m_view_nerf_shadow{true};
+		int m_n_steps{20};
+		int m_ray_iters = 1;
+		float m_attenuation_coeff = 0.5f;
 
+	private:
 		RaysSoa m_rays[2];
 		// RaysSoa m_rays_hit;
         CudaRenderBuffer m_render_buffer {m_rgba_texture, m_depth_texture};
@@ -162,13 +152,8 @@ class RayTracer {
 		uint32_t m_n_rays_initialized = 0;
 		GPUMemoryArena::Allocation m_scratch_alloc;
 
-		ImgBufferType m_buffer_to_show{ImgBufferType::SrcOrigin};
+		ImgBufferType m_buffer_to_show{ImgBufferType::Final};
 		ImgFilterType m_filter_to_use{ImgFilterType::Bilateral};
-
-		bool m_view_nerf_shadow{true};
-		int m_n_steps{20};
-		int m_ray_iters = 1;
-		float m_attenuation_coeff = 0.5f;
 };
 
 }

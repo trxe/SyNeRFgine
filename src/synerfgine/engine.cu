@@ -37,6 +37,9 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("probe_resolution")) {
             m_probe_resolution.y = m_probe_resolution.x = cam_conf["probe_resolution"];
         }
+        if (cam_conf.count("path_trace_depth")) {
+            m_raytracer.m_ray_iters = cam_conf["path_trace_depth"];
+        }
     }
     if (config.count("shader")) {
         nlohmann::json& shader_conf = config["shader"];

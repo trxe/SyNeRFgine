@@ -117,6 +117,7 @@ __global__ void raytrace(uint32_t n_elements,
 ) {
 	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= n_elements) return;
+	constexpr const float MIN_DIST_T = 0.0001f;
 
 	auto src_pos = vec3(0.0);
 	auto src_dir = vec3(0.0);
@@ -125,7 +126,7 @@ __global__ void raytrace(uint32_t n_elements,
 	vec3 normal{0.0};
 	bool is_alive = false;
 	vec3 shade{0.0};
-	float attenuation = 1.0f;
+	float attenuation = attenuation_coeff;
 
 	for (size_t iter = 0; iter < ray_iter_count; ++iter) {
 		src_pos = next_pos;
@@ -135,15 +136,19 @@ __global__ void raytrace(uint32_t n_elements,
 		int32_t material = -1;
 		float d = MAX_DEPTH();
 		vec3 N = vec3(0.0);
+		is_alive = false;
 		// tracing
 		for (size_t w = 0; w < world_count; ++w) {
 			const ObjectTransform& obj = world[w];
 			auto p = ngp::ray_intersect_nodes(src_pos, src_dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
-			if (p.first >= 0 && p.second < d) {
+			if (p.first >= 0 && p.second < d && p.second > MIN_DIST_T) {
 				d = p.second;
 				next_pos = src_pos + p.second * src_dir;
 				N = normalize(obj.rot * obj.g_tris[p.first].normal());
-				is_alive = materials[obj.mat_id].scatter(next_pos, N, src_dir, next_dir, rand_state[i]);
+				const Material& mat = materials[obj.mat_id];
+				is_alive = mat.scatter(next_pos, N, src_dir, next_dir, rand_state[i]);
+				vec3 r = next_dir;
+				next_dir = obj.g_tris[p.first].scatter(next_dir, (1.0 - mat.rg) * ngp::PI() * 2.0f, rand_state[i]);
 				material = obj.mat_id;
 				obj_id = w;
 			}
@@ -154,7 +159,8 @@ __global__ void raytrace(uint32_t n_elements,
 
 		// shading
 		vec3 V = -normalize(src_dir);
-		vec3 col = materials[material].ka;
+		const Material& this_mat = materials[material];
+		vec3 col = this_mat.ka;
 		for (size_t l = 0; l < light_count && is_alive; ++l) {
 			const Light& light = lights[l];
 			vec3 lightpos = light.sample(rand_state[i]);
@@ -163,7 +169,6 @@ __global__ void raytrace(uint32_t n_elements,
 			const vec3 invL = vec3(1.0f) / L;
 			const vec3 R = reflect(L, N);
 
-			const Material& this_mat = materials[material];
 			vec4 tmp_refl_col{0.0};
 			float tmp_refl_depth{0.0};
 			vec3 diffuse = this_mat.kd;
@@ -193,12 +198,12 @@ __global__ void raytrace(uint32_t n_elements,
 				if (w == obj_id) continue;
 				ObjectTransform obj = world[w];
 				auto [hit, d] = ngp::ray_intersect_nodes(next_pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
-				if (hit >= 0) shadow_depth = min(d, shadow_depth);
+				if (hit >= 0 && d >= MIN_DIST_T) shadow_depth = min(d, shadow_depth);
 			}
 			col += smoothstep(min(nerf_shadow, shadow_depth) / full_d) * tmp_col;
 		}
 		shade += col * attenuation;
-		attenuation *= attenuation_coeff;
+		attenuation *= attenuation_coeff * this_mat.rg;
 		normal = N;
 	}
 	switch (buffer_type) {
