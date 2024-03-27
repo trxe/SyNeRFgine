@@ -4,6 +4,24 @@ namespace sng {
 
 #define M_PI 3.1419267f
 
+__device__ void sample_probe_dir(
+    const vec3& dir,
+    const ivec2& resolution,
+    vec4* __restrict__ in_rgba, 
+    float* __restrict__ in_depth,
+    vec4& __restrict__ out_rgba, 
+    float& __restrict__ out_depth
+) {
+    vec2 uv{0.5, 0.5};
+    uv.y = std::acosf(dir.z);
+    uv.x = std::asin(dir.y / std::sinf(uv.y));
+    uv /= 2.0f * M_PI;
+    uv = {uv.x * (float)resolution.x, uv.y * (float)resolution.y};
+    ivec2 tex_coords {(int)(uv.x), (int)(uv.y)};
+    out_rgba = in_rgba[tex_coords.y * resolution.x + tex_coords.x];
+    out_depth = in_depth[tex_coords.y * resolution.x + tex_coords.x];
+}
+
 __device__ void sample_probe(
     const vec3& origin,
     const ivec2& resolution,
@@ -13,18 +31,8 @@ __device__ void sample_probe(
     vec4& __restrict__ out_rgba, 
     float& __restrict__ out_depth
 ) {
-    vec2 pix_size {1.0f / (float)resolution.x, 1.0f / (float)resolution.y};
-
     vec3 dir = normalize(position - origin);
-    vec2 uv{0.0};
-    uv.y = std::acosf(dir.z);
-    uv.x = std::asin(dir.y / std::sinf(uv.y));
-    uv /= 2.0f * M_PI;
-    ivec2 tex_coords {(int)(uv.x / pix_size.x), (int)(uv.y / pix_size.y)};
-    // uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
-    // if (idx % 1000 == 0) printf("%d tex_coord: %d %d\n", idx, tex_coords.x, tex_coords.y);
-    out_rgba = in_rgba[tex_coords.y * resolution.x + tex_coords.x];
-    out_depth = in_depth[tex_coords.y * resolution.x + tex_coords.x];
+    sample_probe_dir(dir, resolution,  in_rgba, in_depth, out_rgba, out_depth);
 }
 
 __global__ void sample_probe_kernel(

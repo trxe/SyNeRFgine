@@ -8,6 +8,15 @@
 
 namespace sng {
 
+__device__ void sample_probe_dir(
+    const vec3& dir,
+    const ivec2& resolution,
+    vec4* __restrict__ in_rgba, 
+    float* __restrict__ in_depth,
+    vec4& __restrict__ out_rgba, 
+    float& __restrict__ out_depth
+);
+
 __device__ void sample_probe(
     const vec3& origin,
     const ivec2& resolution,

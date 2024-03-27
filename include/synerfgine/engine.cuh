@@ -89,7 +89,7 @@ private:
 	float m_last_target_fps{0.0f};
 
     // for imguizmo
-    WorldObjectType m_transform_type{WorldObjectType::None};
+    WorldObjectType m_transform_type{WorldObjectType::VirtualObjectObj};
     uint32_t m_transform_idx{0};
     vec3* m_pos_to_translate = nullptr;
     mat3* m_rot_to_rotate = nullptr;
@@ -100,6 +100,7 @@ private:
     bool m_show_ui{false};
     float m_relative_vo_scale{4.0};
     bool m_enable_animations{false};
+    bool m_enable_reflections{false};
     float m_anim_speed{1.0f};
 
     cudaStream_t m_stream_id;

@@ -19,8 +19,10 @@ namespace sng {
 
 enum ImgBufferType {
 	Final,
-	Origin,
-	Direction,
+	NextOrigin,
+	SrcOrigin,
+	NextDirection,
+	SrcDirection,
 	Normal,
 	// MaterialIndex,
 	// Alive,
@@ -28,8 +30,10 @@ enum ImgBufferType {
 
 static const char * img_buffer_type_names[] = {
 	"Final",
-	"Origin",
-	"Direction",
+	"Next Origin",
+	"Src Origin",
+	"Next Direction",
+	"Src Direction",
 	"Normal",
 	// "MaterialIndex",
 	// "Alive"
@@ -115,7 +119,8 @@ class RayTracer {
 			const vec2& focal_length,
 			bool snap_to_pixel_centers,
 			const uint8_t* density_grid_bitfield,
-			const GPUMemory<ObjectTransform>& world
+			const GPUMemory<ObjectTransform>& world,
+			bool enable_reflection
 		);
 
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
@@ -133,20 +138,20 @@ class RayTracer {
 		cudaStream_t m_stream_ray;
 
 	private:
-		vec3* buffer_selector(RaysSoa& rays, ImgBufferType to_show) {
-			switch (to_show) {
-			case ImgBufferType::Final: 
-				return rays.rgb;
-			case ImgBufferType::Origin: 
-				return rays.origin;
-			case ImgBufferType::Direction: 
-				return rays.dir;
-			case ImgBufferType::Normal: 
-				return rays.normal;
-			default:
-				return nullptr;
-			}
-		}
+		// vec3* buffer_selector(RaysSoa& rays, ImgBufferType to_show) {
+		// 	switch (to_show) {
+		// 	case ImgBufferType::Final: 
+		// 		return rays.rgb;
+		// 	case ImgBufferType::Origin: 
+		// 		return rays.origin;
+		// 	case ImgBufferType::Direction: 
+		// 		return rays.dir;
+		// 	case ImgBufferType::Normal: 
+		// 		return rays.normal;
+		// 	default:
+		// 		return nullptr;
+		// 	}
+		// }
 
 		RaysSoa m_rays[2];
 		// RaysSoa m_rays_hit;
@@ -157,11 +162,13 @@ class RayTracer {
 		uint32_t m_n_rays_initialized = 0;
 		GPUMemoryArena::Allocation m_scratch_alloc;
 
-		ImgBufferType m_buffer_to_show{ImgBufferType::Final};
+		ImgBufferType m_buffer_to_show{ImgBufferType::SrcOrigin};
 		ImgFilterType m_filter_to_use{ImgFilterType::Bilateral};
 
 		bool m_view_nerf_shadow{true};
 		int m_n_steps{20};
+		int m_ray_iters = 1;
+		float m_attenuation_coeff = 0.5f;
 };
 
 }

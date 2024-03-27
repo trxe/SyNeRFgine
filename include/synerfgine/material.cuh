@@ -76,8 +76,10 @@ struct Material {
         );
     }
 
-    __device__ bool scatter(const vec3& ro, const vec3& normal, vec3& next_dir, curandState& rand) const {
-        next_dir = normal + Rand::random_unit_vector(&rand);
+    __device__ bool scatter(const vec3& ro, const vec3& normal, const vec3& src_dir, vec3& next_dir, curandState& rand) const {
+        // next_dir = normal + Rand::random_unit_vector(&rand);
+        vec3 dir = normalize(-src_dir);
+        next_dir = reflect(dir, normal);
         return true;
     }
 

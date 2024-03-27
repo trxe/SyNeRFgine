@@ -1878,9 +1878,9 @@ void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix,
 			// Outside interference can only lead to trouble.
 			if (rotate) {
 				matrix_pos = mat4 {
-					(*rotate)[0][0], (*rotate)[0][1], (*rotate)[0][2], 0.0f,
-					(*rotate)[1][0], (*rotate)[1][1], (*rotate)[1][2], 0.0f,
-					(*rotate)[2][0], (*rotate)[2][1], (*rotate)[2][2], 0.0f,
+					(*rotate)[0][0], (*rotate)[1][0], (*rotate)[2][0], 0.0f,
+					(*rotate)[0][1], (*rotate)[1][1], (*rotate)[2][1], 0.0f,
+					(*rotate)[0][2], (*rotate)[1][2], (*rotate)[2][2], 0.0f,
 					0.0f        , 0.0f        , 0.0f        , 1.0f
 				};
 			}
@@ -1899,7 +1899,7 @@ void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix,
 				*pos_to_translate = matrix_pos[3].rgb();
 			}
 			if (rotate) {
-				*rotate = mat3(matrix_pos);
+				*rotate = transpose(mat3(matrix_pos));
 			}
 			if (dirty_marker) *dirty_marker = true;
 			reset_accumulation();

@@ -1448,6 +1448,12 @@ __global__ void shade_with_shadow(
 	curandState_t* __restrict__ rand_state,
 	bool show_syn_shadow,
 	float depth_epsilon_threshold,
+	const uint8_t* __restrict__ density_grid,
+	uint32_t n_steps,
+	float cone_angle_constant,
+	uint32_t max_mip,
+	BoundingBox render_aabb,
+	mat4x3 render_aabb_to_local,
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer
 ) {
@@ -1507,17 +1513,49 @@ __global__ void shade_with_shadow(
 			// const vec3 lightpos = light.sample(rand_state[idx]);
 			const float full_d = length2(light.pos - pos);
 			const vec3 L = normalize(light.pos - pos);
+			const vec3 revL = -L;
+			const vec3 invrevL = 1.0f / revL;
 			float shadow_depth = full_d;
 
 			for (uint32_t t = 0; t < obj_count; ++t) {
 				const sng::ObjectTransform& obj = objs[t];
-				auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+				// auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+				auto [hit, d] = ngp::ray_intersect_nodes(light.pos, revL, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
 				if (hit >= 0) { 
 					shadow_depth = min(d, shadow_depth);
 				}
 			}
+			// rgba[idx].rgb() = 0.5f* pos + vec3(0.5f);
 
-			overall_shadow_depth = min(overall_shadow_depth, smoothstep(shadow_depth / full_d));
+			// overall_shadow_depth = min(overall_shadow_depth, smoothstep(shadow_depth / full_d));
+
+			float nerf_shadow = 0.0f;
+			for (uint32_t j = 0; j < n_steps; ++j) {
+				nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {light.pos, revL}, invrevL, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
+				if (nerf_shadow >= full_d) {
+					break;
+				}
+				float dt = calc_dt(nerf_shadow, cone_angle_constant);
+				nerf_shadow += dt;
+			}
+
+			// if (idx % 10000 == 0) printf("%d: s %f n %f\n", idx, shadow_depth, nerf_shadow);
+			// if (idx % 10000 == 0) printf("%d: ON NRF shadow %f full_d %f nerf %f\n", idx, shadow_depth, full_d, nerf_shadow);
+			// overall_shadow_depth = min(overall_shadow_depth, smoothstep(min(nerf_shadow, shadow_depth) / full_d));
+
+			// ignore if no VO intersection
+			if (abs(shadow_depth - full_d) < 0.0001) { 
+				// if (idx % 10000 == 0) printf("%d: NO SHADOW shadow %f full_d %f nerf %f\n", idx, shadow_depth, full_d, nerf_shadow);
+				continue;
+			}
+
+			// if (idx % 10000 == 0) printf("%d: ON NRF shadow %f full_d %f nerf %f\n", idx, shadow_depth, full_d, nerf_shadow);
+			// if hit shadow before hit nerf
+			if (nerf_shadow >= shadow_depth - 0.01f) {
+				overall_shadow_depth = min(overall_shadow_depth, shadow_depth / full_d);
+			// } else {
+			// 	overall_shadow_depth = min(overall_shadow_depth, 1.0f);
+			}
 		}
 	}
 	__syncthreads();
@@ -1540,7 +1578,6 @@ __global__ void shade_with_shadow(
 
 	// Accumulate in linear colors
 	vec4 tmp = rgba[idx];
-	// vec4 tmp = vec4((pos - 0.5f) / 2.0f + 0.5f, 1.0);
 	tmp.rgb() = srgb_to_linear(tmp.rgb()) * overall_shadow_depth;
 
 	frame_buffer[payload.idx] = tmp + frame_buffer[payload.idx] * (1.0f - tmp.a);
@@ -2352,6 +2389,12 @@ void Testbed::render_nerf_with_shadow(
 		rand_states.data(),
 		show_shadow,
 		depth_epsilon_shadow,
+		density_grid_bitfield,
+		20,
+		m_nerf.cone_angle_constant,
+		m_nerf.max_cascade,
+		m_render_aabb,
+		m_render_aabb_to_local,
 		render_buffer.frame_buffer,
 		render_buffer.depth_buffer
 	);

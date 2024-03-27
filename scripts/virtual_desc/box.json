@@ -4,7 +4,8 @@
         "at" : [0.570,0.919,-0.345],
         "zoom" : 6.150,
         "clear_color" : [1.0, 0.0, 0.0],
-        "probe_resolution": 256
+        "probe_resolution": 300,
+        "show_ui": true
     },
     "shader" : {
         "nerf_blur_kernel_size": 2,
@@ -12,18 +13,35 @@
     },
     "lights": [
         {
-            "pos" : [-1.325, 0.786, 1.307],
+            "pos" : [-1.325, 5.786, 1.307],
             "size" : 0.00,
             "intensity" : 1.0
         }
     ],
     "objfile": [
         {
-            "file": "../data/obj/rock.obj",
-            "pos" : [ -1.007, 0.271, 0.389 ],
+            "file": "../data/obj/smallbox.obj",
+            "pos" : [ 0.207, 0.271, 0.389 ],
             "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
-            "scale" : 0.297,
-            "material": 0
+            "scale" : 0.197,
+            "material": 0,
+            "anim" : {
+                "rot_axis" : [0.0, 1.0, 0.0],
+                "rot_angle" : 0.1,
+                "rot_center" : [0.0, 1.0, 0.0]
+            }
+        },
+        {
+            "file": "../data/obj/smallbox.obj",
+            "pos" : [ -0.189, 0.478, -0.028 ],
+            "rot" : [ 0.822, 0.000, 0.569, 0.000, 1.000, 0.000, -0.569, 0.000, 0.822 ],
+            "scale" : 0.203,
+            "material": 1,
+            "anim" : {
+                "rot_axis" : [0.0, 1.0, 0.0],
+                "rot_angle" : 0.1,
+                "rot_center" : [0.0, 1.0, 0.0]
+            }
         }
     ],
     "materials": [
@@ -31,7 +49,7 @@
             "id": 0,
             "type": "lambertian",
             "n": 64.0,
-            "rg": 0.3,
+            "rg": 0.8,
             "kd": [
                 1.0,
                 0.0,
