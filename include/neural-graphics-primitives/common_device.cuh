@@ -30,6 +30,7 @@ namespace ngp {
 // to permit numerically stable reprojection and DLSS operation,
 // even when rendering the infinitely distant horizon.
 inline constexpr __device__ float MAX_DEPTH() { return 16384.0f; }
+inline constexpr __device__ float MIN_DEPTH() { return 0.00001f; }
 
 inline NGP_HOST_DEVICE float srgb_to_linear(float srgb) {
 	if (srgb <= 0.04045f) {

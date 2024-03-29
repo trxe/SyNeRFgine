@@ -29,7 +29,7 @@ struct Material {
         std::string type_str {config["type"].get<std::string>()}; 
         auto& a = config["kd"];
         ka = kd = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
-        ka *= 0.05f;
+        ka *= 0.00f;
         n  = config["n"].get<float>(); 
         rg = config.count("rg") ? config["rg"].get<float>() : 0.0;
         if (type_str == "lambertian") {
@@ -48,7 +48,7 @@ struct Material {
         if (ImGui::TreeNode(title.c_str())) {
             if (ImGui::ColorPicker3(unique_kd.c_str(), kd.data())) {
                 ka = kd;
-                ka *= 0.05f;
+                ka *= 0.00f;
                 is_dirty = true;
             }
             if (ImGui::SliderFloat(unique_n.c_str(), &n, 0.0, 256.0)) {
@@ -86,6 +86,18 @@ struct Material {
         return true;
     }
 
+    __device__ bool scatter(const HitRecord& hit_info, const vec3& src_dir, SampledRay& ray) const {
+        ray.pos = hit_info.pos;
+        if (type == Lambertian) {
+            ray.dir = reflect(src_dir, hit_info.normal);
+            ray.pdf = 1.0f / tcnn::PI;
+            ray.attenuation *= rg;
+        } else {
+            return false;
+        }
+        return true;
+    }
+
     __device__ bool scatter(const HitRecord& hit_info, const vec3& src_dir, SampledRay& ray, curandState& rand) const {
         ray.pos = hit_info.pos;
         if (type == Lambertian) {
@@ -94,7 +106,7 @@ struct Material {
                 ray.dir = -ray.dir;
             }
             ray.pdf = 1.0f / tcnn::PI;
-            ray.attenuation = rg;
+            ray.attenuation *= rg;
         } else {
             return false;
         }

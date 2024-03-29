@@ -2100,6 +2100,7 @@ void Testbed::mouse_wheel() {
 		return;
 	}
 
+	m_syn_camera_reset = true;
 	m_render_skip_due_to_lack_of_camera_movement_counter = false;
 	float scale_factor = pow(1.1f, -delta);
 	set_scale(m_scale * scale_factor);
@@ -2156,6 +2157,7 @@ void Testbed::mouse_drag() {
 
 			reset_accumulation(true);
 		}
+		m_syn_camera_reset = true;
 		m_render_skip_due_to_lack_of_camera_movement_counter = true;
 	}
 
@@ -2169,6 +2171,7 @@ void Testbed::mouse_drag() {
 		m_slice_plane_z += -rel.y * m_bounding_radius;
 		reset_accumulation();
 		m_render_skip_due_to_lack_of_camera_movement_counter = true;
+		m_syn_camera_reset = true;
 	}
 
 	// Middle pressed
@@ -2188,6 +2191,7 @@ void Testbed::mouse_drag() {
 
 		translate_camera(translation, mat3(m_camera));
 		m_render_skip_due_to_lack_of_camera_movement_counter = true;
+		m_syn_camera_reset = true;
 	}
 }
 
@@ -4350,6 +4354,8 @@ void Testbed::render(
 	GPUMemory<curandState_t>& rand_states,
 	bool show_shadow,
 	const float& depth_epsilon_shadow
+	// ,const float* syn_depth_buffer,
+	// const ivec2& syn_resolution
 ) {
 	if (!m_network) {
 		return;

@@ -634,6 +634,7 @@ public:
 	mat4x3 m_camera = mat4x3::identity();
 	mat4x3 m_smoothed_camera = mat4x3::identity();
 	size_t m_render_skip_due_to_lack_of_camera_movement_counter = 0;
+	bool m_syn_camera_reset = true;
 
 	bool m_fps_camera = false;
 	bool m_camera_smoothing = false;

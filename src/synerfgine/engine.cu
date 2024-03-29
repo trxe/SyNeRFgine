@@ -131,6 +131,7 @@ void Engine::update_world_objects() {
         d_lights.resize_and_copy_from_host(m_lights);
     }
     if (needs_reset && m_testbed) {
+        m_raytracer.reset_accumulation();
         m_testbed->reset_accumulation();
     }
     CUDA_CHECK_THROW(cudaDeviceSynchronize());
@@ -177,7 +178,7 @@ void Engine::resize() {
     linear_kernel(init_rand_state, 0, m_stream_id, d_rand_state.size(), d_rand_state.data());
     sync(m_stream_id);
 
-    m_raytracer.enlarge(min(scale_resolution(new_res, m_relative_vo_scale), m_next_frame_resolution));
+    m_raytracer.enlarge(min(scale_resolution(new_res, (float) m_relative_vo_scale), m_next_frame_resolution));
 }
 
 void Engine::imgui() {
@@ -206,12 +207,12 @@ void Engine::imgui() {
             m_raytracer.imgui();
             if (ImGui::CollapsingHeader("NeRF", ImGuiTreeNodeFlags_DefaultOpen)) {
                 ImGui::Checkbox("View Virtual Object shadows on NeRF", &m_view_syn_shadow);
-                if (ImGui::SliderFloat("NeRF Epsilon offset", &m_depth_epsilon_shadow, 0.0, 0.1)) {
+                if (ImGui::SliderFloat("NeRF Epsilon offset", &m_depth_epsilon_shadow, 0.0, 0.010)) {
                     m_is_dirty = true;
                 }
                 auto& view = m_testbed->m_views.front();
                 int max_scale = m_display.get_window_res().x / max(1, view.render_buffer->out_resolution().x);
-                if (ImGui::SliderFloat("Relative scale of Virtual Scene", &m_relative_vo_scale, 0.5, max_scale)) {
+                if (ImGui::SliderInt("Relative scale of Virtual Scene", &m_relative_vo_scale, 1, max_scale)) {
                     resize();
                 }
             }
@@ -278,6 +279,10 @@ bool Engine::frame() {
     }
     sync(m_stream_id);
     m_testbed->handle_user_input();
+    if (m_testbed && m_testbed->m_syn_camera_reset) {
+        m_raytracer.reset_accumulation();
+        m_testbed->m_syn_camera_reset = false;
+    }
     ImDrawList* list = ImGui::GetBackgroundDrawList();
     m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera, m_pos_to_translate, m_rot_to_rotate, m_scale_to_scale, m_obj_dirty_marker);
     update_world_objects();
@@ -307,9 +312,14 @@ bool Engine::frame() {
         focal_length,
         m_testbed->m_snap_to_pixel_centers,
         m_testbed->m_nerf.density_grid_bitfield.data(),
-        d_world,
-        false
+        d_world
     );
+    // m_testbed->render(
+    //     m_stream_id,
+    //     view,
+    //     m_raytracer.render_buffer().depth_buffer(),
+
+    // );
 
     sync(m_stream_id);
     view.prev_camera = view.camera0;

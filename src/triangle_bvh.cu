@@ -265,7 +265,7 @@ __host__ __device__ std::pair<int, float> ray_intersect_nodes_f(const vec3& ro, 
 	FixedIntStack query_stack;
 	query_stack.push(0);
 
-	float mint = MAX_DIST;
+	float mint = MAX_DEPTH();
 	int shortest_idx = -1;
 
 	while (!query_stack.empty()) {

@@ -102,7 +102,7 @@ private:
 
     // for imgui
     bool m_show_ui{false};
-    float m_relative_vo_scale{4.0};
+    int m_relative_vo_scale{4};
     bool m_enable_animations{false};
     bool m_enable_reflections{false};
     float m_anim_speed{1.0f};

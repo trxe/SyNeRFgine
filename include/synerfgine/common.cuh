@@ -29,6 +29,14 @@ __host__ __device__ inline float ffmax(float a, float b) { return a > b ? a : b;
 __host__ __device__ inline vec3 reflect(const vec3& incident, const vec3& normal) { 
     return 2.0f * dot(incident, normal) * normal - incident;
 }
+__host__ __device__ inline vec3 cone_random(const vec3& orig, const vec3& up, float longi, float latid) {
+    const vec3& N = normalize(orig);
+    vec3 B = normalize(cross(N, up));
+    vec3 T = cross(B, N);
+    mat3 perturb_frame = {T, B, N};
+    vec3 offset = {cos(longi) * sin(latid), sin(longi) * sin(latid), cos(longi)};
+    return orig + perturb_frame * offset;
+}
 __host__ __device__ inline ivec2 downscale_resolution(const ivec2& resolution, float scale) {
     return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution);
 }
@@ -245,8 +253,11 @@ static tlog::Stream& operator<<(tlog::Stream& ostr, const vec3& v) {
     return ostr << "[" << v.r << ", " << v.g << ", " << v.b << "]";
 }
 
-__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id);
+__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, const int32_t& this_obj, int32_t& out_obj_id);
 __device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id, HitRecord& hit_info);
+__device__ float depth_test_nerf(const float& full_d, const uint32_t& n_steps, const float& cone_angle_constant, const vec3& next_pos, const vec3& L, const vec3& invL,
+	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local);
+
 
 
 }

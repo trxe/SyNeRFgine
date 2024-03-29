@@ -1,4 +1,5 @@
 #include <synerfgine/common.cuh>
+#include <neural-graphics-primitives/nerf_device.cuh>
 
 namespace sng {
 
@@ -24,12 +25,13 @@ __global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state) 
     curand_init(static_cast<uint64_t>(PT_SEED),  idx, (uint64_t)0, rand_state+idx);
 }
 
-__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id) {
+__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, const int32_t& this_obj, int32_t& out_obj_id) {
     float depth = MAX_DEPTH();
     for (size_t c = 0; c < object_count; ++c) {
+        if (c == this_obj) continue;
         ObjectTransform obj = objects[c];
-        auto [hit_d, id] = ngp::ray_intersect_nodes(origin, dir, obj.g_node, obj.g_tris);
-        if (hit_d < depth) {
+        auto [tri_id, hit_d] = ngp::ray_intersect_nodes(origin, dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+        if (hit_d < depth && hit_d > MIN_DEPTH()) {
             out_obj_id = c;
             depth = hit_d;
         }
@@ -41,11 +43,11 @@ __device__ float depth_test_world(const vec3& origin, const vec3& dir, const Obj
     for (size_t c = 0; c < object_count; ++c) {
         ObjectTransform obj = objects[c];
         auto [tri_id, hit_d] = ngp::ray_intersect_nodes(origin, dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
-        if (hit_d < hit_info.t) {
+        if (hit_d < hit_info.t && hit_d > MIN_DEPTH()) {
             out_obj_id = c;
             hit_info.t = hit_d;
             hit_info.material_idx = obj.mat_id;
-            hit_info.normal = obj.g_tris[tri_id].normal();
+            hit_info.normal = obj.rot * obj.g_tris[tri_id].normal();
             hit_info.perturb_matrix = obj.g_tris[tri_id].get_perturb_matrix();
             hit_info.pos = origin + hit_d * dir;
             hit_info.front_face = dot(dir, hit_info.normal) < 0.0;
@@ -53,6 +55,22 @@ __device__ float depth_test_world(const vec3& origin, const vec3& dir, const Obj
         }
     }
     return hit_info.t;
+}
+
+__device__ float depth_test_nerf(const float& full_d, const uint32_t& n_steps, const float& cone_angle_constant, const vec3& next_pos, const vec3& L,
+	const vec3& invL, const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local
+) {
+	float nerf_shadow = full_d;
+	for (uint32_t j = 0; j < n_steps; ++j) {
+		nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {next_pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+		if (nerf_shadow >= full_d) {
+			nerf_shadow = full_d;
+			break;
+		}
+		float dt = calc_dt(nerf_shadow, cone_angle_constant);
+		nerf_shadow += dt;
+	}
+	return nerf_shadow;
 }
 
 __device__ vec4 box_filter_vec4(uint32_t idx, ivec2 resolution, vec4* __restrict__ buffer, int kernel_size) {

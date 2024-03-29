@@ -34,6 +34,10 @@ struct Light {
         ImGui::Separator();
     }
 
+    __device__ vec3 sample() const {
+        return pos;
+    }
+
     __device__ vec3 sample(curandState_t& rand_state) const {
         vec3 offset = {
             fractf(curand_uniform(&rand_state)),

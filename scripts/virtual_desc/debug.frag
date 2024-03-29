@@ -59,7 +59,7 @@ void main() {
     float sd = texture(syn_depth, tex_coords).r;
     float nd = texture(nerf_depth, tex_coords).r;
 
-    frag_color = vec4(mix(syn, nerf, 0.5), 1.0);
+    frag_color = vec4(mix(syn, nerf, 0.0), 1.0);
     // frag_color = vec4(sd < nd ? syn : nerf, 1.0);
     gl_FragDepth = nd;
 }

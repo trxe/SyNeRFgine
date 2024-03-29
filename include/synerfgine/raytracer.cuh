@@ -24,6 +24,7 @@ enum ImgBufferType {
 	NextDirection,
 	SrcDirection,
 	Normal,
+	Depth,
 	// MaterialIndex,
 	// Alive,
 };
@@ -35,6 +36,7 @@ static const char * img_buffer_type_names[] = {
 	"Next Direction",
 	"Src Direction",
 	"Normal",
+	"Depth",
 	// "MaterialIndex",
 	// "Alive"
 };
@@ -49,10 +51,14 @@ static const char * img_filter_type_names[] = {
 	"Bilateral",
 };
 
-__device__ vec4 shade_object(const vec3& wi, SampledRay& ray, HitRecord& hit_info,
-	Light* __restrict__ lights, const size_t& light_count, 
-	ObjectTransform* __restrict__ objects, const size_t& object_count, 
-	Material* __restrict__ materials, const size_t& material_count, curandState_t& rand_state);
+__device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& shadow_count, HitRecord& hit_info,
+	const Light* __restrict__ lights, const size_t& light_count, 
+	const ObjectTransform* __restrict__ objects, const size_t& object_count, 
+	const Material* __restrict__ materials, const size_t& material_count, 
+	const uint32_t& n_steps, const float& cone_angle_constant, 
+	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, 
+	const BoundingBox& render_aabb, const mat3& render_aabb_to_local,
+	curandState_t& rand_state);
 
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
@@ -110,6 +116,7 @@ class RayTracer {
 		// RaysSoa& rays_hit() { return m_rays_hit; }
 		RaysSoa& rays_init() { return m_rays[0]; }
 		uint32_t n_rays_initialized() const { return m_n_rays_initialized; }
+		void reset_accumulation() { m_reset_color_buffer = true; }
 		ivec2 resolution() const { 
 			return m_render_buffer.out_resolution(); 
 		}
@@ -124,8 +131,7 @@ class RayTracer {
 			const vec2& focal_length,
 			bool snap_to_pixel_centers,
 			const uint8_t* density_grid_bitfield,
-			const GPUMemory<ObjectTransform>& world,
-			bool enable_reflection
+			const GPUMemory<ObjectTransform>& world
 		);
 
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
@@ -143,10 +149,11 @@ class RayTracer {
 		cudaStream_t m_stream_ray;
 
 		bool m_view_nerf_shadow{true};
-		int m_n_steps{20};
-		int m_ray_iters = 1;
-		int m_shadow_iters = 4;
-		float m_attenuation_coeff = 0.5f;
+		int m_n_steps{8};
+		int m_samples = 2;
+		int m_ray_iters = 2;
+		int m_shadow_iters = 1;
+		float m_attenuation_coeff = 1.0f;
 
 	private:
 		RaysSoa m_rays[2];
@@ -157,6 +164,7 @@ class RayTracer {
 		curandState_t* m_rand_state;
 		uint32_t m_n_rays_initialized = 0;
 		GPUMemoryArena::Allocation m_scratch_alloc;
+		bool m_reset_color_buffer{true};
 
 		ImgBufferType m_buffer_to_show{ImgBufferType::Final};
 		ImgFilterType m_filter_to_use{ImgFilterType::Bilateral};
