@@ -184,7 +184,20 @@ void main() {
     } else {
         nerf = texture(nerf_rgba, tex_coords).rgb;
     }
-    frag_color = vec4( sd < nd ? syn : nerf, 1.0 );
-    // frag_color = vec4(syn, 1.0);
-    gl_FragDepth = sd;
+
+    // frag_color = vec4(sd < nd ? syn : nerf, 1.0);
+    float depth_diff = sd - nd; 
+    if (abs(depth_diff) < 0.5) {
+        frag_color = vec4(mix(syn, nerf, 0.5), 1.0);
+    }
+    frag_color = vec4(sd < nd ? syn : nerf, 1.0);
+    // frag_color = vec4(mix( syn, nerf, clamp(depth_diff * 50.0 + 0.5, 0.0, 1.0)), 1.0);
+
+
+    // frag_color = vec4( vec3(fract(nd - 0.00001f)), 1.0 );
+    // if (d > 0.0) frag_color = vec4(1.0, 0.0, 0.0, 1.0);
+    // vec4 view = vec4( sd < nd ? syn : nerf, 1.0 );
+    // frag_color = vec4(frag_color.rgb * 0.6f + view.rgb * 0.4f, 1.0);
+    // frag_color = vec4(nerf, 1.0);
+    gl_FragDepth = nd;
 }
