@@ -9,6 +9,8 @@
 #include <synerfgine/common.cuh>
 #include <imgui/imgui.h>
 
+#include <stbi/stb_image_write.h>
+
 namespace sng {
 
 bool Display::m_is_init = false;
@@ -21,6 +23,7 @@ GLFWwindow* Display::init_window(int resw, int resh, const std::string& frag_fp)
 	if (m_is_init) return nullptr;
     // m_window_res = {resw, resh};
 	m_glfw_window = init_glfw(resw, resh);
+	m_img_count = 0;
 	init_opengl_shaders(frag_fp);
     init_imgui();
 	Display::m_is_init = true;
@@ -296,6 +299,24 @@ bool Display::present(const vec3& clear_color, GLuint nerf_rgba_texid, GLuint ne
 	// textures without being worried about interfering with rendering.
 	glFinish();
 	return true;
+}
+
+void Display::save_image(const char* filepath) {
+	if (m_img_count > m_img_count_max) return;
+	int width, height;
+	glfwGetFramebufferSize(m_glfw_window, &width, &height);
+	GLsizei nrChannels = 3;
+	GLsizei stride = nrChannels * width;
+	stride += (stride % 4) ? (4 - stride % 4) : 0;
+	GLsizei bufferSize = stride * height;
+	m_writing_buffer.resize(bufferSize);
+	glPixelStorei(GL_PACK_ALIGNMENT, 4);
+	glReadBuffer(GL_FRONT);
+	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, m_writing_buffer.data());
+	stbi_flip_vertically_on_write(true);
+	auto full_fp = fmt::format("{}/output-{}.png", filepath, ++m_img_count);
+	stbi_write_png(full_fp.c_str(), width, height, nrChannels, m_writing_buffer.data(), stride);
+	tlog::success() << "Image written to: " << full_fp;
 }
 
 void Display::destroy() {

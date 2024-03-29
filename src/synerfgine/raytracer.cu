@@ -109,6 +109,7 @@ __global__ void raytrace(uint32_t n_elements,
 	uint32_t max_mip,
 	ImgBufferType buffer_type,
 	size_t ray_iter_count,
+	size_t shadow_count,
 	float attenuation_coeff,
 	curandState_t* __restrict__ rand_state,
 	LightProbeData* __restrict__ light_probes,
@@ -163,44 +164,47 @@ __global__ void raytrace(uint32_t n_elements,
 		vec3 col = this_mat.ka;
 		for (size_t l = 0; l < light_count && is_alive; ++l) {
 			const Light& light = lights[l];
-			vec3 lightpos = light.sample(rand_state[i]);
-			const float full_d = length2(lightpos - next_pos);
-			const vec3 L = normalize(lightpos - next_pos);
-			const vec3 invL = vec3(1.0f) / L;
-			const vec3 R = reflect(L, N);
+			float shadow_amount = 0.0;
+			for (size_t spp_shadow = 0; spp_shadow < shadow_count; ++spp_shadow) {
+				vec3 lightpos = light.sample(rand_state[i]);
+				const float full_d = length2(lightpos - next_pos);
+				const vec3 L = normalize(lightpos - next_pos);
+				const vec3 invL = vec3(1.0f) / L;
+				const vec3 R = reflect(L, N);
 
-			vec4 tmp_refl_col{0.0};
-			float tmp_refl_depth{0.0};
-			vec3 diffuse = this_mat.kd;
-			if (light_probes) {
-				LightProbeData& probe_data = light_probes[obj_id];
-				// sample_probe(probe_data.position, probe_data.resolution, next_pos, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
-				sample_probe_dir(next_dir, probe_data.resolution, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
-				tmp_refl_col.rgb() = tmp_refl_depth < MAX_DEPTH() ? tmp_refl_col.rgb() : vec3(0.0);
+				vec4 tmp_refl_col{0.0};
+				float tmp_refl_depth{0.0};
+				vec3 diffuse = this_mat.kd;
+				if (light_probes) {
+					LightProbeData& probe_data = light_probes[obj_id];
+					// sample_probe(probe_data.position, probe_data.resolution, next_pos, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
+					sample_probe_dir(next_dir, probe_data.resolution, probe_data.rgba, probe_data.depth, tmp_refl_col, tmp_refl_depth);
+					tmp_refl_col.rgb() = tmp_refl_depth < MAX_DEPTH() ? tmp_refl_col.rgb() : vec3(0.0);
 
-				diffuse = tmp_refl_col.rgb() * this_mat.rg + this_mat.kd * (1.0f - this_mat.rg);
-			}
-			vec3 tmp_col = max(0.0f, dot(L, N)) * diffuse * light.intensity + pow(max(0.0f, dot(R, V)), this_mat.n) * this_mat.ks;
-
-			float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
-			for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
-				nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {next_pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
-				if (nerf_shadow >= full_d) {
-					nerf_shadow = full_d;
-					break;
+					diffuse = tmp_refl_col.rgb() * this_mat.rg + this_mat.kd * (1.0f - this_mat.rg);
 				}
-				float dt = calc_dt(nerf_shadow, cone_angle_constant);
-				nerf_shadow += dt;
-			}
-			float shadow_depth = full_d;
+				vec3 tmp_col = max(0.0f, dot(L, N)) * diffuse * light.intensity + pow(max(0.0f, dot(R, V)), this_mat.n) * this_mat.ks;
 
-			for (size_t w = 0; w < world_count; ++w) {
-				if (w == obj_id) continue;
-				ObjectTransform obj = world[w];
-				auto [hit, d] = ngp::ray_intersect_nodes(next_pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
-				if (hit >= 0 && d >= MIN_DIST_T) shadow_depth = min(d, shadow_depth);
+				float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
+				for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
+					nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {next_pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+					if (nerf_shadow >= full_d) {
+						nerf_shadow = full_d;
+						break;
+					}
+					float dt = calc_dt(nerf_shadow, cone_angle_constant);
+					nerf_shadow += dt;
+				}
+				float shadow_depth = full_d;
+
+				for (size_t w = 0; w < world_count; ++w) {
+					if (w == obj_id) continue;
+					ObjectTransform obj = world[w];
+					auto [hit, d] = ngp::ray_intersect_nodes(next_pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+					if (hit >= 0 && d >= MIN_DIST_T) shadow_depth = min(d, shadow_depth);
+				}
+				col += smoothstep(min(nerf_shadow, shadow_depth) / (full_d * (float)shadow_count)) * tmp_col;
 			}
-			col += smoothstep(min(nerf_shadow, shadow_depth) / full_d) * tmp_col;
 		}
 		shade += col * attenuation;
 		attenuation *= attenuation_coeff * this_mat.rg;
@@ -247,6 +251,7 @@ __global__ void shade_color(
 	uint32_t material_count,
 	ObjectTransform* __restrict__ obj_transforms,
 	uint32_t object_count,
+	uint32_t shadow_count,
 	// for NeRF shadows
 	bool show_nerf_shadow,
 	BoundingBox render_aabb,
@@ -275,33 +280,34 @@ __global__ void shade_color(
 	out_color[idx] = mat_p->ka;
 	for (size_t i = 0; i < light_count; ++i) {
 		const Light& light = world_lights[i];
-		vec3 lightpos = light.sample(rand_state[idx]);
-		// const float full_d = length2(light.pos - pos);
-		// const vec3 L = normalize(light.pos - pos);
-		const float full_d = length2(lightpos - pos);
-		const vec3 L = normalize(lightpos - pos);
-		const vec3 invL = vec3(1.0f) / L;
-		const vec3 R = reflect(L, N);
-		vec3 tmp_col = max(0.0f, dot(L, N)) * mat_p->kd * light.intensity + pow(max(0.0f, dot(R, V)), mat_p->n) * mat_p->ks;
-		float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
-		for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
-			nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
-			if (nerf_shadow >= full_d) {
-				nerf_shadow = full_d;
-				break;
+		float shadow_amount = 0.0;
+		for (size_t spp_shadow = 0; spp_shadow < shadow_count; ++spp_shadow) {
+			vec3 lightpos = light.sample(rand_state[idx]);
+			const float full_d = length2(lightpos - pos);
+			const vec3 L = normalize(lightpos - pos);
+			const vec3 invL = vec3(1.0f) / L;
+			const vec3 R = reflect(L, N);
+			vec3 tmp_col = max(0.0f, dot(L, N)) * mat_p->kd * light.intensity + pow(max(0.0f, dot(R, V)), mat_p->n) * mat_p->ks;
+			float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
+			for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
+				nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+				if (nerf_shadow >= full_d) {
+					nerf_shadow = full_d;
+					break;
+				}
+				float dt = calc_dt(nerf_shadow, cone_angle_constant);
+				nerf_shadow += dt;
 			}
-			float dt = calc_dt(nerf_shadow, cone_angle_constant);
-			nerf_shadow += dt;
-		}
-		float shadow_depth = full_d;
+			float shadow_depth = full_d;
 
-		for (size_t t = 0; t < object_count; ++t) {
-			if (t == obj_id) continue;
-			ObjectTransform obj = obj_transforms[t];
-			auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
-			if (hit >= 0) shadow_depth = min(d, shadow_depth);
+			for (size_t t = 0; t < object_count; ++t) {
+				if (t == obj_id) continue;
+				ObjectTransform obj = obj_transforms[t];
+				auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+				if (hit >= 0) shadow_depth = min(d, shadow_depth);
+			}
+			out_color[idx] += smoothstep( (nerf_shadow, shadow_depth) / (full_d* (float)shadow_count)) * tmp_col;
 		}
-		out_color[idx] += smoothstep(min(nerf_shadow, shadow_depth) / full_d) * tmp_col;
 	}
 }
 
@@ -454,6 +460,7 @@ void RayTracer::render(
 		view.max_mip,
 		m_buffer_to_show,
 		static_cast<size_t>(m_ray_iters),
+		static_cast<size_t>(m_shadow_iters),
 		m_attenuation_coeff,
 		m_rand_state,
 		enable_reflection ? g_light_probes.data() : nullptr,
@@ -476,6 +483,7 @@ void RayTracer::imgui() {
 		ImGui::Checkbox("View NeRF shadows on Virtual Objects", &m_view_nerf_shadow);
 		ImGui::InputInt("Number of shadow steps", &m_n_steps);
 		ImGui::InputInt("Ray iters", &m_ray_iters);
+		ImGui::InputInt("Shadow iters", &m_shadow_iters);
 		ImGui::InputFloat("Attenuation", &m_attenuation_coeff);
 		ImGui::SetNextItemOpen(true);
 		if (ImGui::TreeNode("Display Filter")) {

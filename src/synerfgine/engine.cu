@@ -40,6 +40,22 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("path_trace_depth")) {
             m_raytracer.m_ray_iters = cam_conf["path_trace_depth"];
         }
+        if (cam_conf.count("shadow_rays")) {
+            m_raytracer.m_shadow_iters = cam_conf["shadow_rays"];
+        }
+        if (cam_conf.count("attenuation")) {
+            m_raytracer.m_attenuation_coeff = cam_conf["attenuation"];
+        }
+    }
+    if (config.count("output")) {
+        nlohmann::json& output_conf = config["output"];
+        m_output_dest = output_conf["folder"];
+        if (output_conf.count("img_count")) {
+            m_display.m_img_count_max = output_conf["img_count"];
+        }
+        if (output_conf.count("res_factor")) {
+            m_factor_constant = output_conf["res_factor"];
+        }
     }
     if (config.count("shader")) {
         nlohmann::json& shader_conf = config["shader"];
@@ -181,17 +197,17 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     m_next_frame_resolution = {res_width, res_height};
     GLFWwindow* glfw_window = m_display.init_window(res_width, res_height, frag_fp);
     glfwSetWindowUserPointer(glfw_window, this);
-	glfwSetWindowSizeCallback(glfw_window, [](GLFWwindow* window, int width, int height) {
-		Engine* engine = (Engine*)glfwGetWindowUserPointer(window);
-		if (engine) {
+    glfwSetWindowSizeCallback(glfw_window, [](GLFWwindow* window, int width, int height) {
+        Engine* engine = (Engine*)glfwGetWindowUserPointer(window);
+        if (engine) {
             engine->m_next_frame_resolution = {width, height};
-			engine->redraw_next_frame();
-		}
-	});
+            engine->redraw_next_frame();
+        }
+    });
     glfwSetWindowCloseCallback(glfw_window, [](GLFWwindow* window) {
-		Engine* engine = (Engine*)glfwGetWindowUserPointer(window);
-		if (engine) { engine->set_dead(); }
-	});
+        Engine* engine = (Engine*)glfwGetWindowUserPointer(window);
+        if (engine) { engine->set_dead(); }
+    });
     Testbed::CudaDevice& device = m_testbed->primary_device();
     if (length2(m_default_view_dir) != 0.0f) {
         m_testbed->set_view_dir(m_default_view_dir);
@@ -207,7 +223,7 @@ void Engine::resize() {
     m_testbed->m_window_res = m_next_frame_resolution;
     auto& view = nerf_render_buffer_view();
     m_last_target_fps = m_testbed->m_dynamic_res_target_fps;
-    float factor = 5.0f / m_testbed->m_dynamic_res_target_fps;
+    float factor = min (1.0f, m_factor_constant / m_testbed->m_dynamic_res_target_fps);
     // tlog::success() << "Scaling full resolution by " << factor;
     auto new_res = downscale_resolution(m_next_frame_resolution, factor);
     view.resize(new_res);
@@ -307,7 +323,7 @@ bool Engine::frame() {
     if (!m_display.is_alive()) return false;
     Testbed::CudaDevice& device = m_testbed->primary_device();
     device.device_guard();
-	m_display.begin_frame();
+    m_display.begin_frame();
     imgui();
     ivec2 curr_window_res = m_display.get_window_res();
     if (curr_window_res != m_next_frame_resolution || !m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter || 
@@ -316,7 +332,7 @@ bool Engine::frame() {
     }
     sync(m_stream_id);
     m_testbed->handle_user_input();
-	ImDrawList* list = ImGui::GetBackgroundDrawList();
+    ImDrawList* list = ImGui::GetBackgroundDrawList();
     m_testbed->draw_visualizations(list, m_testbed->m_smoothed_camera, m_pos_to_translate, m_rot_to_rotate, m_scale_to_scale, m_obj_dirty_marker);
     update_world_objects();
     m_testbed->apply_camera_smoothing(__timer.get_ave_time("nerf"));
@@ -367,6 +383,10 @@ bool Engine::frame() {
     GLuint syn_depth_texid = m_raytracer.m_depth_texture->texture();
     auto rt_res = m_raytracer.resolution();
     m_display.present(m_default_clear_color, nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, view.render_buffer->out_resolution(), rt_res, view.foveation, m_raytracer.filter_type());
+    if (has_output()) {
+        auto fp = m_output_dest.str();
+        m_display.save_image(fp.c_str());
+    }
     return m_display.is_alive();
 }
 
