@@ -140,6 +140,7 @@ class RayTracer {
 		bool m_view_nerf_shadow{true};
 		int m_n_steps{20};
 		int m_ray_iters = 1;
+		int m_shadow_iters = 4;
 		float m_attenuation_coeff = 0.5f;
 
 	private:

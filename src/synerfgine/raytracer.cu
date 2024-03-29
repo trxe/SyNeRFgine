@@ -488,10 +488,10 @@ void RayTracer::imgui() {
 		ImGui::SetNextItemOpen(true);
 		if (ImGui::TreeNode("Display Filter")) {
 			if (ImGui::Combo("Filter Type", (int*)&m_filter_to_use, img_filter_type_names, img_filter_type_count)) {
-				tlog::success() << "Filter type id changed to: " << (int) m_filter_to_use;
+				tlog::success() << "Filter type id changed to: " << img_filter_type_names[(size_t) m_filter_to_use];
 			}
 			if (ImGui::Combo("Buffer Type", (int*)&m_buffer_to_show, img_buffer_type_names, img_buffer_type_count)) {
-				tlog::success() << "buffer type id changed to: " << (int) m_buffer_to_show;
+				tlog::success() << "buffer type id changed to: " << img_buffer_type_names[(size_t) m_buffer_to_show];
 			}
 			ImGui::TreePop();
 		}

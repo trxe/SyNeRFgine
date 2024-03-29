@@ -22,6 +22,7 @@ using ngp::Testbed;
 class Engine {
 public:
     void init(int res_width, int res_height, const std::string& frag_fp, Testbed* nerf);
+    void set_scene_output(const std::string& fp);
     void set_virtual_world(const std::string& config_fp);
     bool frame();
     void redraw_next_frame() { m_is_dirty = true; }
@@ -36,6 +37,7 @@ private:
     void sync(cudaStream_t stream) { 
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream)); 
     }
+    bool has_output() const { return !m_output_dest.empty(); }
     Testbed::View& nerf_render_buffer_view() {
         auto& view = m_testbed->m_views.front();
         view.device = &(m_testbed->primary_device());
@@ -61,6 +63,8 @@ private:
     Testbed* m_testbed;
     Display m_display;
     ivec2 m_next_frame_resolution;
+    float m_factor_constant{5.0};
+    fs::path m_output_dest;
 
     RayTracer m_raytracer;
     std::vector<Material> m_materials;
@@ -89,7 +93,7 @@ private:
 	float m_last_target_fps{0.0f};
 
     // for imguizmo
-    WorldObjectType m_transform_type{WorldObjectType::VirtualObjectObj};
+    WorldObjectType m_transform_type{WorldObjectType::None};
     uint32_t m_transform_idx{0};
     vec3* m_pos_to_translate = nullptr;
     mat3* m_rot_to_rotate = nullptr;
