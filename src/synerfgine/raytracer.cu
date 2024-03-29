@@ -2,6 +2,32 @@
 #include <neural-graphics-primitives/nerf_device.cuh>
 
 namespace sng {
+__device__ vec4 shade_object(const vec3& wi, SampledRay& ray, HitRecord& hit_info,
+	Light* __restrict__ lights, const size_t& light_count, 
+	ObjectTransform* __restrict__ objects, const size_t& object_count, 
+	Material* __restrict__ materials, const size_t& material_count,
+	curandState_t& rand_state
+) {
+	if (hit_info.material_idx < 0) return vec4(0.0);
+	Material& material = materials[hit_info.material_idx];
+	vec4 color{material.ka, 1.0};
+	for (size_t l = 0; l < light_count; ++l) {
+		Light& light = lights[l];
+		vec3 lpos = light.sample(rand_state);
+		vec3 L = normalize(lpos = hit_info.pos);
+		int32_t obj_hit = -1; 
+		depth_test_world(hit_info.pos, L, objects, object_count, obj_hit);
+		if (obj_hit < 0 || obj_hit == hit_info.object_idx) {
+			continue;
+		}
+		vec3 R = reflect(L, hit_info.normal);
+		vec3 V = normalize(-wi);
+		color.rgb() += material.local_color(L, hit_info.normal, R, wi, light);
+	}
+	material.scatter(hit_info, wi, ray, rand_state);
+	return color;
+}
+
 __global__ void init_rays_with_payload_kernel_nerf(
 	uint32_t sample_index,
 	ivec2 resolution,
@@ -53,34 +79,6 @@ __global__ void init_rays_with_payload_kernel_nerf(
 	t[idx] = 0.0;
 	mat_idx[idx] = -1;
 	alive[idx] = true;
-}
-
-__global__ void transform_payload(
-	uint32_t n_elements,
-	const vec3* __restrict__ src_origin,
-	const vec3* __restrict__ src_dir,
-	const vec3* __restrict__ src_normal,
-	vec3* __restrict__ dst_origin,
-	vec3* __restrict__ dst_dir,
-	vec3* __restrict__ dst_normal,
-	mat3 rotation,
-	vec3 translation,
-	float scale_val,
-	bool o2w
-) {
-	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
-	if (idx >= n_elements) return;
-	if (!o2w) { // world space to object space
-		mat3 scale = scale_val * mat3::identity();
-		rotation = scale * rotation;
-		dst_origin[idx] = rotation * (src_origin[idx] + translation);
-		dst_dir[idx] = rotation * src_dir[idx];
-		dst_normal[idx] = rotation * src_normal[idx];
-	} else { // object space to world space
-		dst_origin[idx] = rotation * (src_origin[idx] * scale_val) + translation;
-		dst_dir[idx] = rotation * src_dir[idx] * scale_val;
-		dst_normal[idx] = rotation * src_normal[idx] * scale_val;
-	}
 }
 
 __global__ void raytrace(uint32_t n_elements, 
@@ -147,7 +145,7 @@ __global__ void raytrace(uint32_t n_elements,
 				next_pos = src_pos + p.second * src_dir;
 				N = normalize(obj.rot * obj.g_tris[p.first].normal());
 				const Material& mat = materials[obj.mat_id];
-				is_alive = mat.scatter(next_pos, N, src_dir, next_dir, rand_state[i]);
+				is_alive = mat.scatter(N, src_dir, next_dir, rand_state[i]);
 				vec3 r = next_dir;
 				next_dir = obj.g_tris[p.first].scatter(next_dir, (1.0 - mat.rg) * ngp::PI() * 2.0f, rand_state[i]);
 				material = obj.mat_id;
@@ -232,100 +230,6 @@ __global__ void raytrace(uint32_t n_elements,
 	default:
 		frame_buffer[i].rgb() = shade;
 		break;
-	}
-}
-
-__global__ void shade_color(
-	uint32_t n_elements,
-	uint32_t obj_id,
-	// for Syn Obj
-	const vec3* __restrict__ world_origin,
-	const vec3* __restrict__ world_dir,
-	const vec3* __restrict__ world_normal,
-	const int32_t* __restrict__ mat_idxs,
-	const float* __restrict__ depths,
-	const bool* __restrict__ is_alive,
-	Light* __restrict__ world_lights,
-	uint32_t light_count,
-	Material* __restrict__ materials,
-	uint32_t material_count,
-	ObjectTransform* __restrict__ obj_transforms,
-	uint32_t object_count,
-	uint32_t shadow_count,
-	// for NeRF shadows
-	bool show_nerf_shadow,
-	BoundingBox render_aabb,
-	mat3 render_aabb_to_local,
-	ivec2 focal_length,
-	uint32_t n_steps,
-	const uint8_t* __restrict__ density_grid,
-	uint32_t min_mip,
-	uint32_t max_mip,
-	float cone_angle_constant,
-	curandState_t* rand_state,
-	vec3* __restrict__ out_color,
-	float* __restrict__ out_depth
-) {
-	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
-	if (idx >= n_elements) return;
-	int32_t mat_id = mat_idxs[idx];
-	out_depth[idx] = depths[idx];
-
-	if (mat_id < 0 || mat_id >= material_count || !is_alive[idx]) return;
-
-	vec3 pos = world_origin[idx];
-	vec3 N = normalize(world_normal[idx]);
-	vec3 V = -normalize(world_dir[idx]);
-	Material* mat_p = materials+mat_id;
-	out_color[idx] = mat_p->ka;
-	for (size_t i = 0; i < light_count; ++i) {
-		const Light& light = world_lights[i];
-		float shadow_amount = 0.0;
-		for (size_t spp_shadow = 0; spp_shadow < shadow_count; ++spp_shadow) {
-			vec3 lightpos = light.sample(rand_state[idx]);
-			const float full_d = length2(lightpos - pos);
-			const vec3 L = normalize(lightpos - pos);
-			const vec3 invL = vec3(1.0f) / L;
-			const vec3 R = reflect(L, N);
-			vec3 tmp_col = max(0.0f, dot(L, N)) * mat_p->kd * light.intensity + pow(max(0.0f, dot(R, V)), mat_p->n) * mat_p->ks;
-			float nerf_shadow = show_nerf_shadow ? 0.0 : full_d;
-			for (uint32_t j = 0; j < n_steps && show_nerf_shadow; ++j) {
-				nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
-				if (nerf_shadow >= full_d) {
-					nerf_shadow = full_d;
-					break;
-				}
-				float dt = calc_dt(nerf_shadow, cone_angle_constant);
-				nerf_shadow += dt;
-			}
-			float shadow_depth = full_d;
-
-			for (size_t t = 0; t < object_count; ++t) {
-				if (t == obj_id) continue;
-				ObjectTransform obj = obj_transforms[t];
-				auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
-				if (hit >= 0) shadow_depth = min(d, shadow_depth);
-			}
-			out_color[idx] += smoothstep( (nerf_shadow, shadow_depth) / (full_d* (float)shadow_count)) * tmp_col;
-		}
-	}
-}
-
-__global__ void transfer_color(
-	uint32_t n_elements,
-	const vec3* __restrict__ src_color,
-	const float* __restrict__ src_depth,
-	vec4* __restrict__ frame_buffer,
-	float* __restrict__ depth_buffer
-) {
-	uint32_t idx = threadIdx.x + blockDim.x * blockIdx.x;
-	if (idx >= n_elements || src_color == nullptr || src_depth == nullptr) return;
-	vec3 scol = src_color[idx];
-	float sdep = src_depth[idx];
-	float currdep = depth_buffer[idx];
-	if (sdep < currdep) {
-		frame_buffer[idx] = vec4(scol, 1.0);
-		depth_buffer[idx] = sdep;
 	}
 }
 

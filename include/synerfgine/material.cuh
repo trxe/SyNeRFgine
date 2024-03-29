@@ -12,7 +12,6 @@
 
 #include <stdio.h>
 #include <synerfgine/common.cuh>
-#include <synerfgine/hit_record.cuh>
 
 namespace sng {
 using namespace tcnn;
@@ -76,10 +75,29 @@ struct Material {
         );
     }
 
-    __device__ bool scatter(const vec3& ro, const vec3& normal, const vec3& src_dir, vec3& next_dir, curandState& rand) const {
+    __device__ vec3 local_color(const vec3& L, const vec3& N, const vec3& R, const vec3& V, const Light& light) const {
+        return max(0.0f, dot(L, N)) * kd * light.intensity + pow(max(0.0f, dot(R, V)), n) * ks;
+    }
+
+    __device__ bool scatter(const vec3& normal, const vec3& src_dir, vec3& next_dir, curandState& rand) const {
         // next_dir = normal + Rand::random_unit_vector(&rand);
         vec3 dir = normalize(-src_dir);
         next_dir = reflect(dir, normal);
+        return true;
+    }
+
+    __device__ bool scatter(const HitRecord& hit_info, const vec3& src_dir, SampledRay& ray, curandState& rand) const {
+        ray.pos = hit_info.pos;
+        if (type == Lambertian) {
+            ray.dir = Rand::random_unit_vector(&rand);
+            if (dot(ray.dir, hit_info.normal) < 0.0) {
+                ray.dir = -ray.dir;
+            }
+            ray.pdf = 1.0f / tcnn::PI;
+            ray.attenuation = rg;
+        } else {
+            return false;
+        }
         return true;
     }
 

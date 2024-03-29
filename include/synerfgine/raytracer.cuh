@@ -49,6 +49,11 @@ static const char * img_filter_type_names[] = {
 	"Bilateral",
 };
 
+__device__ vec4 shade_object(const vec3& wi, SampledRay& ray, HitRecord& hit_info,
+	Light* __restrict__ lights, const size_t& light_count, 
+	ObjectTransform* __restrict__ objects, const size_t& object_count, 
+	Material* __restrict__ materials, const size_t& material_count, curandState_t& rand_state);
+
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
 	void copy_from_other_async(const RaysSoa& other, cudaStream_t stream) {

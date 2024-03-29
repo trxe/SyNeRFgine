@@ -61,6 +61,26 @@ __global__ void rand_init_pixels(int resx, int resy, curandState *rand_state);
 __global__ void debug_shade(uint32_t n_elements, vec4* __restrict__ rgba, vec3 color, float* __restrict__ depth, float depth_value);
 __global__ void print_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth);
 __global__ void debug_uv_shade(uint32_t n_elements, vec4* __restrict__ rgba, float* __restrict__ depth, ivec2 resolution);
+__global__ void transform_payload(
+	uint32_t n_elements,
+	const vec3* __restrict__ src_origin,
+	const vec3* __restrict__ src_dir,
+	const vec3* __restrict__ src_normal,
+	vec3* __restrict__ dst_origin,
+	vec3* __restrict__ dst_dir,
+	vec3* __restrict__ dst_normal,
+	mat3 rotation,
+	vec3 translation,
+	float scale_val,
+	bool o2w
+);
+__global__ void transfer_color(
+	uint32_t n_elements,
+	const vec3* __restrict__ src_color,
+	const float* __restrict__ src_depth,
+	vec4* __restrict__ frame_buffer,
+	float* __restrict__ depth_buffer
+);
 
 enum WorldObjectType {
     None,
@@ -70,6 +90,24 @@ enum WorldObjectType {
 
 static const char * world_object_names[] = {
     "None", "Light", "Virtual Object"
+};
+
+struct HitRecord {
+  public:
+    vec3 pos{0.0f};
+    vec3 normal{0.0f};
+    mat3 perturb_matrix{mat3::identity()};
+    float t{MAX_DEPTH()};
+    int32_t material_idx{-1};
+    int32_t object_idx{-1};
+    bool front_face{true};
+};
+
+struct SampledRay {
+    vec3 pos{0.0f};
+    vec3 dir{0.0f};
+    float pdf{0.0f};
+    float attenuation{1.0f};
 };
 
 struct ObjectTransform {
@@ -206,6 +244,9 @@ public:
 static tlog::Stream& operator<<(tlog::Stream& ostr, const vec3& v) {
     return ostr << "[" << v.r << ", " << v.g << ", " << v.b << "]";
 }
+
+__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id);
+__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id, HitRecord& hit_info);
 
 
 }

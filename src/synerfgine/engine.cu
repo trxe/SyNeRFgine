@@ -32,7 +32,6 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         }
         if (cam_conf.count("animation_speed")) {
             m_anim_speed = cam_conf["animation_speed"];
-            m_enable_animations = true;
         }
         if (cam_conf.count("probe_resolution")) {
             m_probe_resolution.y = m_probe_resolution.x = cam_conf["probe_resolution"];
@@ -105,59 +104,6 @@ void Engine::update_world_objects() {
         std::vector<ObjectTransform> h_world;
         for (auto& obj : m_objects) {
             if (m_enable_animations) obj.next_frame(m_anim_speed);
-            if (m_enable_reflections) {
-                uint32_t obj_id = obj.get_id();
-                auto& probe = m_probes[obj_id];
-                const uint32_t padded_output_width = m_testbed->m_network->padded_output_width();
-                const uint32_t n_extra_dimensions = m_testbed->m_nerf.training.dataset.n_extra_dims();
-                const float depth_scale = 1.0f / m_testbed->m_nerf.training.dataset.scale;
-                constexpr uint32_t target_n_queries = 2 * 1024 * 1024;
-                uint32_t n_steps_between_compaction = clamp(target_n_queries / product(m_probe_resolution), (uint32_t)1, (uint32_t)8);
-                probe.init_rays_in_sphere(
-                    m_probe_resolution, 
-                    obj.get_translate(), 
-                    0, 
-                    padded_output_width, n_extra_dimensions,
-                    m_testbed->m_render_aabb,
-                    m_testbed->m_render_aabb_to_local, 
-                    m_testbed->m_nerf.density_grid_bitfield.data(),
-                    m_testbed->m_nerf.max_cascade,
-                    m_testbed->m_nerf.cone_angle_constant,
-                    n_steps_between_compaction,
-                    m_stream_id
-                );
-                vec2 focal_length = {}; // dummy
-                auto n_hit = probe.trace_alt(
-                    m_testbed->m_nerf_network,
-                    m_testbed->m_render_aabb,
-                    m_testbed->m_render_aabb_to_local,
-                    m_testbed->m_aabb,
-                    focal_length,
-                    m_testbed->m_nerf.cone_angle_constant,
-                    m_testbed->m_nerf.density_grid_bitfield.data(),
-                    m_testbed->m_render_mode,
-                    m_testbed->m_camera,
-                    depth_scale,
-                    m_testbed->m_visualized_layer,
-                    m_testbed->m_visualized_dimension,
-                    m_testbed->m_nerf.rgb_activation,
-                    m_testbed->m_nerf.density_activation,
-                    m_testbed->m_nerf.show_accel,
-                    m_testbed->m_nerf.max_cascade,
-                    m_testbed->m_nerf.render_min_transmittance,
-                    m_testbed->m_nerf.glow_y_cutoff,
-                    m_testbed->m_nerf.glow_mode,
-                    m_testbed->m_nerf.get_rendering_extra_dims(m_stream_id),
-                    m_stream_id
-                );
-                CudaRenderBufferView view = probe.m_render_buffer.view();
-                probe.shade(
-                    n_hit,
-                    depth_scale,
-                    view,
-                    m_stream_id
-                );
-            }
             h_world.emplace_back(obj.gpu_node(), obj.gpu_triangles(), obj.get_rotate(), 
                 obj.get_translate(), obj.get_scale(), obj.get_mat_idx());
         }
@@ -342,7 +288,7 @@ bool Engine::frame() {
     auto nerf_view = view.render_buffer->view();
     __timer.reset();
 
-    m_testbed->render( m_stream_id, view, d_world, d_lights, d_rand_state, m_view_syn_shadow, m_depth_epsilon_shadow);
+    // m_testbed->render( m_stream_id, view, d_world, d_lights, d_materials, d_rand_state, m_view_syn_shadow, m_depth_epsilon_shadow);
 
     vec2 focal_length = m_testbed->calc_focal_length(
         m_raytracer.resolution(),
@@ -362,7 +308,7 @@ bool Engine::frame() {
         m_testbed->m_snap_to_pixel_centers,
         m_testbed->m_nerf.density_grid_bitfield.data(),
         d_world,
-        m_enable_reflections
+        false
     );
 
     sync(m_stream_id);
