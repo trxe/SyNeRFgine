@@ -214,6 +214,7 @@ void Engine::imgui() {
                 int max_scale = m_display.get_window_res().x / max(1, view.render_buffer->out_resolution().x);
                 if (ImGui::SliderInt("Relative scale of Virtual Scene", &m_relative_vo_scale, 1, max_scale)) {
                     resize();
+                    m_raytracer.reset_accumulation();
                 }
             }
             if (ImGui::CollapsingHeader("Transform", ImGuiTreeNodeFlags_DefaultOpen)) {

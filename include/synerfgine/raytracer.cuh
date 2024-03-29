@@ -63,37 +63,19 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
 	void copy_from_other_async(const RaysSoa& other, cudaStream_t stream) {
-		CUDA_CHECK_THROW(cudaMemcpyAsync(rgb, other.rgb, size * sizeof(vec3), cudaMemcpyDeviceToDevice, stream));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.depth, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
 		CUDA_CHECK_THROW(cudaMemcpyAsync(origin, other.origin, size * sizeof(vec3), cudaMemcpyDeviceToDevice, stream));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(dir, other.dir, size * sizeof(vec3), cudaMemcpyDeviceToDevice, stream));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(normal, other.normal, size * sizeof(vec3), cudaMemcpyDeviceToDevice, stream));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(mat_idx, other.mat_idx, size * sizeof(int32_t), cudaMemcpyDeviceToDevice, stream));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(t, other.t, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
-		CUDA_CHECK_THROW(cudaMemcpyAsync(alive, other.alive, size * sizeof(bool), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(dir, other.dir, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
 	}
 #endif
 
-	void set(vec3* rgb, float* depth, vec3* origin, vec3* dir, vec3* normal, int32_t* mat_idx, float* t, bool* alive, size_t size) {
-		this->rgb = rgb;
-		this->depth = depth;
+	void set(vec3* origin, vec3* dir, size_t size) {
 		this->origin = origin;
 		this->dir = dir;
-		this->normal = normal;
-		this->mat_idx = mat_idx;
-		this->t = t;
-		this->alive = alive;
 		this->size = size;
 	}
 
-	vec3* rgb;
-	float* depth;
 	vec3* origin;
 	vec3* dir;
-	vec3* normal;
-	int32_t* mat_idx;
-	float* t;
-	bool* alive;
 	size_t size;
 };
 
@@ -156,7 +138,7 @@ class RayTracer {
 		float m_attenuation_coeff = 1.0f;
 
 	private:
-		RaysSoa m_rays[2];
+		RaysSoa m_rays[1];
 		// RaysSoa m_rays_hit;
         CudaRenderBuffer m_render_buffer {m_rgba_texture, m_depth_texture};
 		uint32_t* m_hit_counter;

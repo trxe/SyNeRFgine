@@ -50,11 +50,7 @@ __global__ void init_rays_with_payload_kernel_nerf(
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer,
 	vec3* __restrict__ origin,
-	vec3* __restrict__ dir,
-	vec3* __restrict__ normal,
-	int32_t* __restrict__ mat_idx,
-	float* __restrict__ t,
-	bool* __restrict__ alive
+	vec3* __restrict__ dir
 ) {
 	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
 	uint32_t y = threadIdx.y + blockDim.y * blockIdx.y;
@@ -79,30 +75,13 @@ __global__ void init_rays_with_payload_kernel_nerf(
 	depth_buffer[idx] = MAX_DEPTH();
 
 	ray.d = normalize(ray.d);
-
-	if (!ray.is_valid()) {
-		origin[idx] = ray.o;
-		alive[idx] = false;
-		return;
-	}
-
 	origin[idx] = ray.o;
 	dir[idx] = ray.d;
-	normal[idx] = vec3(0.0);
-	t[idx] = 0.0;
-	mat_idx[idx] = -1;
-	alive[idx] = true;
 }
 
 __global__ void raytrace(uint32_t n_elements, 
 	const vec3* __restrict__ src_positions, 
 	const vec3* __restrict__ src_directions, 
-	// vec3* __restrict__ next_positions, 
-	// vec3* __restrict__ next_directions, 
-	// vec3* __restrict__ normals, 
-	// float* __restrict__ t, 
-	// int32_t* __restrict__ mat_idx,
-	// bool* __restrict__ alive,
 	mat4x3 camera,
 	const Light* __restrict__ lights,
 	size_t light_count,
@@ -221,34 +200,17 @@ void RayTracer::enlarge(const ivec2& res) {
     size_t n_elements = product(res);
 	n_elements = next_multiple(n_elements, size_t(BATCH_SIZE_GRANULARITY));
 	auto scratch = allocate_workspace_and_distribute<
-		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[0]
-		vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays[1]
-		// vec3, float, vec3, vec3, vec3, int32_t, float, bool, // m_rays_hit
-
-		curandState_t,
-		uint32_t,
-		uint32_t
+		vec3, // origin
+		vec3, // dir
+		curandState_t // rand values
 	>(
 		m_stream_ray, &m_scratch_alloc,
-		n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
-		n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
-		// n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements, n_elements,
-		n_elements,
-		32, // 2 full cache lines to ensure no overlap
-		32  // 2 full cache lines to ensure no overlap
+		n_elements, n_elements, n_elements
 	);
 
-	m_rays[0].set(std::get<0>(scratch), std::get<1>(scratch), std::get<2>(scratch), std::get<3>(scratch), std::get<4>(scratch), std::get<5>(scratch), std::get<6>(scratch), std::get<7>(scratch), n_elements);
-	m_rays[1].set(std::get<8>(scratch), std::get<9>(scratch), std::get<10>(scratch), std::get<11>(scratch), std::get<12>(scratch), std::get<13>(scratch), std::get<14>(scratch), std::get<15>(scratch), n_elements);
-	// m_rays_hit.set(std::get<16>(scratch), std::get<17>(scratch), std::get<18>(scratch), std::get<19>(scratch), std::get<20>(scratch), std::get<21>(scratch), std::get<22>(scratch), std::get<23>(scratch), n_elements);
+	m_rays[0].set(std::get<0>(scratch), std::get<1>(scratch), n_elements);
+	m_rand_state = std::get<2>(scratch);
 
-	m_rand_state = std::get<16>(scratch);
-	m_hit_counter = std::get<17>(scratch);
-	m_alive_counter = std::get<18>(scratch);
-	// m_rand_state = std::get<24>(scratch);
-	// m_hit_counter = std::get<25>(scratch);
-	// m_alive_counter = std::get<26>(scratch);
-	sync();
 	linear_kernel(init_rand_state, 0, m_stream_ray, n_elements, m_rand_state);
 	sync();
 }
@@ -275,18 +237,8 @@ void RayTracer::init_rays_from_camera(
 		m_render_buffer.frame_buffer(),
 		m_render_buffer.depth_buffer(),
 		m_rays[0].origin,
-		m_rays[0].dir,
-		m_rays[0].normal,
-		m_rays[0].mat_idx,
-		m_rays[0].t,
-		m_rays[0].alive
+		m_rays[0].dir
 	);
-	sync();
-
-	// m_n_rays_initialized = res.x * res.y;
-
-	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[1].rgb, 0, m_n_rays_initialized * sizeof(vec3), m_stream_ray));
-	CUDA_CHECK_THROW(cudaMemsetAsync(m_rays[1].depth, 0, m_n_rays_initialized * sizeof(float), m_stream_ray));
 	sync();
 }
 
@@ -325,12 +277,6 @@ void RayTracer::render(
 	linear_kernel(raytrace, 0, m_stream_ray, n_elements,
 		m_rays[0].origin,
 		m_rays[0].dir,
-		// m_rays[1].origin,
-		// m_rays[1].dir,
-		// m_rays[1].normal,
-		// m_rays[1].t,
-		// m_rays[1].mat_idx,
-		// m_rays[1].alive,
 		view.camera0,
 		lights.data(),
 		lights.size(),
