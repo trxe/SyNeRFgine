@@ -37,15 +37,29 @@ __host__ __device__ inline vec3 cone_random(const vec3& orig, const vec3& up, fl
     vec3 offset = {cos(longi) * sin(latid), sin(longi) * sin(latid), cos(longi)};
     return orig + perturb_frame * offset;
 }
+__host__ __device__ inline mat3 get_perturb_matrix(const vec3& tangent, const vec3& binormal) {
+    const vec3 T = normalize(tangent);
+    const vec3 N = normalize(cross(T, binormal));
+    const vec3 B = normalize(cross(N, T));
+    return {T, B, N};
+}
+__host__ __device__ inline vec3 get_normal(const vec3& tangent, const vec3& binormal) {
+    return normalize(cross(normalize(tangent), binormal));
+}
 __host__ __device__ inline ivec2 downscale_resolution(const ivec2& resolution, float scale) {
     return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution);
 }
 __host__ __device__ inline ivec2 scale_resolution(const ivec2& resolution, float scale) {
     return clamp(ivec2(vec2(resolution) * scale), resolution / 16, resolution * 16);
 }
+__host__ __device__ inline int get_idx(ivec2 coord, const ivec2& res) {
+    return coord.x + coord.y * res.x;
+}
 
+// From render_buffer.cu
 __global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state);
 __device__ vec4 box_filter_vec4(uint32_t idx, ivec2 resolution, vec4* __restrict__ buffer, int kernel_size);
+__device__ vec3 sng_tonemap(vec3 x, ETonemapCurve curve);
 
 // Always initialize the benchmarker, __timer should not be redeclared in the
 // current context.

@@ -124,7 +124,7 @@ class RayTracer {
 			const GPUMemory<ObjectTransform>& world
 		);
 
-		void overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace m_color_space, ngp::ETonemapCurve m_tonemap_curve);
+		void overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace color_space, ngp::ETonemapCurve tonemap_curve, float exposure);
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
 
 		void sync() {

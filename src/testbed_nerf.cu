@@ -450,7 +450,7 @@ __global__ void generate_next_nerf_network_inputs_alt(
 	vec3 origin = payload.origin;
 	vec3 dir = payload.dir;
 	vec3 idir = vec3(1.0f) / dir;
-	ivec2 texel_coord = { i % (int)resolution.x, i / (int)resolution.x };
+	ivec2 texel_coord = { payload.idx % (int)resolution.x, payload.idx / (int)resolution.x };
 	size_t half_px = syn_px_scale / 2;
 	size_t syn_px_id = (texel_coord.x * syn_px_scale + half_px) + ((texel_coord.y * syn_px_scale + half_px) * resolution.x);
 	float max_depth = syn_depth[syn_px_id];
@@ -1467,6 +1467,48 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 	}
 }
 
+__global__ void write_normals_to_buffer(
+	ivec2 resolution,
+	vec4* __restrict__ rgba // currently positions
+) {
+	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
+	uint32_t y = threadIdx.y + blockDim.y * blockIdx.y;
+
+	if (x >= resolution.x || y >= resolution.y) {
+		return;
+	}
+
+	ivec2 p = {x, y};
+	uint32_t idx = x + resolution.x * y;
+	const ivec2 offsets[5] = {
+		ivec2(1, 0),
+		ivec2(0, 1),
+		ivec2(-1, 0),
+		ivec2(0, -1),
+		ivec2(1, 0),
+	};
+	const vec3 pos = rgba[idx].rgb();
+	float factor = 0.0f;
+	vec3 N{0.0};
+	for (size_t t = 0; t < 4; ++t) {
+		ivec2 t_coord = p + offsets[t+1];
+		ivec2 b_coord = p + offsets[t];
+		if (
+			t_coord.x >= resolution.x || t_coord.x < 0 || 
+			t_coord.y >= resolution.y || t_coord.y < 0 || 
+			b_coord.x >= resolution.x || b_coord.x < 0 || 
+			b_coord.y >= resolution.y || b_coord.y < 0
+		) {
+			continue;
+		}
+		vec3 T = rgba[t_coord.y * resolution.x + t_coord.x].rgb() - pos;
+		vec3 B = rgba[b_coord.y * resolution.x + b_coord.x].rgb() - pos;
+		N += sng::get_normal(T, B);
+		factor += 1.0f;
+	}
+	rgba[idx].rgb() = N / factor;
+}
+
 __global__ void shade_with_shadow(
 	const uint32_t n_elements,
 	ivec2 resolution,
@@ -1531,6 +1573,9 @@ __global__ void shade_with_shadow(
 	switch (render_mode) {
 	case ERenderMode::Positions:
 		tmp.rgb() = srgb_to_linear(sng::vec3_to_col(orig_pos));
+		break;
+	case ERenderMode::Normals: // IMPORTANT: Must be post processed
+		tmp.rgb() = orig_pos;
 		break;
 	case ERenderMode::Depth:
 		tmp.rgb() = vec3(max(0.0, 1.0 - depth[idx] / 3.0));
@@ -1980,12 +2025,6 @@ uint32_t Testbed::NerfTracer::trace_alt(
 		GPUMatrix<network_precision_t, RM> rgbsigma_matrix((network_precision_t*)m_network_output, network->padded_output_width(), n_elements);
 		network->inference_mixed_precision(stream, positions_matrix, rgbsigma_matrix);
 
-		if (render_mode == ERenderMode::Normals) {
-			network->input_gradient(stream, 3, positions_matrix, positions_matrix);
-		} else if (render_mode == ERenderMode::EncodingVis) {
-			network->visualize_activation(stream, visualized_layer, visualized_dim, positions_matrix, positions_matrix);
-		}
-
 		linear_kernel(composite_kernel_nerf_alt, 0, stream,
 			n_alive,
 			n_elements,
@@ -2372,6 +2411,14 @@ void Testbed::render_nerf_with_shadow(
 			total_n_steps += payloads_final_cpu[i].n_steps;
 		}
 		tlog::info() << "Total steps per hit= " << total_n_steps << "/" << n_hit << " = " << ((float)total_n_steps/(float)n_hit);
+	} else if (render_mode == ERenderMode::Normals) {
+		auto& resolution = render_buffer.resolution;
+		const dim3 threads = { 16, 8, 1 };
+		const dim3 blocks = { div_round_up((uint32_t)resolution.x, threads.x), div_round_up((uint32_t)resolution.y, threads.y), 1 };
+		write_normals_to_buffer<<<blocks, threads, 0, stream>>>(
+			resolution,
+			render_buffer.frame_buffer
+		);
 	}
 }
 

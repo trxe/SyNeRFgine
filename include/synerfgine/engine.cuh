@@ -74,7 +74,9 @@ private:
     GPUMemory<ObjectTransform> d_world;
     GPUMemory<Material> d_materials;
     GPUMemory<Light> d_lights;
-    GPUMemory<curandState_t> d_rand_state;
+    GPUMemory<curandState_t> d_nerf_rand_state;
+    GPUMemory<vec3> d_nerf_positions;
+    GPUMemory<vec3> d_nerf_normals;
     bool m_view_syn_shadow{true};
     float m_depth_offset{0.0};
     vec3 m_default_at_pos{0.0};

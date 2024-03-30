@@ -174,8 +174,11 @@ void Engine::resize() {
     // tlog::success() << "Scaling full resolution by " << factor;
     auto new_res = downscale_resolution(m_next_frame_resolution, factor);
     view.resize(new_res);
-    d_rand_state.resize(product(new_res));
-    linear_kernel(init_rand_state, 0, m_stream_id, d_rand_state.size(), d_rand_state.data());
+    auto new_res_count = product(new_res);
+    d_nerf_rand_state.resize(new_res_count);
+    linear_kernel(init_rand_state, 0, m_stream_id, d_nerf_rand_state.size(), d_nerf_rand_state.data());
+    d_nerf_normals.resize(new_res_count);
+    d_nerf_positions.resize(new_res_count);
     sync(m_stream_id);
 
     m_raytracer.enlarge(min(scale_resolution(new_res, (float) m_relative_vo_scale), m_next_frame_resolution));
@@ -316,10 +319,10 @@ bool Engine::frame() {
     );
 
     auto raytrace_view = m_raytracer.render_buffer().view();
-    m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_rand_state, m_view_syn_shadow, m_depth_offset );
+    m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_nerf_rand_state, d_nerf_normals, d_nerf_positions, m_view_syn_shadow );
     sync(m_stream_id);
     // TODO: Create overlay that blends the 2 layers.
-    m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve);
+    m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure);
 
     sync(m_stream_id);
     view.prev_camera = view.camera0;

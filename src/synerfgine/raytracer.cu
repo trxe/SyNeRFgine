@@ -1,5 +1,6 @@
 #include <synerfgine/raytracer.cuh>
 #include <neural-graphics-primitives/nerf_device.cuh>
+#include <neural-graphics-primitives/render_buffer.h>
 
 namespace sng {
 __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& shadow_count, HitRecord& hit_info,
@@ -206,7 +207,10 @@ __global__ void overlay_nerf(ivec2 syn_res,
 	vec4* __restrict__ syn_rgba, 
 	float* __restrict__ syn_depth, 
 	vec4* __restrict__ nerf_rgba, 
-	float* __restrict__ nerf_depth
+	float* __restrict__ nerf_depth,
+	EColorSpace color_space,
+	ETonemapCurve tonemap_curve,
+	float exposure
 ) {
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
@@ -228,7 +232,8 @@ __global__ void overlay_nerf(ivec2 syn_res,
 	// if (sdepth < ndepth) return;
 	// final_rgba[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? srgba : nrgba;
 	// final_depth[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? sdepth : ndepth;
-	final_rgba[sc.x + sc.y * syn_res.x] = srgba;
+	srgba.rgb() = sng_tonemap(srgba.rgb(), tonemap_curve);
+	final_rgba[sc.x + sc.y * syn_res.x] = color_space == EColorSpace::SRGB ? vec4(linear_to_srgb(srgba.rgb()), srgba.a) : srgba;
 	final_depth[sc.x + sc.y * syn_res.x] = sdepth;
 }
 
@@ -348,7 +353,7 @@ void RayTracer::render(
 	sync();
 }
 
-void RayTracer::overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace m_color_space, ngp::ETonemapCurve m_tonemap_curve) {
+void RayTracer::overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace color_space, ngp::ETonemapCurve tonemap_curve, float exposure) {
 	ivec2 res = resolution();
 	const dim3 threads = { 16, 8, 1 };
 	const dim3 blocks = { div_round_up((uint32_t)res.x, threads.x), div_round_up((uint32_t)res.y, threads.y), 1 };
@@ -360,11 +365,12 @@ void RayTracer::overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ng
 		m_rays[0].rgba,
 		m_rays[0].depth,
 		nerf_scene.frame_buffer,
-		nerf_scene.depth_buffer
+		nerf_scene.depth_buffer,
+		color_space,
+		tonemap_curve,
+		exposure
 	);
 	sync();
-	m_render_buffer.set_color_space(m_color_space);
-	m_render_buffer.set_tonemap_curve(m_tonemap_curve);
 }
 
 void RayTracer::load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu) {

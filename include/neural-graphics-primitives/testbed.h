@@ -388,8 +388,9 @@ public:
 		const GPUMemory<sng::ObjectTransform>& world_objects,
 		const GPUMemory<sng::Light>& world_light,
 		GPUMemory<curandState_t>& rand_states,
-		bool show_shadow,
-		const float& depth_epsilon_shadow
+		GPUMemory<vec3>& nerf_normals,
+		GPUMemory<vec3>& nerf_positions,
+		bool show_shadow
 	);
 
 	void render_frame(

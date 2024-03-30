@@ -108,6 +108,65 @@ __device__ vec4 box_filter_vec4(uint32_t idx, ivec2 resolution, vec4* __restrict
     return sum / z;
 }
 
+__device__ vec3 sng_tonemap(vec3 x, ETonemapCurve curve) {
+	if (curve == ETonemapCurve::Identity) {
+		return x;
+	}
+
+	x = max(x, vec3(0.0f));
+
+	float k0, k1, k2, k3, k4, k5;
+	if (curve == ETonemapCurve::ACES) {
+		// Source:  ACES approximation : https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+		// Include pre - exposure cancelation in constants
+		k0 = 0.6f * 0.6f * 2.51f;
+		k1 = 0.6f * 0.03f;
+		k2 = 0.0f;
+		k3 = 0.6f * 0.6f * 2.43f;
+		k4 = 0.6f * 0.59f;
+		k5 = 0.14f;
+	} else if (curve == ETonemapCurve::Hable) {
+		// Source: https://64.github.io/tonemapping/
+		const float A = 0.15f;
+		const float B = 0.50f;
+		const float C = 0.10f;
+		const float D = 0.20f;
+		const float E = 0.02f;
+		const float F = 0.30f;
+		k0 = A * F - A * E;
+		k1 = C * B * F - B * E;
+		k2 = 0.0f;
+		k3 = A * F;
+		k4 = B * F;
+		k5 = D * F * F;
+
+		const float W = 11.2f;
+		const float nom = k0 * (W*W) + k1 * W + k2;
+		const float denom = k3 * (W*W) + k4 * W + k5;
+		const float white_scale = denom / nom;
+
+		// Include white scale and exposure bias in rational polynomial coefficients
+		k0 = 4.0f * k0 * white_scale;
+		k1 = 2.0f * k1 * white_scale;
+		k2 = k2 * white_scale;
+		k3 = 4.0f * k3;
+		k4 = 2.0f * k4;
+	} else { //if (curve == ETonemapCurve::Reinhard)
+		const vec3 luminance_coefficients = {0.2126f, 0.7152f, 0.0722f};
+		float Y = dot(luminance_coefficients, x);
+
+		return x * (1.f / (Y + 1.0f));
+	}
+
+	vec3 color_sq = x * x;
+	vec3 nom = color_sq * k0 + k1 * x + k2;
+	vec3 denom = k3 * color_sq + k4 * x + k5;
+
+	vec3 tonemapped_color = nom / denom;
+
+	return tonemapped_color;
+}
+
 __global__ void transform_payload(
 	uint32_t n_elements,
 	const vec3* __restrict__ src_origin,
