@@ -316,11 +316,24 @@ public:
 
 	class CudaDevice;
 
-	void render_nerf_with_shadow(
+	void shade_nerf_shadows(
+		cudaStream_t stream,
+		CudaDevice& device,
+		const mat4x3& camera_matrix,
+		const CudaRenderBufferView& render_buffer,
+		GPUMemory<vec3>& nerf_normals,
+		GPUMemory<vec3>& nerf_positions,
+		const GPUMemory<sng::ObjectTransform>& world_objects,
+		const GPUMemory<sng::Light>& world_light,
+		GPUMemory<curandState_t>& rand_states
+	);
+	void render_nerf_with_buffers(
 		cudaStream_t stream,
 		CudaDevice& device,
 		const CudaRenderBufferView& render_buffer,
 		const CudaRenderBufferView& syn_render_buffer,
+		GPUMemory<vec3>& nerf_normals,
+		GPUMemory<vec3>& nerf_positions,
 		size_t syn_px_scale,  
 		const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
 		const uint8_t* density_grid_bitfield,
@@ -330,12 +343,7 @@ public:
 		const vec4& rolling_shutter,
 		const vec2& screen_center,
 		const Foveation& foveation,
-		int visualized_dimension,
-		const float& depth_epsilon_shadow,
-		const GPUMemory<sng::ObjectTransform>& world_objects,
-		const GPUMemory<sng::Light>& world_lights,
-		const GPUMemory<curandState_t>& rand_states,
-		bool show_shadow
+		int visualized_dimension
 	);
 	void render_nerf(
 		cudaStream_t stream,

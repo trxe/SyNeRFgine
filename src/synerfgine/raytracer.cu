@@ -232,6 +232,9 @@ __global__ void overlay_nerf(ivec2 syn_res,
 	// if (sdepth < ndepth) return;
 	// final_rgba[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? srgba : nrgba;
 	// final_depth[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? sdepth : ndepth;
+
+	// 2. applying exposure in linear space
+	// srgba.rgb() *= pow(vec3(2.0f), exposure);
 	srgba.rgb() = sng_tonemap(srgba.rgb(), tonemap_curve);
 	final_rgba[sc.x + sc.y * syn_res.x] = color_space == EColorSpace::SRGB ? vec4(linear_to_srgb(srgba.rgb()), srgba.a) : srgba;
 	final_depth[sc.x + sc.y * syn_res.x] = sdepth;

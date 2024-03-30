@@ -4379,18 +4379,17 @@ void Testbed::render(
 	vec2 screen_center = render_screen_center(view.screen_center);
 
 	if (!m_render_ground_truth && m_testbed_mode == ETestbedMode::Nerf) {
-		render_nerf_with_shadow(stream, *view.device, view.render_buffer->view(), syn_render_buffer, syn_px_scale, 
-			m_nerf_network, m_nerf.density_grid_bitfield.data(), focal_length, view.camera0, view.camera1, 
-			view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension, 
-			0.0, world_objects, world_lights, rand_states, show_shadow);
+		render_nerf_with_buffers(stream, *view.device, view.render_buffer->view(), syn_render_buffer, nerf_normals, 
+			nerf_positions, syn_px_scale, m_nerf_network, m_nerf.density_grid_bitfield.data(), focal_length, 
+			view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
+		if (show_shadow) {
+			shade_nerf_shadows(stream, *view.device, view.camera0, view.render_buffer->view(), nerf_normals, nerf_positions,  world_objects, world_lights, rand_states);
+		}
 		// render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
 		// 	focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
 	}
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 	render_frame_epilogue(stream, view.camera0, view.prev_camera, m_screen_center, m_relative_focal_length, view.foveation, view.prev_foveation, *view.render_buffer.get(), true);
-
-	// view.render_buffer->accumulate(m_exposure, stream);
-	// view.render_buffer->tonemap(m_exposure, m_background_color, EColorSpace::SRGB, m_ndc_znear, m_ndc_zfar, m_snap_to_pixel_centers, stream);
 }
 
 void Testbed::render_frame(
