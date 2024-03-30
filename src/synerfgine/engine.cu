@@ -294,7 +294,6 @@ bool Engine::frame() {
     auto nerf_view = view.render_buffer->view();
     __timer.reset();
 
-    bool reset_testbed = m_raytracer.needs_reset();
     vec2 focal_length = m_testbed->calc_focal_length(
         m_raytracer.resolution(),
         m_testbed->m_relative_focal_length, 
@@ -317,12 +316,10 @@ bool Engine::frame() {
     );
 
     auto raytrace_view = m_raytracer.render_buffer().view();
-    if (reset_testbed) {
-        m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_rand_state, m_view_syn_shadow, m_depth_offset );
-        sync(m_stream_id);
-    }
+    m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_rand_state, m_view_syn_shadow, m_depth_offset );
+    sync(m_stream_id);
     // TODO: Create overlay that blends the 2 layers.
-    m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, m_testbed->m_color_space, m_testbed->m_tonemap_curve);
+    m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve);
 
     sync(m_stream_id);
     view.prev_camera = view.camera0;

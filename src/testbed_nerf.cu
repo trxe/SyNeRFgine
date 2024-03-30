@@ -1487,60 +1487,61 @@ __global__ void shade_with_shadow(
 	uint32_t max_mip,
 	BoundingBox render_aabb,
 	mat4x3 render_aabb_to_local,
+	ERenderMode render_mode,
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
+	ivec2 tex_coord = {(int)idx % resolution.x, (int)idx / resolution.x};
+
 	NerfPayload& payload = payloads[idx];
+	const vec3 orig_pos = camera_matrix[3] + payload.dir * payload.t;
+
 	float sum_shadow_depth = 0.0f;
 	// vec3 pos = camera_matrix[3] + payload.dir / dot(payload.dir, camera_matrix[2]) * depth[idx] - depth_epsilon_threshold;
 	constexpr const size_t bbcount = 4;
 	for (size_t bb = 0; bb < 4; ++bb) {
 		float overall_shadow_depth = 1.0f;
-		// const vec3 offset = sng::Rand::random_unit_vector(&rand_state[idx]) * 0.2f;
-		const vec3 offset = (fractf(curand_uniform(&rand_state[idx])) * 0.4f - 0.2f) * payload.dir;
-		const vec3 orig_pos = camera_matrix[3] + payload.dir * depth[idx];
+		const vec3 offset = (fractf(curand_uniform(&rand_state[idx])) * 0.2f) * payload.dir;
 		vec3 pos = orig_pos + offset;
 		if (show_syn_shadow) {
 			for (uint32_t i = 0; i < light_count; ++i) {
 				const sng::Light& light = lights[i];
-				const float full_d = length2(light.pos - orig_pos);
-				const vec3 L = normalize(light.pos - pos);
-				const vec3 revL = -L;
-				const vec3 invrevL = 1.0f / revL;
+				const vec3 lpos = light.sample(rand_state[idx]);
+				const float full_d = length(lpos - pos);
+				const vec3 L = normalize(lpos - pos);
+				const vec3 invL = 1.0f / L;
 				float shadow_depth = full_d;
 
-				for (uint32_t t = 0; t < obj_count; ++t) {
-					const sng::ObjectTransform& obj = objs[t];
-					auto [hit, d] = ngp::ray_intersect_nodes(pos, L, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
-					if (hit >= 0) { 
-						shadow_depth = min(d, shadow_depth);
-					}
+				int32_t hit_obj_id = -1;
+				float syn_depth = sng::depth_test_world(orig_pos, L, objs, obj_count, hit_obj_id, hit_obj_id);
+				if (syn_depth < full_d) {
+					overall_shadow_depth = min(overall_shadow_depth, smoothstep(syn_depth / full_d));
 				}
 
-				float nerf_shadow = 0.0f;
-				for (uint32_t j = 0; j < n_steps; ++j) {
-					nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {light.pos, revL}, invrevL, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
-					if (nerf_shadow >= full_d) {
-						break;
-					}
-					float dt = calc_dt(nerf_shadow, cone_angle_constant);
-					nerf_shadow += dt;
-				}
-				if (nerf_shadow < full_d - 0.0001) {
-					overall_shadow_depth = min(overall_shadow_depth, smoothstep(1.0 - nerf_shadow / full_d));
-				} else if (shadow_depth < full_d - 0.0001) {
-					overall_shadow_depth = min(overall_shadow_depth, smoothstep(shadow_depth / full_d));
-				}
+				float nerf_depth = full_d - sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
+				overall_shadow_depth = min(overall_shadow_depth, smoothstep(1.0 - nerf_depth / full_d));
 			}
-			sum_shadow_depth += overall_shadow_depth;
 		}
+		sum_shadow_depth += overall_shadow_depth;
 	}
 	sum_shadow_depth /= (float)bbcount;
-	__syncthreads();
 	vec4 tmp = rgba[idx];
-	tmp.rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
+	switch (render_mode) {
+	case ERenderMode::Positions:
+		tmp.rgb() = srgb_to_linear(sng::vec3_to_col(orig_pos));
+		break;
+	case ERenderMode::Depth:
+		tmp.rgb() = vec3(max(0.0, 1.0 - depth[idx] / 3.0));
+		break;
+	case ERenderMode::ShadowDepth:
+		tmp.rgb() = vec3(sum_shadow_depth);
+		break;
+	default:
+		tmp.rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
+		break;
+	}
 
 	frame_buffer[payload.idx] = tmp + frame_buffer[payload.idx] * (1.0f - tmp.a);
 	if (tmp.a > 0.2f) {
@@ -2322,43 +2323,44 @@ void Testbed::render_nerf_with_shadow(
 	}
 	RaysNerfSoa& rays_hit = tracer.rays_hit();
 
-	linear_kernel(shade_kernel_nerf, 0, stream,
-		n_hit,
-		m_nerf.render_gbuffer_hard_edges,
-		camera_matrix0,
-		depth_scale,
-		rays_hit.rgba,
-		rays_hit.depth,
-		rays_hit.payload,
-		m_render_mode,
-		m_nerf.training.linear_colors,
-		render_buffer.frame_buffer,
-		render_buffer.depth_buffer
-	);
-
-	// linear_kernel(shade_with_shadow, 0, stream,
+	// linear_kernel(shade_kernel_nerf, 0, stream,
 	// 	n_hit,
-	// 	render_buffer.resolution,
+	// 	m_nerf.render_gbuffer_hard_edges,
 	// 	camera_matrix0,
+	// 	depth_scale,
 	// 	rays_hit.rgba,
 	// 	rays_hit.depth,
 	// 	rays_hit.payload,
-	// 	world_lights.data(),
-	// 	world_lights.size(),
-	// 	world_objects.data(),
-	// 	world_objects.size(),
-	// 	rand_states.data(),
-	// 	show_shadow,
-	// 	depth_epsilon_shadow,
-	// 	density_grid_bitfield,
-	// 	8,
-	// 	m_nerf.cone_angle_constant,
-	// 	m_nerf.max_cascade,
-	// 	m_render_aabb,
-	// 	m_render_aabb_to_local,
+	// 	m_render_mode,
+	// 	m_nerf.training.linear_colors,
 	// 	render_buffer.frame_buffer,
 	// 	render_buffer.depth_buffer
 	// );
+
+	linear_kernel(shade_with_shadow, 0, stream,
+		n_hit,
+		render_buffer.resolution,
+		camera_matrix0,
+		rays_hit.rgba,
+		rays_hit.depth,
+		rays_hit.payload,
+		world_lights.data(),
+		world_lights.size(),
+		world_objects.data(),
+		world_objects.size(),
+		rand_states.data(),
+		show_shadow,
+		depth_epsilon_shadow,
+		density_grid_bitfield,
+		8,
+		m_nerf.cone_angle_constant,
+		m_nerf.max_cascade,
+		m_render_aabb,
+		m_render_aabb_to_local,
+		render_mode,
+		render_buffer.frame_buffer,
+		render_buffer.depth_buffer
+	);
 
 	if (render_mode == ERenderMode::Cost) {
 		std::vector<NerfPayload> payloads_final_cpu(n_hit);

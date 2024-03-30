@@ -215,7 +215,6 @@ __global__ void overlay_nerf(ivec2 syn_res,
 		return;
 	}
 
-	uint32_t idx = x + syn_res.x * y;
 	ivec2 nerf_res = syn_res / syn_px_scale;
 	ivec2 sc = {x, y};
 	ivec2 nc = sc / syn_px_scale;
@@ -227,8 +226,10 @@ __global__ void overlay_nerf(ivec2 syn_res,
 
 	// DEBUG
 	// if (sdepth < ndepth) return;
-	final_rgba[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? srgba : nrgba;
-	final_depth[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? sdepth : ndepth;
+	// final_rgba[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? srgba : nrgba;
+	// final_depth[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? sdepth : ndepth;
+	final_rgba[sc.x + sc.y * syn_res.x] = srgba;
+	final_depth[sc.x + sc.y * syn_res.x] = sdepth;
 }
 
 void RayTracer::enlarge(const ivec2& res) {

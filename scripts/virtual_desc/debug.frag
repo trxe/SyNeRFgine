@@ -100,7 +100,8 @@ void main() {
     // vec3 syn_rgb = mix(
     //     syn.rgb, blur_color.rgb, max(bal, depth_edge_detection(view_coords, sd, 2))
     // );
-    // frag_color = vec4(sd < MAX_ND ? syn.rgb : nerf.rgb, 1.0);
-    frag_color = vec4(mix(syn.rgb, nerf.rgb, 0.0), 1.0);
+    frag_color = vec4(sd < nd ? syn.rgb : nerf.rgb, 1.0);
+    // frag_color = vec4(mix(syn.rgb, nerf.rgb, 1.0), 1.0);
+    // frag_color = vec4(vec3(max(0.0, 1.0 - nd / 5.0)), 1.0);
     gl_FragDepth = sd;
 }

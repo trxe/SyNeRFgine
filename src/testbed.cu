@@ -4385,8 +4385,8 @@ void Testbed::render(
 		// render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
 		// 	focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
 	}
-	render_frame_epilogue(stream, view.camera0, view.prev_camera, m_screen_center, m_relative_focal_length, view.foveation, view.prev_foveation, *view.render_buffer.get());
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+	render_frame_epilogue(stream, view.camera0, view.prev_camera, m_screen_center, m_relative_focal_length, view.foveation, view.prev_foveation, *view.render_buffer.get(), true);
 
 	// view.render_buffer->accumulate(m_exposure, stream);
 	// view.render_buffer->tonemap(m_exposure, m_background_color, EColorSpace::SRGB, m_ndc_znear, m_ndc_zfar, m_snap_to_pixel_centers, stream);
