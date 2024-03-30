@@ -108,6 +108,8 @@ private:
     bool m_enable_animations{false};
     bool m_enable_reflections{false};
     float m_anim_speed{1.0f};
+    float m_nerf_shadow_brightness{0.3f};
+    float m_syn_shadow_brightness{2.0f};
 
     cudaStream_t m_stream_id;
 

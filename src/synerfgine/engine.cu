@@ -130,6 +130,7 @@ void Engine::update_world_objects() {
         d_lights.check_guards();
         d_lights.resize_and_copy_from_host(m_lights);
     }
+    needs_reset = needs_reset || m_is_dirty;
     if (needs_reset && m_testbed) {
         m_raytracer.reset_accumulation();
         m_testbed->reset_accumulation();
@@ -210,9 +211,9 @@ void Engine::imgui() {
             m_raytracer.imgui();
             if (ImGui::CollapsingHeader("NeRF", ImGuiTreeNodeFlags_DefaultOpen)) {
                 ImGui::Checkbox("View Virtual Object shadows on NeRF", &m_view_syn_shadow);
-                if (ImGui::InputFloat("NeRF Epsilon offset", &m_depth_offset)) {
-                    m_is_dirty = true;
-                }
+                // if (ImGui::InputFloat("NeRF Epsilon offset", &m_depth_offset)) {
+                //     m_is_dirty = true;
+                // }
                 auto& view = m_testbed->m_views.front();
                 int max_scale = m_display.get_window_res().x / max(1, view.render_buffer->out_resolution().x);
                 if (ImGui::SliderInt("Relative scale of Virtual Scene", &m_relative_vo_scale, 1, max_scale)) {
@@ -239,15 +240,21 @@ void Engine::imgui() {
             }
         }
         if (ImGui::CollapsingHeader("Shader", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::SliderInt("nerf_expand_mult", &m_display.m_nerf_expand_mult, 0, 20);
-            ImGui::SliderInt("nerf_blur_kernel_size", &m_display.m_nerf_blur_kernel_size, 0, 20);
-            ImGui::SliderInt("syn_blur_kernel_size", &m_display.m_syn_blur_kernel_size, 0, 20);
-            ImGui::SliderFloat("nerf_shadow_blur_threshold", &m_display.m_nerf_shadow_blur_threshold, 0.0, 1.0);
-            ImGui::SliderFloat("syn_sigma", &m_display.m_syn_sigma, 1.0, 32.0);
-            ImGui::SliderFloat("syn_bsigma", &m_display.m_syn_bsigma, 0.0, 4.0);
+            if (ImGui::SliderFloat("Shadows of NeRF Brightness", &m_nerf_shadow_brightness, MIN_DEPTH(), 3.0f)) { 
+                m_is_dirty = true;
+            }
+            if (ImGui::SliderFloat("Shadows of Syn Brightness", &m_syn_shadow_brightness, MIN_DEPTH(), 1.0f)) { 
+                m_is_dirty = true;
+            }
+            // ImGui::SliderInt("nerf_expand_mult", &m_display.m_nerf_expand_mult, 0, 20);
+            // ImGui::SliderInt("nerf_blur_kernel_size", &m_display.m_nerf_blur_kernel_size, 0, 20);
+            // ImGui::SliderInt("syn_blur_kernel_size", &m_display.m_syn_blur_kernel_size, 0, 20);
+            // ImGui::SliderFloat("nerf_shadow_blur_threshold", &m_display.m_nerf_shadow_blur_threshold, 0.0, 1.0);
+            // ImGui::SliderFloat("syn_sigma", &m_display.m_syn_sigma, 1.0, 32.0);
+            // ImGui::SliderFloat("syn_bsigma", &m_display.m_syn_bsigma, 0.0, 4.0);
         }
         if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen)) {
-            ImGui::SliderFloat("speed", &m_anim_speed, 0.0, 4.0);
+            ImGui::SliderFloat("speed", &m_anim_speed, 0.01, 4.0);
         }
         ImGui::End();
     }
@@ -319,7 +326,8 @@ bool Engine::frame() {
     );
 
     auto raytrace_view = m_raytracer.render_buffer().view();
-    m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_nerf_rand_state, d_nerf_normals, d_nerf_positions, m_view_syn_shadow );
+    m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_nerf_rand_state, d_nerf_normals, 
+        d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_syn_shadow_brightness );
     sync(m_stream_id);
     // TODO: Create overlay that blends the 2 layers.
     m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure);

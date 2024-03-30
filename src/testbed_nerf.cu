@@ -521,7 +521,8 @@ __global__ void composite_kernel_nerf_alt(
 	uint32_t actual_n_steps = payload.n_steps;
 	uint32_t j = 0;
 
-	ivec2 texel_coord = { i % (int)resolution.x, i / (int)resolution.x };
+	int pidx = payload.idx;
+	ivec2 texel_coord = { pidx % (int)resolution.x, pidx / (int)resolution.x };
 	ivec2 syn_texel_coord = (int)syn_px_scale * texel_coord + ivec2(syn_px_scale / 2);
 	int row_size = resolution.x * (int)syn_px_scale;
 	int syn_texel_id = syn_texel_coord.x + row_size * syn_texel_coord.y;
@@ -574,12 +575,14 @@ __global__ void composite_kernel_nerf_alt(
 	// for (size_t dx{}; dx < syn_px_scale; ++dx) {
 	// 	for (size_t dy{}; dy < syn_px_scale; ++dy) {
 	// 		ivec2 t_syn_texel_coord = (int)syn_px_scale * texel_coord + ivec2(dx, dy);
-	// 		int t_syn_texel_id = syn_texel_coord.x + row_size * syn_texel_coord.y;
+	// 		int t_syn_texel_id = t_syn_texel_coord.x + row_size * t_syn_texel_coord.y;
 	// 		float alpha = add_syn_rgba.a;
 	// 		syn_rgba[t_syn_texel_id] = (1.0f - alpha) * syn_rgba[t_syn_texel_id].rgb() + alpha * add_syn_rgba.rgb();
 	// 		// syn_rgba[syn_px_id] = min(syn_depth[syn_px_id], local_depth);
 	// 	}
 	// }
+	float alpha = add_syn_rgba.a;
+	syn_rgba[syn_texel_id] = (1.0f - alpha) * syn_rgba[syn_texel_id].rgb() + alpha * add_syn_rgba.rgb();
 }
 
 __global__ void composite_kernel_nerf(
@@ -1573,7 +1576,9 @@ __global__ void shade_with_shadow(
 	mat4x3 render_aabb_to_local,
 	ERenderMode render_mode,
 	vec4* __restrict__ frame_buffer,
-	float* __restrict__ depth_buffer
+	float* __restrict__ depth_buffer,
+	float nerf_shadow_brightness,
+	float syn_shadow_brightness
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
@@ -1595,11 +1600,11 @@ __global__ void shade_with_shadow(
 		int32_t hit_obj_id = -1;
 		float syn_depth = sng::depth_test_world(pos, L, objs, obj_count, hit_obj_id, hit_obj_id);
 		if (syn_depth < full_d) {
-			overall_shadow_depth = min(overall_shadow_depth, smoothstep(syn_depth / full_d));
+			overall_shadow_depth = min(overall_shadow_depth, syn_shadow_brightness * smoothstep(syn_depth / full_d));
 		}
 
 		float nerf_depth = full_d - sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
-		overall_shadow_depth = min(overall_shadow_depth, smoothstep(smoothstep(1.0 - nerf_depth / full_d)));
+		overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_brightness * smoothstep(1.0 - nerf_depth / full_d));
 	}
 	vec4& tmp = rgba[idx];
 	rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * overall_shadow_depth;
@@ -2026,17 +2031,13 @@ uint32_t Testbed::NerfTracer::trace_alt(
 			max_mip,
 			cone_angle_constant,
 			extra_dims_gpu
-			// ,
-			// syn_depth,
-			// resolution,
-			// syn_px_scale
 		);
 		uint32_t n_elements = next_multiple(n_alive * n_steps_between_compaction, BATCH_SIZE_GRANULARITY);
 		GPUMatrix<float> positions_matrix((float*)m_network_input, (sizeof(NerfCoordinate) + extra_stride) / sizeof(float), n_elements);
 		GPUMatrix<network_precision_t, RM> rgbsigma_matrix((network_precision_t*)m_network_output, network->padded_output_width(), n_elements);
 		network->inference_mixed_precision(stream, positions_matrix, rgbsigma_matrix);
 
-		linear_kernel(composite_kernel_nerf_alt, 0, stream,
+		linear_kernel(composite_kernel_nerf, 0, stream, 
 			n_alive,
 			n_elements,
 			i,
@@ -2058,12 +2059,37 @@ uint32_t Testbed::NerfTracer::trace_alt(
 			rgb_activation,
 			density_activation,
 			show_accel,
-			min_transmittance,
-			syn_rgba,
-			syn_depth,
-			resolution,
-			syn_px_scale
+			min_transmittance
 		);
+
+		// linear_kernel(composite_kernel_nerf_alt, 0, stream,
+		// 	n_alive,
+		// 	n_elements,
+		// 	i,
+		// 	train_aabb,
+		// 	glow_y_cutoff,
+		// 	glow_mode,
+		// 	camera_matrix,
+		// 	focal_length,
+		// 	depth_scale,
+		// 	rays_current.rgba,
+		// 	rays_current.depth,
+		// 	rays_current.payload,
+		// 	input_data,
+		// 	m_network_output,
+		// 	network->padded_output_width(),
+		// 	n_steps_between_compaction,
+		// 	render_mode,
+		// 	grid,
+		// 	rgb_activation,
+		// 	density_activation,
+		// 	show_accel,
+		// 	min_transmittance,
+		// 	syn_rgba,
+		// 	syn_depth,
+		// 	resolution,
+		// 	syn_px_scale
+		// );
 		CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 
 		i += n_steps_between_compaction;
@@ -2416,7 +2442,9 @@ void Testbed::shade_nerf_shadows(
 	GPUMemory<vec3>& nerf_positions,
 	const GPUMemory<sng::ObjectTransform>& world_objects,
 	const GPUMemory<sng::Light>& world_light,
-	GPUMemory<curandState_t>& rand_states
+	GPUMemory<curandState_t>& rand_states,
+	const float& nerf_shadow_brightness,
+	const float& syn_shadow_brightness
 ) {
 	auto n_elements = product(render_buffer.resolution);
 	linear_kernel(shade_with_shadow, 0, stream, n_elements,
@@ -2439,7 +2467,9 @@ void Testbed::shade_nerf_shadows(
 		m_render_aabb_to_local,
 		m_render_mode,
 		render_buffer.frame_buffer,
-		render_buffer.depth_buffer
+		render_buffer.depth_buffer,
+		nerf_shadow_brightness,
+		syn_shadow_brightness
 	);
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }

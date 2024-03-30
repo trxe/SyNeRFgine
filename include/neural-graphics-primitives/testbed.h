@@ -325,7 +325,9 @@ public:
 		GPUMemory<vec3>& nerf_positions,
 		const GPUMemory<sng::ObjectTransform>& world_objects,
 		const GPUMemory<sng::Light>& world_light,
-		GPUMemory<curandState_t>& rand_states
+		GPUMemory<curandState_t>& rand_states,
+	const float& nerf_shadow_brightness,
+	const float& syn_shadow_brightness
 	);
 	void render_nerf_with_buffers(
 		cudaStream_t stream,
@@ -398,7 +400,9 @@ public:
 		GPUMemory<curandState_t>& rand_states,
 		GPUMemory<vec3>& nerf_normals,
 		GPUMemory<vec3>& nerf_positions,
-		bool show_shadow
+		bool show_shadow,
+		float nerf_shadow_brightness,
+		float syn_shadow_brightness
 	);
 
 	void render_frame(
