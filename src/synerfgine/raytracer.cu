@@ -11,7 +11,6 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 	const BoundingBox& render_aabb, const mat3& render_aabb_to_local,
 	curandState_t& rand_state
 ) {
-	uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (hit_info.material_idx < 0) return vec4(0.0);
 	const Material& material = materials[hit_info.material_idx];
 	vec4 color{vec3(0.0), 1.0};
@@ -50,7 +49,9 @@ __global__ void init_rays_with_payload_kernel_nerf(
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer,
 	vec3* __restrict__ origin,
-	vec3* __restrict__ dir
+	vec3* __restrict__ dir,
+	vec4* __restrict__ acc_rgba,
+	float* __restrict__ acc_depth
 ) {
 	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
 	uint32_t y = threadIdx.y + blockDim.y * blockIdx.y;
@@ -73,6 +74,8 @@ __global__ void init_rays_with_payload_kernel_nerf(
 
 	frame_buffer[idx] = vec4(vec3(0.0), 1.0);
 	depth_buffer[idx] = MAX_DEPTH();
+	acc_rgba[idx] = vec4(vec3(0.0), 1.0);
+	acc_depth[idx] = MAX_DEPTH();
 
 	ray.d = normalize(ray.d);
 	origin[idx] = ray.o;
@@ -103,13 +106,13 @@ __global__ void raytrace(uint32_t n_elements,
 	size_t bounce_count,
 	size_t shadow_count,
 	float attenuation_coeff,
+	float depth_offset,
 	curandState_t* __restrict__ rand_state,
-	vec4* __restrict__ frame_buffer,
-	float* __restrict__ depth_buffer
+	vec4* __restrict__ acc_rgba, 
+	float* __restrict__ acc_depth
 ) {
 	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= n_elements) return;
-	constexpr const float MIN_DIST_T = 0.0001f;
 	const vec3 up_vec = camera[0];
 
 	vec3 shade{0.0f};
@@ -118,7 +121,7 @@ __global__ void raytrace(uint32_t n_elements,
 	vec3 next_pos{0.0f};
 	vec3 view_dir{0.0f};
 	vec3 next_dir{0.0f};
-	float depth{0.0f};
+	// float depth{0.0f};
 	for (size_t spp = 0; spp < sample_count; ++spp) {
 		auto src_pos = vec3(0.0);
 		auto src_dir = vec3(0.0);
@@ -135,18 +138,20 @@ __global__ void raytrace(uint32_t n_elements,
 			src_dir = ray.dir;
 			HitRecord hit_info;
 			int32_t hit_obj_id = -1;
-			float d = depth_test_world(src_pos, src_dir, world, world_count, hit_obj_id, hit_info);
-			SampledRay next_ray;
-			if (hit_obj_id < 0 || d == MAX_DEPTH()) break;
-			vec4 color = shade_object(src_dir, next_ray, shadow_count, hit_info, lights, light_count, world, world_count, materials, mat_count,
-				n_steps, cone_angle_constant, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local, rand_state[i]);
-			shade_s += color.rgb() * ray.pdf * ray.attenuation;
+			float d = depth_test_world(src_pos, src_dir, world, world_count, hit_obj_id, hit_info) + depth_offset;
 			if (!bounce) {
-				depth += d;
+				// depth += d;
 				normal += hit_info.normal;
 				view_pos += src_pos;
 				view_dir += src_dir;
 				next_pos += hit_info.pos;
+			}
+			if (hit_obj_id < 0) break;
+			SampledRay next_ray;
+			vec4 color = shade_object(src_dir, next_ray, shadow_count, hit_info, lights, light_count, world, world_count, materials, mat_count,
+				n_steps, cone_angle_constant, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local, rand_state[i]);
+			shade_s += color.rgb() * ray.pdf * ray.attenuation;
+			if (!bounce) {
 				next_dir += next_ray.dir;
 			}
 			ray = next_ray;
@@ -159,39 +164,71 @@ __global__ void raytrace(uint32_t n_elements,
 	next_pos /= weight;
 	next_dir /= weight;
 	normal /= weight;
-	depth /= weight;
 	shade /= weight;
-	depth_buffer[i] = depth;
-	vec3 curr_shade = frame_buffer[i].rgb();
+	float depth = dot(src_directions[i], next_pos - src_positions[i]);
+	acc_depth[i] = depth;
+	vec3 curr_shade = acc_rgba[i].rgb();
 	switch (buffer_type) {
 	case ImgBufferType::Normal:
-		// frame_buffer[i].rgb() = vec3_to_col(normal);
-		frame_buffer[i].rgb() = normal;
+		// acc_rgba[i].rgb() = vec3_to_col(normal);
+		acc_rgba[i].rgb() = normal;
 		break;
 	case ImgBufferType::NextDirection:
-		// frame_buffer[i].rgb() = vec3_to_col(next_dir);
-		frame_buffer[i].rgb() = next_dir;
+		// acc_rgba[i].rgb() = vec3_to_col(next_dir);
+		acc_rgba[i].rgb() = next_dir;
 		break;
 	case ImgBufferType::SrcDirection:
-		// frame_buffer[i].rgb() = vec3_to_col(src_dir);
-		frame_buffer[i].rgb() = view_dir;
+		// acc_rgba[i].rgb() = vec3_to_col(src_dir);
+		acc_rgba[i].rgb() = view_dir;
 		break;
 	case ImgBufferType::NextOrigin:
-		frame_buffer[i].rgb() = vec3_to_col(next_pos);
+		acc_rgba[i].rgb() = vec3_to_col(next_pos);
 		break;
 	case ImgBufferType::SrcOrigin:
-		frame_buffer[i].rgb() = vec3_to_col(view_pos);
+		acc_rgba[i].rgb() = vec3_to_col(view_pos);
 		break;
 	case ImgBufferType::Depth:
-		if (i % 100000 == 0) printf("%d: DEPTH %f\n", i, depth);
+		acc_rgba[i].rgb() = vec3(1.0 - fractf(depth / 10.0));
 		break;
 	default:
 		if (dot(curr_shade, curr_shade) > 0.001f) {
-			shade = shade * 0.5f +  frame_buffer[i].rgb() * 0.5f;
+			shade = shade * 0.5f + acc_rgba[i].rgb() * 0.5f;
 		}
-		frame_buffer[i].rgb() = shade;
+		acc_rgba[i].rgb() = shade;
 		break;
 	}
+}
+
+__global__ void overlay_nerf(ivec2 syn_res, 
+	int syn_px_scale, 
+	vec4* __restrict__ final_rgba, 
+	float* __restrict__ final_depth, 
+	vec4* __restrict__ syn_rgba, 
+	float* __restrict__ syn_depth, 
+	vec4* __restrict__ nerf_rgba, 
+	float* __restrict__ nerf_depth
+) {
+	int x = threadIdx.x + blockDim.x * blockIdx.x;
+	int y = threadIdx.y + blockDim.y * blockIdx.y;
+
+	if (x >= syn_res.x || y >= syn_res.y) {
+		return;
+	}
+
+	uint32_t idx = x + syn_res.x * y;
+	ivec2 nerf_res = syn_res / syn_px_scale;
+	ivec2 sc = {x, y};
+	ivec2 nc = sc / syn_px_scale;
+
+	vec4 srgba = syn_rgba[sc.x + sc.y * syn_res.x];
+	float sdepth = syn_depth[sc.x + sc.y * syn_res.x];
+	vec4 nrgba = nerf_rgba[nc.x + nc.y * nerf_res.x];
+	float ndepth = nerf_depth[nc.x + nc.y * nerf_res.x];
+
+	// DEBUG
+	// if (sdepth < ndepth) return;
+	final_rgba[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? srgba : nrgba;
+	final_depth[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? sdepth : ndepth;
 }
 
 void RayTracer::enlarge(const ivec2& res) {
@@ -202,14 +239,15 @@ void RayTracer::enlarge(const ivec2& res) {
 	auto scratch = allocate_workspace_and_distribute<
 		vec3, // origin
 		vec3, // dir
+		vec4, // rgba
+		float, // depth
 		curandState_t // rand values
 	>(
 		m_stream_ray, &m_scratch_alloc,
-		n_elements, n_elements, n_elements
-	);
+		n_elements, n_elements, n_elements, n_elements, n_elements);
 
-	m_rays[0].set(std::get<0>(scratch), std::get<1>(scratch), n_elements);
-	m_rand_state = std::get<2>(scratch);
+	m_rays[0].set(std::get<0>(scratch), std::get<1>(scratch), std::get<2>(scratch), std::get<3>(scratch), n_elements);
+	m_rand_state = std::get<4>(scratch);
 
 	linear_kernel(init_rand_state, 0, m_stream_ray, n_elements, m_rand_state);
 	sync();
@@ -237,7 +275,9 @@ void RayTracer::init_rays_from_camera(
 		m_render_buffer.frame_buffer(),
 		m_render_buffer.depth_buffer(),
 		m_rays[0].origin,
-		m_rays[0].dir
+		m_rays[0].dir,
+		m_rays[0].rgba,
+		m_rays[0].depth
 	);
 	sync();
 }
@@ -251,6 +291,7 @@ void RayTracer::render(
 	const vec2& screen_center,
 	uint32_t sample_index,
 	const vec2& focal_length,
+	const float& depth_offset,
 	bool snap_to_pixel_centers,
 	const uint8_t* density_grid_bitfield,
 	const GPUMemory<ObjectTransform>& world
@@ -298,11 +339,31 @@ void RayTracer::render(
 		static_cast<size_t>(m_ray_iters),
 		static_cast<size_t>(m_shadow_iters),
 		m_attenuation_coeff,
+		depth_offset,
 		m_rand_state,
-		m_render_buffer.frame_buffer(),
-		m_render_buffer.depth_buffer()
+		m_rays[0].rgba,
+		m_rays[0].depth
 	);
 	sync();
+}
+
+void RayTracer::overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace m_color_space, ngp::ETonemapCurve m_tonemap_curve) {
+	ivec2 res = resolution();
+	const dim3 threads = { 16, 8, 1 };
+	const dim3 blocks = { div_round_up((uint32_t)res.x, threads.x), div_round_up((uint32_t)res.y, threads.y), 1 };
+	overlay_nerf<<<blocks, threads, 0, m_stream_ray>>>(
+		res, 
+		static_cast<int>(syn_px_scale),
+		m_render_buffer.frame_buffer(),
+		m_render_buffer.depth_buffer(),
+		m_rays[0].rgba,
+		m_rays[0].depth,
+		nerf_scene.frame_buffer,
+		nerf_scene.depth_buffer
+	);
+	sync();
+	m_render_buffer.set_color_space(m_color_space);
+	m_render_buffer.set_tonemap_curve(m_tonemap_curve);
 }
 
 void RayTracer::load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu) {

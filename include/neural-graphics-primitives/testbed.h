@@ -207,6 +207,10 @@ public:
 			float glow_y_cutoff,
 			int glow_mode,
 			const float* extra_dims_gpu,
+			vec4* syn_rgba,
+			float* syn_depth,
+			const ivec2& resolution,
+			const size_t& syn_px_scale,
 			cudaStream_t stream
 		);
 
@@ -316,6 +320,8 @@ public:
 		cudaStream_t stream,
 		CudaDevice& device,
 		const CudaRenderBufferView& render_buffer,
+		const CudaRenderBufferView& syn_render_buffer,
+		size_t syn_px_scale,  
 		const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
 		const uint8_t* density_grid_bitfield,
 		const vec2& focal_length,
@@ -377,6 +383,8 @@ public:
 	void render(
 		cudaStream_t stream,
 		Testbed::View& view,
+		const CudaRenderBufferView& syn_render_buffer,
+		size_t syn_px_scale,
 		const GPUMemory<sng::ObjectTransform>& world_objects,
 		const GPUMemory<sng::Light>& world_light,
 		GPUMemory<curandState_t>& rand_states,

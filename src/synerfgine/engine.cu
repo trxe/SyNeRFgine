@@ -207,7 +207,7 @@ void Engine::imgui() {
             m_raytracer.imgui();
             if (ImGui::CollapsingHeader("NeRF", ImGuiTreeNodeFlags_DefaultOpen)) {
                 ImGui::Checkbox("View Virtual Object shadows on NeRF", &m_view_syn_shadow);
-                if (ImGui::SliderFloat("NeRF Epsilon offset", &m_depth_epsilon_shadow, 0.0, 0.010)) {
+                if (ImGui::InputFloat("NeRF Epsilon offset", &m_depth_offset)) {
                     m_is_dirty = true;
                 }
                 auto& view = m_testbed->m_views.front();
@@ -294,8 +294,7 @@ bool Engine::frame() {
     auto nerf_view = view.render_buffer->view();
     __timer.reset();
 
-    // m_testbed->render( m_stream_id, view, d_world, d_lights, d_materials, d_rand_state, m_view_syn_shadow, m_depth_epsilon_shadow);
-
+    bool reset_testbed = m_raytracer.needs_reset();
     vec2 focal_length = m_testbed->calc_focal_length(
         m_raytracer.resolution(),
         m_testbed->m_relative_focal_length, 
@@ -311,16 +310,19 @@ bool Engine::frame() {
         screen_center,
         nerf_view.spp,
         focal_length,
+        m_depth_offset,
         m_testbed->m_snap_to_pixel_centers,
         m_testbed->m_nerf.density_grid_bitfield.data(),
         d_world
     );
-    // m_testbed->render(
-    //     m_stream_id,
-    //     view,
-    //     m_raytracer.render_buffer().depth_buffer(),
 
-    // );
+    auto raytrace_view = m_raytracer.render_buffer().view();
+    if (reset_testbed) {
+        m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_rand_state, m_view_syn_shadow, m_depth_offset );
+        sync(m_stream_id);
+    }
+    // TODO: Create overlay that blends the 2 layers.
+    m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, m_testbed->m_color_space, m_testbed->m_tonemap_curve);
 
     sync(m_stream_id);
     view.prev_camera = view.camera0;

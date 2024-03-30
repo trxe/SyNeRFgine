@@ -21,13 +21,13 @@
     "objfile": [
         {
             "file": "../data/obj/smallbox.obj",
-            "pos" : [ 0.743, 0.602, 0.545 ],
+            "pos" : [ 1.043, 0.602, 0.545 ],
             "scale" : 0.137,
             "material": 0
         },
         {
             "file": "../data/obj/rock.obj",
-            "pos" : [ 0.50, 0.602, 0.545 ],
+            "pos" : [ 0.00, 0.602, 0.545 ],
             "scale" : 0.097,
             "material": 1
         }

@@ -46,6 +46,42 @@ vec2 unwarp(in vec2 pos) {
 }
 
 #define MAX_ND 16384.0
+#define FXAA_EDGE_THRESHOLD 0.750
+#define FXAA_EDGE_THRESHOLD_MIN 0.03125
+float depth_edge_detection(vec4 view_coords, float center_depth, int kernel_size) {
+    int syn_pixel_size = full_resolution.x / syn_resolution.x;
+    float range_min = center_depth;
+    float range_max = center_depth;
+    for (int i = -kernel_size; i <= kernel_size; ++i) {
+        for (int j = -kernel_size; j <= kernel_size; ++j) {
+            float syn_d = textureProjOffset(syn_depth, view_coords, ivec2(i, j) * syn_pixel_size).r;
+            range_min = min(syn_d, range_min);
+            range_max = max(syn_d, range_max);
+        }
+    }
+    float range = range_max - range_min;
+    if (range < max(FXAA_EDGE_THRESHOLD, range_max * FXAA_EDGE_THRESHOLD_MIN)) {
+        return 0.0;
+    }
+    return 1.0;
+}
+
+vec4 blur_kernel(vec4 view_coords, int kernel_size) {
+    float factor = 0.0;
+    vec4 final_color = vec4(0.0);
+    for (int i = -kernel_size; i <= kernel_size; ++i) {
+        for (int j = -kernel_size; j <= kernel_size; ++j) {
+            float nerf_d = textureProjOffset(nerf_depth, view_coords, ivec2(i, j)).r;
+            float syn_d = textureProjOffset(syn_depth, view_coords, ivec2(i, j)).r;
+            vec4 val = syn_d < nerf_d ?
+                textureProjOffset(syn_rgba, view_coords, ivec2(i, j)) :
+                textureProjOffset(nerf_rgba, view_coords, ivec2(i, j));
+            final_color += val;
+            factor += 1.0;
+        }
+    }
+    return final_color / float(factor);
+}
 
 void main() {
     int syn_pixel_size = full_resolution.x / syn_resolution.x;
@@ -54,12 +90,17 @@ void main() {
     tex_coords.y = 1.0 - tex_coords.y;
     tex_coords = unwarp(tex_coords);
     vec4 view_coords = vec4(tex_coords, 1.0, 1.0);
-    vec3 syn = texture(syn_rgba, tex_coords).rgb;
-    vec3 nerf = texture(nerf_rgba, tex_coords).rgb;
+    vec4 syn = texture(syn_rgba, tex_coords);
+    vec4 nerf = texture(nerf_rgba, tex_coords);
     float sd = texture(syn_depth, tex_coords).r;
     float nd = texture(nerf_depth, tex_coords).r;
+    // float bal = (sd - nd >= 0.1) ? 0.0 : (sd - nd) + 0.5;
 
-    frag_color = vec4(mix(syn, nerf, 0.0), 1.0);
-    // frag_color = vec4(sd < nd ? syn : nerf, 1.0);
-    gl_FragDepth = nd;
+    // vec4 blur_color = blur_kernel(view_coords, 2);
+    // vec3 syn_rgb = mix(
+    //     syn.rgb, blur_color.rgb, max(bal, depth_edge_detection(view_coords, sd, 2))
+    // );
+    // frag_color = vec4(sd < MAX_ND ? syn.rgb : nerf.rgb, 1.0);
+    frag_color = vec4(mix(syn.rgb, nerf.rgb, 0.0), 1.0);
+    gl_FragDepth = sd;
 }

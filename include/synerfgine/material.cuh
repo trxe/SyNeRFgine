@@ -23,13 +23,22 @@ enum MaterialType {
 
 struct Material {
     NGP_HOST_DEVICE Material(uint32_t id, const vec3& kd, float rg, float n, MaterialType type) : 
-        id(id), ka(kd), kd(kd), ks(1.0), rg(rg), n(n), type(type) {}
+        id(id), ka(kd * 0.01f), kd(kd), ks(1.0), rg(rg), n(n), type(type) {}
 
     __host__ Material(uint32_t id, const nlohmann::json& config) : id(id), ks(1.0) {
         std::string type_str {config["type"].get<std::string>()}; 
-        auto& a = config["kd"];
-        ka = kd = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
-        ka *= 0.00f;
+        {
+            auto& a = config["kd"];
+            kd = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+        }
+        if (config.count("ka")) {
+            auto& a = config["ka"];
+            ka = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+        }
+        if (config.count("ks")) {
+            auto& a = config["ks"];
+            ks = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+        }
         n  = config["n"].get<float>(); 
         rg = config.count("rg") ? config["rg"].get<float>() : 0.0;
         if (type_str == "lambertian") {
@@ -77,13 +86,6 @@ struct Material {
 
     __device__ vec3 local_color(const vec3& L, const vec3& N, const vec3& R, const vec3& V, const Light& light) const {
         return max(0.0f, dot(L, N)) * kd * light.intensity + pow(max(0.0f, dot(R, V)), n) * ks;
-    }
-
-    __device__ bool scatter(const vec3& normal, const vec3& src_dir, vec3& next_dir, curandState& rand) const {
-        // next_dir = normal + Rand::random_unit_vector(&rand);
-        vec3 dir = normalize(-src_dir);
-        next_dir = reflect(dir, normal);
-        return true;
     }
 
     __device__ bool scatter(const HitRecord& hit_info, const vec3& src_dir, SampledRay& ray) const {

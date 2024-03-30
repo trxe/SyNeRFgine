@@ -49,18 +49,18 @@ __device__ float depth_test_world(const vec3& origin, const vec3& dir, const Obj
             hit_info.material_idx = obj.mat_id;
             hit_info.normal = obj.rot * obj.g_tris[tri_id].normal();
             hit_info.perturb_matrix = obj.g_tris[tri_id].get_perturb_matrix();
-            hit_info.pos = origin + hit_d * dir;
-            hit_info.front_face = dot(dir, hit_info.normal) < 0.0;
             hit_info.object_idx = c;
         }
     }
+    hit_info.pos = origin + hit_info.t * dir;
+    hit_info.front_face = dot(dir, hit_info.normal) < 0.0;
     return hit_info.t;
 }
 
 __device__ float depth_test_nerf(const float& full_d, const uint32_t& n_steps, const float& cone_angle_constant, const vec3& next_pos, const vec3& L,
 	const vec3& invL, const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local
 ) {
-	float nerf_shadow = full_d;
+	float nerf_shadow = 0.0f;
 	for (uint32_t j = 0; j < n_steps; ++j) {
 		nerf_shadow = if_unoccupied_advance_to_next_occupied_voxel(nerf_shadow, cone_angle_constant, {next_pos, L}, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
 		if (nerf_shadow >= full_d) {

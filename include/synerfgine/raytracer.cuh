@@ -65,17 +65,23 @@ struct RaysSoa {
 	void copy_from_other_async(const RaysSoa& other, cudaStream_t stream) {
 		CUDA_CHECK_THROW(cudaMemcpyAsync(origin, other.origin, size * sizeof(vec3), cudaMemcpyDeviceToDevice, stream));
 		CUDA_CHECK_THROW(cudaMemcpyAsync(dir, other.dir, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(rgba, other.rgba, size * sizeof(vec4), cudaMemcpyDeviceToDevice, stream));
+		CUDA_CHECK_THROW(cudaMemcpyAsync(depth, other.depth, size * sizeof(float), cudaMemcpyDeviceToDevice, stream));
 	}
 #endif
 
-	void set(vec3* origin, vec3* dir, size_t size) {
+	void set(vec3* origin, vec3* dir, vec4* rgba, float* depth, size_t size) {
 		this->origin = origin;
 		this->dir = dir;
+		this->rgba = rgba;
+		this->depth = depth;
 		this->size = size;
 	}
 
 	vec3* origin;
 	vec3* dir;
+	vec4* rgba;
+	float* depth;
 	size_t size;
 };
 
@@ -99,6 +105,7 @@ class RayTracer {
 		RaysSoa& rays_init() { return m_rays[0]; }
 		uint32_t n_rays_initialized() const { return m_n_rays_initialized; }
 		void reset_accumulation() { m_reset_color_buffer = true; }
+		bool needs_reset() const { return m_reset_color_buffer; }
 		ivec2 resolution() const { 
 			return m_render_buffer.out_resolution(); 
 		}
@@ -111,11 +118,13 @@ class RayTracer {
 			const vec2& screen_center,
 			uint32_t sample_index,
 			const vec2& focal_length,
+			const float& depth_offset,
 			bool snap_to_pixel_centers,
 			const uint8_t* density_grid_bitfield,
 			const GPUMemory<ObjectTransform>& world
 		);
 
+		void overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace m_color_space, ngp::ETonemapCurve m_tonemap_curve);
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
 
 		void sync() {

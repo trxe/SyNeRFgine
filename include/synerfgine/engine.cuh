@@ -76,7 +76,7 @@ private:
     GPUMemory<Light> d_lights;
     GPUMemory<curandState_t> d_rand_state;
     bool m_view_syn_shadow{true};
-    float m_depth_epsilon_shadow{0.023f};
+    float m_depth_offset{0.0};
     vec3 m_default_at_pos{0.0};
     vec3 m_default_view_dir{0.0};
     float m_default_zoom{1.0f};
