@@ -1,12 +1,18 @@
 {
     "camera" : {
-        "view" : [0.764,-0.359,-0.535],
-        "at" : [0.570,0.919,-0.345],
-        "zoom" : 6.150,
+        "view" : [0.612,-0.105,-0.784],
+        "at" : [0.525,0.621,0.090],
+        "zoom" : 2.608,
         "clear_color" : [1.0, 0.0, 0.0],
-        "probe_resolution": 300,
         "path_trace_depth": 2,
         "show_ui": false
+    },
+    "rendering" : {
+        "res_factor" : 8,
+        "exposure" : 1.202,
+        "buffer_filter" : "Final",
+        "nerf_filter" : "Shade",
+        "tonemap" : "Hable"
     },
     "shader" : {
         "nerf_blur_kernel_size": 0,
@@ -14,9 +20,10 @@
     },
     "lights": [
         {
-            "pos" : [ -0.189, 1.678, -0.028 ],
+            "pos" : [0.000, 0.244, 0.874],
             "size" : 0.00,
-            "intensity" : 1.0
+            "intensity" : 1.0,
+            "type": "point"
         }
     ],
     "objfile": [

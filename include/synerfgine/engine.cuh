@@ -41,7 +41,7 @@ private:
     Testbed::View& nerf_render_buffer_view() {
         auto& view = m_testbed->m_views.front();
         view.device = &(m_testbed->primary_device());
-        view.full_resolution = m_testbed->m_window_res;
+        view.full_resolution = view.render_buffer->view().resolution;
         view.camera0 = m_testbed->m_smoothed_camera;
         // Motion blur over the fraction of time that the shutter is open. Interpolate in log-space to preserve rotations.
         view.camera1 = m_testbed->m_camera_path.rendering ? camera_log_lerp(m_testbed->m_smoothed_camera, m_testbed->m_camera_path.render_frame_end_camera, m_testbed->m_camera_path.render_settings.shutter_fraction) : view.camera0;
@@ -63,7 +63,7 @@ private:
     Testbed* m_testbed;
     Display m_display;
     ivec2 m_next_frame_resolution;
-    float m_factor_constant{5.0};
+    float m_factor_constant{8.0f};
     fs::path m_output_dest;
 
     RayTracer m_raytracer;
@@ -92,7 +92,7 @@ private:
 
     INIT_BENCHMARK();
 	float m_render_ms{30.0f};
-	float m_last_target_fps{0.0f};
+	float m_last_res_factor{0.0f};
 
     // for imguizmo
     WorldObjectType m_transform_type{WorldObjectType::None};
@@ -108,8 +108,11 @@ private:
     bool m_enable_animations{false};
     bool m_enable_reflections{false};
     float m_anim_speed{1.0f};
-    float m_nerf_shadow_brightness{0.3f};
-    float m_syn_shadow_brightness{2.0f};
+    float m_nerf_shadow_brightness{2.0f};
+    float m_syn_shadow_brightness{0.3f};
+
+    nlohmann::json default_nerf_settings;
+    int m_default_fixed_res_factor{64};
 
     cudaStream_t m_stream_id;
 

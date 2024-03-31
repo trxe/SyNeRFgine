@@ -8,14 +8,26 @@
 
 namespace sng {
 
+enum LightType {
+    Point,
+    Directional,
+};
+
 struct Light {
-    __host__ Light(uint32_t id, const nlohmann::json& config) : id(id), color(1.0) {
+    __host__ Light(uint32_t id, const nlohmann::json& config) : id(id), color(1.0), type(LightType::Point) {
         // std::string type_str {config["type"].get<std::string>()}; 
         auto& a = config["pos"];
         pos = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
         intensity  = config["intensity"].get<float>(); 
         size  = config["size"].get<float>(); 
-        tlog::success() << "Set point light position " << pos << " at intensity " << intensity;
+        std::string type_str = "point";
+        if (config.count("type")) {
+            type_str = config["type"].get<std::string>();
+            if (type_str == "point") type = LightType::Point;
+            else if (type_str == "directional") type = LightType::Directional;
+            else throw std::runtime_error(fmt::format("{} light not recognized", type_str.c_str()));
+        }
+        tlog::success() << "Set " << type_str << " light position " << pos << " at intensity " << intensity;
     }
 
     __host__ void imgui() {
@@ -49,6 +61,7 @@ struct Light {
     uint32_t id;
     vec3 pos;
     vec3 color;
+    LightType type;
     float intensity;
     float size;
     bool is_dirty{true};

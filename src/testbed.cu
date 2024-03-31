@@ -4353,12 +4353,14 @@ void Testbed::render(
 	size_t syn_px_scale,
 	const GPUMemory<sng::ObjectTransform>& world_objects,
 	const GPUMemory<sng::Light>& world_lights,
+	const GPUMemory<sng::Material>& world_materials,
 	GPUMemory<curandState_t>& rand_states,
 	GPUMemory<vec3>& nerf_normals,
 	GPUMemory<vec3>& nerf_positions,
 	bool show_shadow,
 	float nerf_shadow_brightness,
-	float syn_shadow_brightness
+	float syn_shadow_brightness,
+	const size_t& shadow_samples
 ) {
 	if (!m_network) {
 		return;
@@ -4385,7 +4387,8 @@ void Testbed::render(
 			nerf_positions, syn_px_scale, m_nerf_network, m_nerf.density_grid_bitfield.data(), focal_length, 
 			view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
 		if (show_shadow) {
-			shade_nerf_shadows(stream, *view.device, view.camera0, view.render_buffer->view(), nerf_normals, nerf_positions,  world_objects, world_lights, rand_states, nerf_shadow_brightness, syn_shadow_brightness);
+			shade_nerf_shadows(stream, *view.device, view.camera0, view.render_buffer->view(), nerf_normals, nerf_positions,  world_objects, world_lights, 
+				world_materials, rand_states, nerf_shadow_brightness, syn_shadow_brightness, shadow_samples);
 		}
 		// render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
 		// 	focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);

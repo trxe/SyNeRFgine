@@ -174,6 +174,7 @@ int main_func(const std::vector<std::string>& arguments) {
 	}
 
 	testbed.m_train = !no_train_flag;
+	testbed.m_dynamic_res = false;
 
 #ifdef NGP_GUI
 	bool gui = !no_gui_flag;

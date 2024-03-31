@@ -221,23 +221,22 @@ __global__ void overlay_nerf(ivec2 syn_res,
 
 	ivec2 nerf_res = syn_res / syn_px_scale;
 	ivec2 sc = {x, y};
+	int sid = sc.x + sc.y * syn_res.x;
 	ivec2 nc = sc / syn_px_scale;
+	int nid = nc.x + nc.y * nerf_res.x;
 
-	vec4 srgba = syn_rgba[sc.x + sc.y * syn_res.x];
-	float sdepth = syn_depth[sc.x + sc.y * syn_res.x];
-	vec4 nrgba = nerf_rgba[nc.x + nc.y * nerf_res.x];
-	float ndepth = nerf_depth[nc.x + nc.y * nerf_res.x];
+	vec4 srgba = syn_rgba[sid];
+	float sdepth = syn_depth[sid];
+	vec4 nrgba = nerf_rgba[nid];
+	float ndepth = nerf_depth[nid];
 
-	// DEBUG
-	// if (sdepth < ndepth) return;
-	// final_rgba[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? srgba : nrgba;
-	// final_depth[sc.x + sc.y * syn_res.x] = sdepth < ndepth ? sdepth : ndepth;
+	auto& rgba_to_use = sdepth < ndepth ? srgba : nrgba;
+	auto& depth_to_use = sdepth < ndepth ? sdepth : ndepth;
+	rgba_to_use.rgb() *= pow(vec3(2.0f), exposure);
+	rgba_to_use.rgb() = sng_tonemap(rgba_to_use.rgb(), tonemap_curve);
+	final_rgba[sid] = color_space == EColorSpace::SRGB ? vec4(linear_to_srgb(rgba_to_use.rgb()), rgba_to_use.a) : rgba_to_use;
+	final_depth[sid] = depth_to_use;
 
-	// 2. applying exposure in linear space
-	// srgba.rgb() *= pow(vec3(2.0f), exposure);
-	srgba.rgb() = sng_tonemap(srgba.rgb(), tonemap_curve);
-	final_rgba[sc.x + sc.y * syn_res.x] = color_space == EColorSpace::SRGB ? vec4(linear_to_srgb(srgba.rgb()), srgba.a) : srgba;
-	final_depth[sc.x + sc.y * syn_res.x] = sdepth;
 }
 
 void RayTracer::enlarge(const ivec2& res) {

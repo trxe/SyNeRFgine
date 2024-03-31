@@ -45,15 +45,15 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("attenuation")) {
             m_raytracer.m_attenuation_coeff = cam_conf["attenuation"];
         }
+        if (cam_conf.count("res_factor")) {
+            m_default_fixed_res_factor = cam_conf["res_factor"];
+        }
     }
     if (config.count("output")) {
         nlohmann::json& output_conf = config["output"];
         m_output_dest = output_conf["folder"];
         if (output_conf.count("img_count")) {
             m_display.m_img_count_max = output_conf["img_count"];
-        }
-        if (output_conf.count("res_factor")) {
-            m_factor_constant = output_conf["res_factor"];
         }
     }
     if (config.count("shader")) {
@@ -164,14 +164,15 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     }
     m_stream_id = device.stream();
     m_testbed->m_imgui.enabled = m_show_ui;
+    m_testbed->m_fixed_res_factor = m_default_fixed_res_factor;
 }
 
 void Engine::resize() {
     m_display.set_window_res(m_next_frame_resolution);
     m_testbed->m_window_res = m_next_frame_resolution;
     auto& view = nerf_render_buffer_view();
-    m_last_target_fps = m_testbed->m_dynamic_res_target_fps;
-    float factor = min (1.0f, m_factor_constant / m_testbed->m_dynamic_res_target_fps);
+    m_last_res_factor = m_testbed->m_fixed_res_factor;
+    float factor = min (1.0f, m_factor_constant / m_testbed->m_fixed_res_factor);
     // tlog::success() << "Scaling full resolution by " << factor;
     auto new_res = downscale_resolution(m_next_frame_resolution, factor);
     view.resize(new_res);
@@ -182,7 +183,9 @@ void Engine::resize() {
     d_nerf_positions.resize(new_res_count);
     sync(m_stream_id);
 
-    m_raytracer.enlarge(min(scale_resolution(new_res, (float) m_relative_vo_scale), m_next_frame_resolution));
+    auto rt_res = min(scale_resolution(new_res, (float) m_relative_vo_scale), m_next_frame_resolution);
+    m_raytracer.enlarge(rt_res);
+    m_relative_vo_scale = rt_res.r / new_res.r;
 }
 
 void Engine::imgui() {
@@ -246,12 +249,6 @@ void Engine::imgui() {
             if (ImGui::SliderFloat("Shadows of Syn Brightness", &m_syn_shadow_brightness, MIN_DEPTH(), 1.0f)) { 
                 m_is_dirty = true;
             }
-            // ImGui::SliderInt("nerf_expand_mult", &m_display.m_nerf_expand_mult, 0, 20);
-            // ImGui::SliderInt("nerf_blur_kernel_size", &m_display.m_nerf_blur_kernel_size, 0, 20);
-            // ImGui::SliderInt("syn_blur_kernel_size", &m_display.m_syn_blur_kernel_size, 0, 20);
-            // ImGui::SliderFloat("nerf_shadow_blur_threshold", &m_display.m_nerf_shadow_blur_threshold, 0.0, 1.0);
-            // ImGui::SliderFloat("syn_sigma", &m_display.m_syn_sigma, 1.0, 32.0);
-            // ImGui::SliderFloat("syn_bsigma", &m_display.m_syn_bsigma, 0.0, 4.0);
         }
         if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat("speed", &m_anim_speed, 0.01, 4.0);
@@ -285,7 +282,7 @@ bool Engine::frame() {
     imgui();
     ivec2 curr_window_res = m_display.get_window_res();
     if (curr_window_res != m_next_frame_resolution || !m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter || 
-            m_last_target_fps != m_testbed->m_dynamic_res_target_fps) {
+            m_last_res_factor != m_testbed->m_fixed_res_factor) {
         resize();
     }
     sync(m_stream_id);
@@ -326,8 +323,8 @@ bool Engine::frame() {
     );
 
     auto raytrace_view = m_raytracer.render_buffer().view();
-    m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_nerf_rand_state, d_nerf_normals, 
-        d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_syn_shadow_brightness );
+    m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_materials, d_nerf_rand_state, d_nerf_normals, 
+        d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_syn_shadow_brightness, m_raytracer.m_shadow_iters );
     sync(m_stream_id);
     // TODO: Create overlay that blends the 2 layers.
     m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure);

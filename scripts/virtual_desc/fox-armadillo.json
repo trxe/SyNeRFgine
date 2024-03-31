@@ -16,6 +16,12 @@
             "pos" : [-0.042, 1.708, 1.547],
             "size" : 0.04,
             "intensity" : 1.0
+        },
+        {
+            "pos" : [-0.042, 1.708, 1.547],
+            "size" : 0.04,
+            "intensity" : 1.0,
+            "type" : "Directional"
         }
     ],
     "objfile": [

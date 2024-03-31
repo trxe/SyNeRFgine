@@ -44,6 +44,7 @@
 #include <thread>
 #include <synerfgine/common.cuh>
 #include <synerfgine/light.cuh>
+#include <synerfgine/material.cuh>
 
 struct GLFWwindow;
 
@@ -325,9 +326,11 @@ public:
 		GPUMemory<vec3>& nerf_positions,
 		const GPUMemory<sng::ObjectTransform>& world_objects,
 		const GPUMemory<sng::Light>& world_light,
+		const GPUMemory<sng::Material>& world_materials,
 		GPUMemory<curandState_t>& rand_states,
-	const float& nerf_shadow_brightness,
-	const float& syn_shadow_brightness
+		const float& nerf_shadow_brightness,
+		const float& syn_shadow_brightness,
+		const size_t& shadow_samples
 	);
 	void render_nerf_with_buffers(
 		cudaStream_t stream,
@@ -397,12 +400,14 @@ public:
 		size_t syn_px_scale,
 		const GPUMemory<sng::ObjectTransform>& world_objects,
 		const GPUMemory<sng::Light>& world_light,
+		const GPUMemory<sng::Material>& world_materials,
 		GPUMemory<curandState_t>& rand_states,
 		GPUMemory<vec3>& nerf_normals,
 		GPUMemory<vec3>& nerf_positions,
 		bool show_shadow,
 		float nerf_shadow_brightness,
-		float syn_shadow_brightness
+		float syn_shadow_brightness,
+		const size_t& shadow_samples
 	);
 
 	void render_frame(
@@ -641,7 +646,7 @@ public:
 	ivec2 m_window_res = ivec2(0);
 	bool m_dynamic_res = true;
 	float m_dynamic_res_target_fps = 20.0f;
-	int m_fixed_res_factor = 8;
+	int m_fixed_res_factor = 64;
 	float m_scale = 1.0;
 	float m_aperture_size = 0.0f;
 	vec2 m_relative_focal_length = vec2(1.0f);

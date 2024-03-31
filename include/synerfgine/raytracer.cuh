@@ -143,7 +143,7 @@ class RayTracer {
 		int m_n_steps{8};
 		int m_samples = 2;
 		int m_ray_iters = 2;
-		int m_shadow_iters = 1;
+		int m_shadow_iters = 4;
 		float m_attenuation_coeff = 1.0f;
 
 	private:

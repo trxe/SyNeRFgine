@@ -29,6 +29,10 @@ __host__ __device__ inline float ffmax(float a, float b) { return a > b ? a : b;
 __host__ __device__ inline vec3 reflect(const vec3& incident, const vec3& normal) { 
     return 2.0f * dot(incident, normal) * normal - incident;
 }
+__host__ __device__ inline vec3 cone_random(const vec3& orig, const mat3& perturb_frame, float longi, float latid) {
+    vec3 offset = {cos(longi) * sin(latid), sin(longi) * sin(latid), cos(longi)};
+    return orig + perturb_frame * offset;
+}
 __host__ __device__ inline vec3 cone_random(const vec3& orig, const vec3& up, float longi, float latid) {
     const vec3& N = normalize(orig);
     vec3 B = normalize(cross(N, up));
@@ -37,9 +41,9 @@ __host__ __device__ inline vec3 cone_random(const vec3& orig, const vec3& up, fl
     vec3 offset = {cos(longi) * sin(latid), sin(longi) * sin(latid), cos(longi)};
     return orig + perturb_frame * offset;
 }
-__host__ __device__ inline mat3 get_perturb_matrix(const vec3& tangent, const vec3& binormal) {
+__host__ __device__ inline mat3 get_perturb_matrix(const vec3& tangent, const vec3& normal) {
     const vec3 T = normalize(tangent);
-    const vec3 N = normalize(cross(T, binormal));
+    const vec3 N = normalize(normal);
     const vec3 B = normalize(cross(N, T));
     return {T, B, N};
 }

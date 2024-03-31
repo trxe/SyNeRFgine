@@ -23,7 +23,7 @@ enum MaterialType {
 
 struct Material {
     NGP_HOST_DEVICE Material(uint32_t id, const vec3& kd, float rg, float n, MaterialType type) : 
-        id(id), ka(kd * 0.01f), kd(kd), ks(1.0), rg(rg), n(n), type(type) {}
+        id(id), kd(kd), ka(kd * 0.01f), ks(1.0), rg(rg), n(n), type(type) {}
 
     __host__ Material(uint32_t id, const nlohmann::json& config) : id(id), ks(1.0) {
         std::string type_str {config["type"].get<std::string>()}; 
@@ -116,11 +116,11 @@ struct Material {
     }
 
     uint32_t id;
-    vec3 ka;
-    vec3 kd;
-    vec3 ks;
-    float n;
-    float rg;
+    vec3 ka{0.0};
+    vec3 kd{0.0};
+    vec3 ks{1.0};
+    float n{1};
+    float rg{0.9};
     MaterialType type;
     bool is_dirty{true};
 };
