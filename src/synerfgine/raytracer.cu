@@ -19,20 +19,24 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 	for (size_t l = 0; l < light_count; ++l) {
 		const Light& light = lights[l];
 		for (size_t s = 0; s < shadow_count; ++s) {
-			// vec3 lpos = light.sample(rand_state);
-			vec3 lpos = light.sample();
-
-			L = lpos - hit_info.pos;
-			float full_dist = length(L);
-			L = normalize(L);
-			vec3 invL = vec3(1.0f) / L;
-			int32_t obj_hit = -1; 
-			float syn_shadow = depth_test_world(hit_info.pos, L, objects, object_count, hit_info.object_idx, obj_hit);
-			float nerf_shadow = depth_test_nerf(syn_shadow + 1.0, n_steps, cone_angle_constant, hit_info.pos, L, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
-			float shadow_mask = smoothstep(min(min(nerf_shadow, syn_shadow), full_dist) / full_dist);
-			vec3 R = reflect(L, hit_info.normal);
-			vec3 V = normalize(-wi);
-			color.rgb() += material.local_color(L, hit_info.normal, R, V, light) * shadow_mask;
+			if (light.type == LightType::Point) {
+				// vec3 lpos = light.sample(rand_state);
+				vec3 lpos = light.sample();
+				L = lpos - hit_info.pos;
+				float full_dist = length(L);
+				L = normalize(L);
+				vec3 invL = vec3(1.0f) / L;
+				int32_t obj_hit = -1; 
+				float syn_shadow = depth_test_world(hit_info.pos, L, objects, object_count, hit_info.object_idx, obj_hit);
+				float nerf_shadow = depth_test_nerf(syn_shadow + 1.0, n_steps, cone_angle_constant, hit_info.pos, L, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+				float shadow_mask = smoothstep(min(min(nerf_shadow, syn_shadow), full_dist) / full_dist);
+				vec3 R = reflect(L, hit_info.normal);
+				vec3 V = normalize(-wi);
+				color.rgb() += material.local_color(L, hit_info.normal, R, V, light) * shadow_mask;
+			} else if (light.type == LightType::Directional) {
+				const vec3& L = normalize(-light.pos);
+				color.rgb() += dot(L, hit_info.normal) * material.kd * light.intensity;
+			}
 		}
 	}
 	color.rgb() /= (float) shadow_count;
@@ -292,7 +296,6 @@ void RayTracer::init_rays_from_camera(
 
 void RayTracer::render(
 	std::vector<VirtualObject>& h_vo, 
-	std::vector<LightProbe>& light_probes, 
 	const GPUMemory<Material>& materials, 
 	const GPUMemory<Light>& lights, 
 	const Testbed::View& view, 
@@ -316,13 +319,6 @@ void RayTracer::render(
 		);
 		m_reset_color_buffer = false;
 	}
-	std::vector<LightProbeData> probe_data;
-	for (auto& probe : light_probes) {
-		probe_data.push_back(probe.data());
-	}
-	GPUMemory<LightProbeData> g_light_probes;
-	g_light_probes.resize_and_copy_from_host(probe_data);
-
 	linear_kernel(raytrace, 0, m_stream_ray, n_elements,
 		m_rays[0].origin,
 		m_rays[0].dir,

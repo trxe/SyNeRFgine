@@ -10,7 +10,7 @@
 #include <synerfgine/material.cuh>
 #include <synerfgine/raytracer.cuh>
 #include <synerfgine/virtual_object.cuh>
-#include <synerfgine/probe.cuh>
+#include <synerfgine/cam_path.cuh>
 
 #include <string>
 #include <vector>
@@ -70,7 +70,6 @@ private:
     std::vector<Material> m_materials;
     std::vector<VirtualObject> m_objects;
     std::vector<Light> m_lights;
-    std::vector<LightProbe> m_probes;
     GPUMemory<ObjectTransform> d_world;
     GPUMemory<Material> d_materials;
     GPUMemory<Light> d_lights;
@@ -83,7 +82,6 @@ private:
     vec3 m_default_view_dir{0.0};
     float m_default_zoom{1.0f};
     vec3 m_default_clear_color{0.0};
-    ivec2 m_probe_resolution{32, 32};
 
     std::vector<vec4> m_nerf_rgba_cpu;
     std::vector<float> m_nerf_depth_cpu;
@@ -113,6 +111,7 @@ private:
 
     nlohmann::json default_nerf_settings;
     int m_default_fixed_res_factor{64};
+    CamPath m_camera_path;
 
     cudaStream_t m_stream_id;
 

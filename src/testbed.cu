@@ -670,6 +670,8 @@ void Testbed::imgui() {
 	//   ImGui::OpenPopup("Error");
 	static std::string imgui_error_string = "";
 
+	// DO NOT USE THE CAMERA PATH PROVIDED
+	/*
 	m_picture_in_picture_res = 0;
 	if (ImGui::Begin("Camera path", 0, ImGuiWindowFlags_NoScrollbar)) {
 		if (ImGui::CollapsingHeader("Path manipulation", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -782,6 +784,7 @@ void Testbed::imgui() {
 		}
 	}
 	ImGui::End();
+	*/
 
 
 	bool train_extra_dims = m_nerf.training.dataset.n_extra_learnable_dims > 0;
@@ -1481,13 +1484,13 @@ void Testbed::imgui() {
 			vec3 u = m_up_dir;
 			vec4 b = m_background_color;
 			snprintf(buf, sizeof(buf),
-				"testbed.background_color = [%0.3f, %0.3f, %0.3f, %0.3f]\n"
-				"testbed.exposure = %0.3f\n"
-				"testbed.sun_dir = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.up_dir = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.view_dir = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.look_at = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.scale = %0.3f\n"
+				"\"background_color\" : [%0.3f, %0.3f, %0.3f, %0.3f],\n"
+				"\"exposure\" : %0.3f,\n"
+				"\"sun\" : [%0.3f,%0.3f,%0.3f],\n"
+				"\"up\" : [%0.3f,%0.3f,%0.3f],\n"
+				"\"view\" : [%0.3f,%0.3f,%0.3f],\n"
+				"\"at\" : [%0.3f,%0.3f,%0.3f],\n"
+				"\"zoom\" : %0.3f,\n"
 				"testbed.fov,testbed.aperture_size,testbed.slice_plane_z = %0.3f,%0.3f,%0.3f\n"
 				"testbed.autofocus_target = [%0.3f,%0.3f,%0.3f]\n"
 				"testbed.autofocus = %s\n\n"

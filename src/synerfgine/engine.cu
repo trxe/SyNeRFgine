@@ -33,9 +33,6 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("animation_speed")) {
             m_anim_speed = cam_conf["animation_speed"];
         }
-        if (cam_conf.count("probe_resolution")) {
-            m_probe_resolution.y = m_probe_resolution.x = cam_conf["probe_resolution"];
-        }
         if (cam_conf.count("path_trace_depth")) {
             m_raytracer.m_ray_iters = cam_conf["path_trace_depth"];
         }
@@ -48,6 +45,7 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("res_factor")) {
             m_default_fixed_res_factor = cam_conf["res_factor"];
         }
+        m_camera_path = sng::CamPath(cam_conf);
     }
     if (config.count("output")) {
         nlohmann::json& output_conf = config["output"];
@@ -84,7 +82,6 @@ void Engine::set_virtual_world(const std::string& config_fp) {
     nlohmann::json& obj_conf = config["objfile"];
     for (uint32_t i = 0; i < obj_conf.size(); ++i) {
         m_objects.emplace_back(i, obj_conf[i]);
-        m_probes.emplace_back();
     }
     nlohmann::json& light_conf = config["lights"];
     for (uint32_t i = 0; i < light_conf.size(); ++i) {
@@ -250,6 +247,9 @@ void Engine::imgui() {
                 m_is_dirty = true;
             }
         }
+        if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
+            m_camera_path.imgui(*m_testbed);
+        }
         if (ImGui::CollapsingHeader("Animation", ImGuiTreeNodeFlags_DefaultOpen)) {
             ImGui::SliderFloat("speed", &m_anim_speed, 0.01, 4.0);
         }
@@ -287,6 +287,7 @@ bool Engine::frame() {
     }
     sync(m_stream_id);
     m_testbed->handle_user_input();
+    m_camera_path.update(*m_testbed);
     if (m_testbed && m_testbed->m_syn_camera_reset) {
         m_raytracer.reset_accumulation();
         m_testbed->m_syn_camera_reset = false;
@@ -309,7 +310,6 @@ bool Engine::frame() {
     vec2 screen_center = m_testbed->render_screen_center(view.screen_center);
     m_raytracer.render(
         m_objects,
-        m_probes,
         d_materials,
         d_lights,
         view, 
@@ -326,7 +326,6 @@ bool Engine::frame() {
     m_testbed->render( m_stream_id, view, raytrace_view, m_relative_vo_scale, d_world, d_lights, d_materials, d_nerf_rand_state, d_nerf_normals, 
         d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_syn_shadow_brightness, m_raytracer.m_shadow_iters );
     sync(m_stream_id);
-    // TODO: Create overlay that blends the 2 layers.
     m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure);
 
     sync(m_stream_id);

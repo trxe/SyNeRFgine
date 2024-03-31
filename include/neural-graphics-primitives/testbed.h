@@ -60,6 +60,8 @@ template <uint32_t N_DIMS, uint32_t RANK, typename T> class TrainableBuffer;
 namespace sng {
 class Engine;
 class LightProbe;
+class CamPath;
+class CamKeyframe;
 }
 
 namespace ngp {
@@ -73,6 +75,7 @@ class GLTexture;
 class Testbed {
 public:
 	friend class sng::Engine;
+	friend class sng::CamKeyframe;
 	struct View;
 	Testbed(ETestbedMode mode = ETestbedMode::None);
 	~Testbed();

@@ -111,7 +111,6 @@ class RayTracer {
 		}
 		void render(
 			std::vector<VirtualObject>& h_vo, 
-			std::vector<LightProbe>& light_probes, 
 			const GPUMemory<Material>& materials, 
 			const GPUMemory<Light>& lights, 
 			const Testbed::View& view, 
@@ -148,7 +147,6 @@ class RayTracer {
 
 	private:
 		RaysSoa m_rays[1];
-		// RaysSoa m_rays_hit;
         CudaRenderBuffer m_render_buffer {m_rgba_texture, m_depth_texture};
 		uint32_t* m_hit_counter;
 		uint32_t* m_alive_counter;

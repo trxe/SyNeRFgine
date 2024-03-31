@@ -1624,34 +1624,6 @@ __global__ void shade_with_shadow(
 	sum_shadow_depth /= (float)shadow_samples;
 	vec4& tmp = rgba[idx];
 	rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
-
-	// add some global illum refl
-	// if (tex_coord.y < resolution.y - 1) {
-	// 	vec3 tangent = normalize(pos - positions[idx + resolution.x]);
-	// 	vec3 binormal = cross(normal, tangent);
-	// 	mat3 perturb = {tangent, binormal, normal};
-	// 	// float longi = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI;
-	// 	float latid = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI;
-	// 	vec3 reflection = sng::cone_random(normal, perturb, 0.0, latid);
-	// 	if (render_mode == ERenderMode::ShadowDepth) {
-	// 		tmp.rgb() = reflection;
-	// 	}
-	// 	sng::HitRecord hit_info;
-	// 	int32_t hit_obj_id = -1;
-	// 	float syn_depth = sng::depth_test_world(pos, reflection, objs, obj_count, hit_obj_id, hit_info);
-	// 	if (hit_obj_id < 0) return;
-	// 	for (uint32_t i = 0; i < light_count; ++i) {
-	// 		const sng::Light& light = lights[i];
-	// 		const vec3 lpos = light.sample();
-	// 		const vec3 L = normalize(lpos - pos);
-	// 		float n_dot_l = dot(L, hit_info.normal);
-	// 		if (dot(L, hit_info.normal) < 0.0) return;
-	// 		vec3 V = hit_info.pos - pos;
-	// 		float n_dot_v = dot(normal, normalize(V));
-	// 		float attenuation = min(0.5, 1.0f / length2(V));
-	// 		tmp.rgb() += n_dot_l * materials[hit_info.material_idx].kd * n_dot_v * attenuation * syn_shadow_brightness;
-	// 	}
-	// }
 }
 
 __global__ void shade_kernel_nerf(
