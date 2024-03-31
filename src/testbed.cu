@@ -910,7 +910,6 @@ void Testbed::imgui() {
 	if (m_dlss_provider) {
 		n_bytes += m_dlss_provider->allocated_bytes();
 	}
-
 	ImGui::Text("Frame: %.2f ms (%.1f FPS); Mem: %s", m_frame_ms.ema_val(), 1000.0f / m_frame_ms.ema_val(), bytes_to_string(n_bytes).c_str());
 	bool accum_reset = false;
 
@@ -4352,7 +4351,8 @@ __global__ void vr_overlay_hands_kernel(
 void Testbed::render(
 	cudaStream_t stream,
 	Testbed::View& view,
-	const CudaRenderBufferView& syn_render_buffer,
+	vec4* syn_rgba,
+	float* syn_depth,
 	size_t syn_px_scale,
 	const GPUMemory<sng::ObjectTransform>& world_objects,
 	const GPUMemory<sng::Light>& world_lights,
@@ -4386,7 +4386,7 @@ void Testbed::render(
 	vec2 screen_center = render_screen_center(view.screen_center);
 
 	if (!m_render_ground_truth && m_testbed_mode == ETestbedMode::Nerf) {
-		render_nerf_with_buffers(stream, *view.device, view.render_buffer->view(), syn_render_buffer, nerf_normals, 
+		render_nerf_with_buffers(stream, *view.device, view.render_buffer->view(), syn_rgba, syn_depth, nerf_normals, 
 			nerf_positions, syn_px_scale, m_nerf_network, m_nerf.density_grid_bitfield.data(), focal_length, 
 			view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
 		if (show_shadow) {

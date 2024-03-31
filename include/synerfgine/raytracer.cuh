@@ -109,6 +109,8 @@ class RayTracer {
 		ivec2 resolution() const { 
 			return m_render_buffer.out_resolution(); 
 		}
+		vec4* get_tmp_frame_buffer() { return m_rays[0].rgba; }
+		float* get_tmp_depth_buffer() { return m_rays[0].depth; }
 		void render(
 			std::vector<VirtualObject>& h_vo, 
 			const GPUMemory<Material>& materials, 

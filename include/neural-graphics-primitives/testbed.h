@@ -339,7 +339,8 @@ public:
 		cudaStream_t stream,
 		CudaDevice& device,
 		const CudaRenderBufferView& render_buffer,
-		const CudaRenderBufferView& syn_render_buffer,
+		vec4* syn_rgba,
+		float* syn_depth,
 		GPUMemory<vec3>& nerf_normals,
 		GPUMemory<vec3>& nerf_positions,
 		size_t syn_px_scale,  
@@ -399,7 +400,8 @@ public:
 	void render(
 		cudaStream_t stream,
 		Testbed::View& view,
-		const CudaRenderBufferView& syn_render_buffer,
+		vec4* syn_rgba,
+		float* syn_depth,
 		size_t syn_px_scale,
 		const GPUMemory<sng::ObjectTransform>& world_objects,
 		const GPUMemory<sng::Light>& world_light,
@@ -679,6 +681,8 @@ public:
 
 	ERenderMode m_render_mode = ERenderMode::Shade;
 	EMeshRenderMode m_mesh_render_mode = EMeshRenderMode::VertexNormals;
+	int sng_position_kernel_size = 1;
+	float sng_position_kernel_threshold = 0.3f;
 
 	uint32_t m_seed = 1337;
 

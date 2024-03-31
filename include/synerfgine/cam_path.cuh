@@ -78,9 +78,6 @@ public:
             is_playing = false;
         }
 
-        // HAPPENS EVERY FRAME!!
-        if (is_playing) advance_frame(testbed);
-
         if (ImGui::InputInt("Duration", &total_time_ms)) {
             update_cam_path();
         }
@@ -105,8 +102,7 @@ public:
         if (config.count("fps")) {
             fps = config["fps"];
         }
-        total_frames = total_time_ms / fps;
-        frames_between_keyframes = total_frames / max((int)keyframes.size(), 1);
+        total_frames = total_time_ms * fps / 1000;
         if (config.count("move_on_start")) is_playing = config["move_on_start"].get<bool>();
         if (config.count("path")) {
             auto& path_conf = config["path"];
@@ -114,6 +110,7 @@ public:
                 keyframes.emplace_back(static_cast<uint32_t>(keyframes.size()), p);
             }
         }
+        frames_between_keyframes = total_frames / max((int)keyframes.size() - 1, 1);
     }
 
     void update(Testbed& testbed) {

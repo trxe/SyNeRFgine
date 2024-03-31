@@ -45,6 +45,8 @@ void main() {
     vec4 view_coords = vec4(tex_coords, 1.0, 1.0);
     vec4 syn = texture(syn_rgba, tex_coords);
     float sd = texture(syn_depth, tex_coords).r;
+    // vec4 nerf = texture(nerf_rgba, tex_coords);
+    // float nd = texture(nerf_depth, tex_coords).r;
     frag_color = vec4(syn.rgb, 1.0);
     gl_FragDepth = sd;
 }

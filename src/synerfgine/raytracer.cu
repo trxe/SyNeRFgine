@@ -234,7 +234,7 @@ __global__ void overlay_nerf(ivec2 syn_res,
 	vec4 nrgba = nerf_rgba[nid];
 	float ndepth = nerf_depth[nid];
 
-	auto& rgba_to_use = sdepth < ndepth ? srgba : nrgba;
+	auto rgba_to_use = srgba + nrgba;
 	auto& depth_to_use = sdepth < ndepth ? sdepth : ndepth;
 	rgba_to_use.rgb() *= pow(vec3(2.0f), exposure);
 	rgba_to_use.rgb() = sng_tonemap(rgba_to_use.rgb(), tonemap_curve);

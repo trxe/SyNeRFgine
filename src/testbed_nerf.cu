@@ -450,7 +450,7 @@ __global__ void generate_next_nerf_network_inputs_alt(
 	vec3 origin = payload.origin;
 	vec3 dir = payload.dir;
 	vec3 idir = vec3(1.0f) / dir;
-	ivec2 texel_coord = { payload.idx % (int)resolution.x, payload.idx / (int)resolution.x };
+	ivec2 texel_coord = { (int)payload.idx % (int)resolution.x, (int)payload.idx / (int)resolution.x };
 	size_t half_px = syn_px_scale / 2;
 	size_t syn_px_id = (texel_coord.x * syn_px_scale + half_px) + ((texel_coord.y * syn_px_scale + half_px) * resolution.x);
 	float max_depth = syn_depth[syn_px_id];
@@ -524,6 +524,10 @@ __global__ void composite_kernel_nerf_alt(
 	int pidx = payload.idx;
 	ivec2 texel_coord = { pidx % (int)resolution.x, pidx / (int)resolution.x };
 	ivec2 syn_texel_coord = (int)syn_px_scale * texel_coord + ivec2(syn_px_scale / 2);
+	vec2 uv = {
+		(float)syn_texel_coord.x / (float)(resolution.x * syn_px_scale),
+		(float)syn_texel_coord.y / (float)(resolution.y * syn_px_scale)
+	};
 	int row_size = resolution.x * (int)syn_px_scale;
 	int syn_texel_id = syn_texel_coord.x + row_size * syn_texel_coord.y;
 	float max_syn_depth = syn_depth[syn_texel_id];
@@ -569,20 +573,8 @@ __global__ void composite_kernel_nerf_alt(
 		payload.n_steps = j + current_step;
 	}
 
-	rgba[i] = local_rgba;
+	rgba[i] = add_syn_rgba;
 	depth[i] = local_depth;
-
-	// for (size_t dx{}; dx < syn_px_scale; ++dx) {
-	// 	for (size_t dy{}; dy < syn_px_scale; ++dy) {
-	// 		ivec2 t_syn_texel_coord = (int)syn_px_scale * texel_coord + ivec2(dx, dy);
-	// 		int t_syn_texel_id = t_syn_texel_coord.x + row_size * t_syn_texel_coord.y;
-	// 		float alpha = add_syn_rgba.a;
-	// 		syn_rgba[t_syn_texel_id] = (1.0f - alpha) * syn_rgba[t_syn_texel_id].rgb() + alpha * add_syn_rgba.rgb();
-	// 		// syn_rgba[syn_px_id] = min(syn_depth[syn_px_id], local_depth);
-	// 	}
-	// }
-	float alpha = add_syn_rgba.a;
-	syn_rgba[syn_texel_id] = (1.0f - alpha) * syn_rgba[syn_texel_id].rgb() + alpha * add_syn_rgba.rgb();
 }
 
 __global__ void composite_kernel_nerf(
@@ -1469,10 +1461,57 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 		}
 	}
 }
+__global__ void blend_positions_in_buffer(
+	ivec2 resolution,
+	vec3* __restrict__ positions, 
+	vec4* __restrict__ rgba,
+	int kernel_size,
+	float diff_threshold,
+	ERenderMode render_mode
+) {
+	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
+	uint32_t y = threadIdx.y + blockDim.y * blockIdx.y;
+
+	if (x >= resolution.x || y >= resolution.y) {
+		return;
+	}
+
+	ivec2 p = {(int)x, (int)y};
+	uint32_t idx = x + resolution.x * y;
+	const vec3 pos = positions[idx];
+	// additional pass to smoothen positions
+	float ffactor {0.0f};
+	vec3 ave_position{0.0f};
+	for (int dx = -kernel_size; dx <= kernel_size; ++dx) {
+		int i = dx + x;
+		if (i < 0 || i >= resolution.x) continue;
+		for (int dy = -kernel_size; dy <= kernel_size; ++dy) {
+			int j = dy + y;
+			if (j < 0 || j >= resolution.y) continue;
+			vec3 ppos = positions[j * resolution.x + i];
+			if (length2(ppos - pos) < diff_threshold) {
+				ave_position += ppos;
+				ffactor += 1.0f;
+			}
+		}
+	}
+	// int i = kernel_size + x;
+	// int j = kernel_size + y;
+	// vec3 ppos = (i < 0 || i >= resolution.x || j < 0 || j >= resolution.y) ? vec3(0.0) :  positions[j* resolution.x + i];
+	// ave_position += ppos;
+	// ffactor += 1.0f; 
+
+	if (ffactor > 0.0f) ave_position /= ffactor;
+	if (render_mode == ERenderMode::Positions) 
+		rgba[idx] = vec4(srgb_to_linear(sng::vec3_to_col(ave_position)), 1.0);
+
+	__syncthreads();
+	positions[idx] = ave_position;
+}
 
 __global__ void write_normals_to_buffer(
 	ivec2 resolution,
-	const vec3* __restrict__ positions, 
+	vec3* __restrict__ positions, 
 	vec3* __restrict__ normals,
 	vec4* __restrict__ rgba,
 	ERenderMode render_mode
@@ -1486,6 +1525,8 @@ __global__ void write_normals_to_buffer(
 
 	ivec2 p = {x, y};
 	uint32_t idx = x + resolution.x * y;
+	const vec3 pos = positions[idx];
+
 	const ivec2 offsets[] = {
 		ivec2(1, 0),
 		ivec2(0, 1),
@@ -1497,7 +1538,6 @@ __global__ void write_normals_to_buffer(
 		ivec2(0, -2),
 		ivec2(1, 0),
 	};
-	const vec3 pos = positions[idx];
 	float factor = 0.0f;
 	vec3 N{0.0};
 	constexpr int dircount = sizeof(offsets) / sizeof(offsets[0]) - 1;
@@ -1518,7 +1558,8 @@ __global__ void write_normals_to_buffer(
 		factor += 1.0f;
 	}
 	normals[idx] = factor == 0.0 ? N : N / factor;
-	if (render_mode == ERenderMode::Normals) rgba[idx] = vec4(normals[idx], 1.0);
+	if (render_mode == ERenderMode::Normals) 
+		rgba[idx] = vec4(normals[idx], 1.0);
 }
 
 __global__ void extract_from_payload(
@@ -1601,19 +1642,24 @@ __global__ void shade_with_shadow(
 			const sng::Light& light = lights[i];
 			if (light.type == sng::LightType::Point) {
 				const vec3 lpos = light.sample(rand_state[idx]);
+				// const vec3 lpos = light.sample();
 				const float full_d = length(lpos - pos);
 				const vec3 l = normalize(lpos - pos);
 				const vec3 invl = 1.0f / l;
-				if (dot(normal, l) < 0.0) overall_shadow_depth = min(overall_shadow_depth, 0.1f);
+				// if (dot(normal, l) < 0.0) overall_shadow_depth = min(overall_shadow_depth, 0.1f);
 
 				int32_t hit_obj_id = -1;
 				float syn_depth = sng::depth_test_world(pos, l, objs, obj_count, hit_obj_id, hit_obj_id);
-				if (syn_depth < full_d) {
-					overall_shadow_depth = min(overall_shadow_depth, syn_shadow_brightness * smoothstep(syn_depth / full_d));
+				float syn_shadow_mask = syn_depth / full_d;
+				if (syn_shadow_mask + MIN_DEPTH() < 1.00) {
+					overall_shadow_depth = min(overall_shadow_depth, smoothstep(syn_depth / full_d));
 				}
 
 				float nerf_depth = full_d - sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
-				overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_brightness * smoothstep(1.0 - nerf_depth / full_d));
+				float nerf_shadow_mask = smoothstep(1.0 - nerf_depth / full_d);
+				if (nerf_shadow_mask > syn_shadow_brightness + MIN_DEPTH()) {
+					overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_brightness * nerf_shadow_mask);
+				}
 			} else if (light.type == sng::LightType::Directional) {
 				const vec3& direction = normalize(-light.pos);
 				overall_shadow_depth += dot(normal, direction);
@@ -1623,7 +1669,8 @@ __global__ void shade_with_shadow(
 	}
 	sum_shadow_depth /= (float)shadow_samples;
 	vec4& tmp = rgba[idx];
-	rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
+	if (render_mode == ERenderMode::ShadowDepth) rgba[idx].rgb() = vec3(sum_shadow_depth);
+	else rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
 }
 
 __global__ void shade_kernel_nerf(
@@ -2053,32 +2100,7 @@ uint32_t Testbed::NerfTracer::trace_alt(
 		GPUMatrix<network_precision_t, RM> rgbsigma_matrix((network_precision_t*)m_network_output, network->padded_output_width(), n_elements);
 		network->inference_mixed_precision(stream, positions_matrix, rgbsigma_matrix);
 
-		linear_kernel(composite_kernel_nerf, 0, stream, 
-			n_alive,
-			n_elements,
-			i,
-			train_aabb,
-			glow_y_cutoff,
-			glow_mode,
-			camera_matrix,
-			focal_length,
-			depth_scale,
-			rays_current.rgba,
-			rays_current.depth,
-			rays_current.payload,
-			input_data,
-			m_network_output,
-			network->padded_output_width(),
-			n_steps_between_compaction,
-			render_mode,
-			grid,
-			rgb_activation,
-			density_activation,
-			show_accel,
-			min_transmittance
-		);
-
-		// linear_kernel(composite_kernel_nerf_alt, 0, stream,
+		// linear_kernel(composite_kernel_nerf, 0, stream, 
 		// 	n_alive,
 		// 	n_elements,
 		// 	i,
@@ -2100,12 +2122,37 @@ uint32_t Testbed::NerfTracer::trace_alt(
 		// 	rgb_activation,
 		// 	density_activation,
 		// 	show_accel,
-		// 	min_transmittance,
-		// 	syn_rgba,
-		// 	syn_depth,
-		// 	resolution,
-		// 	syn_px_scale
+		// 	min_transmittance
 		// );
+
+		linear_kernel(composite_kernel_nerf_alt, 0, stream,
+			n_alive,
+			n_elements,
+			i,
+			train_aabb,
+			glow_y_cutoff,
+			glow_mode,
+			camera_matrix,
+			focal_length,
+			depth_scale,
+			rays_current.rgba,
+			rays_current.depth,
+			rays_current.payload,
+			input_data,
+			m_network_output,
+			network->padded_output_width(),
+			n_steps_between_compaction,
+			render_mode,
+			grid,
+			rgb_activation,
+			density_activation,
+			show_accel,
+			min_transmittance,
+			syn_rgba,
+			syn_depth,
+			resolution,
+			syn_px_scale
+		);
 		CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 
 		i += n_steps_between_compaction;
@@ -2309,7 +2356,8 @@ void Testbed::render_nerf_with_buffers(
 	cudaStream_t stream,
 	CudaDevice& device,
 	const CudaRenderBufferView& render_buffer,
-	const CudaRenderBufferView& syn_render_buffer,
+	vec4* syn_rgba,
+	float* syn_depth,
 	GPUMemory<vec3>& nerf_normals,
 	GPUMemory<vec3>& nerf_positions,
 	size_t syn_px_scale,  
@@ -2406,8 +2454,8 @@ void Testbed::render_nerf_with_buffers(
 			m_nerf.glow_y_cutoff,
 			m_nerf.glow_mode,
 			extra_dims_gpu,
-			syn_render_buffer.frame_buffer,
-			syn_render_buffer.depth_buffer,
+			syn_rgba,
+			syn_depth,
 			render_buffer.resolution,
 			syn_px_scale,
 			stream
@@ -2430,6 +2478,15 @@ void Testbed::render_nerf_with_buffers(
 	auto& resolution = render_buffer.resolution;
 	const dim3 threads = { 16, 8, 1 };
 	const dim3 blocks = { div_round_up((uint32_t)resolution.x, threads.x), div_round_up((uint32_t)resolution.y, threads.y), 1 };
+	blend_positions_in_buffer<<<blocks, threads, 0, stream>>>(
+		resolution,
+		nerf_positions.data(),
+		render_buffer.frame_buffer,
+		sng_position_kernel_size,
+		sng_position_kernel_threshold,
+		render_mode
+	);
+	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 	write_normals_to_buffer<<<blocks, threads, 0, stream>>>(
 		resolution,
 		nerf_positions.data(),
