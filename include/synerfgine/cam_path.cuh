@@ -120,6 +120,8 @@ public:
         if (is_playing) advance_frame(testbed);
     }
 
+    int get_total_images() { return total_frames; }
+
 private:
     void update_cam_path() {
         total_frames = total_time_ms / fps;

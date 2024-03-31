@@ -33,48 +33,41 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("animation_speed")) {
             m_anim_speed = cam_conf["animation_speed"];
         }
-        if (cam_conf.count("path_trace_depth")) {
-            m_raytracer.m_ray_iters = cam_conf["path_trace_depth"];
-        }
-        if (cam_conf.count("shadow_rays")) {
-            m_raytracer.m_shadow_iters = cam_conf["shadow_rays"];
-        }
-        if (cam_conf.count("attenuation")) {
-            m_raytracer.m_attenuation_coeff = cam_conf["attenuation"];
-        }
-        if (cam_conf.count("res_factor")) {
-            m_default_fixed_res_factor = cam_conf["res_factor"];
-        }
         m_camera_path = sng::CamPath(cam_conf);
+    }
+    if (config.count("rendering")) {
+        m_default_render_settings = config["rendering"];
     }
     if (config.count("output")) {
         nlohmann::json& output_conf = config["output"];
         m_output_dest = output_conf["folder"];
         if (output_conf.count("img_count")) {
             m_display.m_img_count_max = output_conf["img_count"];
+        } else {
+            m_display.m_img_count_max = m_camera_path.get_total_images();
         }
     }
-    if (config.count("shader")) {
-        nlohmann::json& shader_conf = config["shader"];
-        if (shader_conf.count("nerf_blur_kernel_size")) {
-            m_display.m_nerf_blur_kernel_size = shader_conf["nerf_blur_kernel_size"];
-        }
-        if (shader_conf.count("syn_blur_kernel_size")) {
-            m_display.m_syn_blur_kernel_size =  shader_conf["syn_blur_kernel_size"];
-        }
-        if (shader_conf.count("syn_bsigma")) {
-            m_display.m_syn_bsigma = shader_conf["syn_bsigma"];
-        }
-        if (shader_conf.count("syn_sigma")) {
-            m_display.m_syn_sigma = shader_conf["syn_sigma"];
-        }
-        if (shader_conf.count("nerf_expand_mult")) {
-            m_display.m_nerf_expand_mult = shader_conf["nerf_expand_mult"];
-        }
-        if (shader_conf.count("nerf_shadow_blur_threshold")) {
-            m_display.m_nerf_shadow_blur_threshold = shader_conf["nerf_shadow_blur_threshold"];
-        }
-    }
+    // if (config.count("shader")) {
+    //     nlohmann::json& shader_conf = config["shader"];
+    //     if (shader_conf.count("nerf_blur_kernel_size")) {
+    //         m_display.m_nerf_blur_kernel_size = shader_conf["nerf_blur_kernel_size"];
+    //     }
+    //     if (shader_conf.count("syn_blur_kernel_size")) {
+    //         m_display.m_syn_blur_kernel_size =  shader_conf["syn_blur_kernel_size"];
+    //     }
+    //     if (shader_conf.count("syn_bsigma")) {
+    //         m_display.m_syn_bsigma = shader_conf["syn_bsigma"];
+    //     }
+    //     if (shader_conf.count("syn_sigma")) {
+    //         m_display.m_syn_sigma = shader_conf["syn_sigma"];
+    //     }
+    //     if (shader_conf.count("nerf_expand_mult")) {
+    //         m_display.m_nerf_expand_mult = shader_conf["nerf_expand_mult"];
+    //     }
+    //     if (shader_conf.count("nerf_shadow_blur_threshold")) {
+    //         m_display.m_nerf_shadow_blur_threshold = shader_conf["nerf_shadow_blur_threshold"];
+    //     }
+    // }
     nlohmann::json& mat_conf = config["materials"];
     for (uint32_t i = 0; i < mat_conf.size(); ++i) {
         m_materials.emplace_back(i, mat_conf[i]);
@@ -161,7 +154,24 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     }
     m_stream_id = device.stream();
     m_testbed->m_imgui.enabled = m_show_ui;
-    m_testbed->m_fixed_res_factor = m_default_fixed_res_factor;
+    if (m_default_render_settings.count("res_factor")) {
+        m_testbed->m_fixed_res_factor = m_default_render_settings["res_factor"].get<int>();
+    }
+    if (m_default_render_settings.count("exposure")) {
+        m_testbed->m_exposure = m_default_render_settings["exposure"].get<float>();
+    }
+    if (m_default_render_settings.count("path_trace_depth")) {
+        m_raytracer.m_ray_iters = m_default_render_settings["path_trace_depth"];
+    }
+    if (m_default_render_settings.count("light_samples")) {
+        m_raytracer.m_shadow_iters = m_default_render_settings["light_samples"];
+    }
+    if (m_default_render_settings.count("shadow_samples")) {
+        m_raytracer.m_shadow_iters = m_default_render_settings["shadow_samples"];
+    }
+    if (m_default_render_settings.count("attenuation")) {
+        m_raytracer.m_attenuation_coeff = m_default_render_settings["attenuation"];
+    }
 }
 
 void Engine::resize() {

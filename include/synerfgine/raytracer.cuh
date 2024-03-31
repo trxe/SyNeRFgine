@@ -143,6 +143,7 @@ class RayTracer {
 		int m_samples = 2;
 		int m_ray_iters = 2;
 		int m_shadow_iters = 4;
+		float m_lens_angle_constant = 0.009f;
 		float m_attenuation_coeff = 1.0f;
 
 	private:

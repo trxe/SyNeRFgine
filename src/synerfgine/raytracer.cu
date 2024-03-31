@@ -98,6 +98,7 @@ __global__ void raytrace(uint32_t n_elements,
 	const ObjectTransform* __restrict__ world,
 	size_t world_count,
 	float cone_angle_constant,
+	float lens_angle_constant,
 	uint32_t n_steps,
 	bool show_nerf_shadow, 
 	BoundingBox render_aabb,
@@ -131,8 +132,8 @@ __global__ void raytrace(uint32_t n_elements,
 		auto src_pos = vec3(0.0);
 		auto src_dir = vec3(0.0);
 		SampledRay ray;
-		auto longi = curand_uniform(&rand_state[i]) * cone_angle_constant * tcnn::PI;
-		auto latid = curand_uniform(&rand_state[i]) * cone_angle_constant * tcnn::PI;
+		auto longi = curand_uniform(&rand_state[i]) * lens_angle_constant;
+		auto latid = curand_uniform(&rand_state[i]) * 2.0 * tcnn::PI;
 		ray.pos = src_positions[i];
 		ray.dir = cone_random(src_directions[i], up_vec, longi, latid);
 		ray.pdf = 1.0f / (float)bounce_count;
@@ -145,7 +146,6 @@ __global__ void raytrace(uint32_t n_elements,
 			int32_t hit_obj_id = -1;
 			float d = depth_test_world(src_pos, src_dir, world, world_count, hit_obj_id, hit_info) + depth_offset;
 			if (!bounce) {
-				// depth += d;
 				normal += hit_info.normal;
 				view_pos += src_pos;
 				view_dir += src_dir;
@@ -256,7 +256,8 @@ void RayTracer::enlarge(const ivec2& res) {
 		curandState_t // rand values
 	>(
 		m_stream_ray, &m_scratch_alloc,
-		n_elements, n_elements, n_elements, n_elements, n_elements);
+		n_elements, n_elements, n_elements, n_elements, n_elements
+	);
 
 	m_rays[0].set(std::get<0>(scratch), std::get<1>(scratch), std::get<2>(scratch), std::get<3>(scratch), n_elements);
 	m_rand_state = std::get<4>(scratch);
@@ -330,6 +331,7 @@ void RayTracer::render(
 		world.data(),
 		world.size(),
 		view.cone_angle_constant,
+		m_lens_angle_constant,
 		static_cast<size_t>(m_n_steps),
 		m_view_nerf_shadow,
 		view.render_aabb,
@@ -380,12 +382,14 @@ void RayTracer::load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu
 void RayTracer::imgui() {
 	constexpr int img_filter_type_count = sizeof(img_filter_type_names) / sizeof(img_filter_type_names[0]);
 	constexpr int img_buffer_type_count = sizeof(img_buffer_type_names) / sizeof(img_buffer_type_names[0]);
+	constexpr float abs_lens_angle_constant_limit = 1.4f / 360.0f;
 	if (ImGui::CollapsingHeader("Raytracer", ImGuiTreeNodeFlags_DefaultOpen)) {
 		ImGui::Checkbox("View NeRF shadows on Virtual Objects", &m_view_nerf_shadow);
 		ImGui::InputInt("Number of shadow steps", &m_n_steps);
 		ImGui::InputInt("Samples", &m_samples);
 		ImGui::InputInt("Bounces", &m_ray_iters);
 		ImGui::InputInt("Shadow Samples", &m_shadow_iters);
+		ImGui::SliderFloat("Lens Angle Constant", &m_lens_angle_constant, -abs_lens_angle_constant_limit, abs_lens_angle_constant_limit);
 		ImGui::InputFloat("Attenuation", &m_attenuation_coeff);
 		ImGui::SetNextItemOpen(true);
 		if (ImGui::TreeNode("Display Filter")) {

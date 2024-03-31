@@ -63,7 +63,7 @@ private:
     Testbed* m_testbed;
     Display m_display;
     ivec2 m_next_frame_resolution;
-    float m_factor_constant{8.0f};
+    const float m_factor_constant{8.0f};
     fs::path m_output_dest;
 
     RayTracer m_raytracer;
@@ -109,7 +109,7 @@ private:
     float m_nerf_shadow_brightness{2.0f};
     float m_syn_shadow_brightness{0.3f};
 
-    nlohmann::json default_nerf_settings;
+    nlohmann::json m_default_render_settings;
     int m_default_fixed_res_factor{64};
     CamPath m_camera_path;
 

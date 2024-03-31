@@ -18,7 +18,8 @@ using namespace tcnn;
 using ngp::Ray;
 
 enum MaterialType {
-    Lambertian
+    Lambertian,
+    Glossy,
 };
 
 struct Material {
@@ -43,6 +44,10 @@ struct Material {
         rg = config.count("rg") ? config["rg"].get<float>() : 0.0;
         if (type_str == "lambertian") {
             type = MaterialType::Lambertian;
+            spec_angle = 0.0f;
+        } else if (type_str == "glossy") {
+            type = MaterialType::Glossy;
+            spec_angle = config.count("spec_angle") ? config["spec_angle"].get<float>() : 0.001;
         } else {
             throw std::runtime_error(fmt::format("Material type {} not supported", type_str));
         }
@@ -53,6 +58,7 @@ struct Material {
         std::string unique_kd = fmt::format("[{}] kd", id);
         std::string unique_rg = fmt::format("[{}] rg", id);
         std::string unique_n = fmt::format("[{}] n", id);
+        std::string unique_spec_angle = fmt::format("[{}] spec_angle", id);
         std::string title = fmt::format("Material [{}]", id);
         if (ImGui::TreeNode(title.c_str())) {
             if (ImGui::ColorPicker3(unique_kd.c_str(), kd.data())) {
@@ -64,6 +70,9 @@ struct Material {
                 is_dirty = true;
             }
             if (ImGui::SliderFloat(unique_rg.c_str(), &rg, 0.0, 1.0)) {
+                is_dirty = true;
+            }
+            if (ImGui::SliderFloat(unique_spec_angle.c_str(), &spec_angle, 0.0, 1.0)) {
                 is_dirty = true;
             }
             ImGui::TreePop();
@@ -109,6 +118,13 @@ struct Material {
             }
             ray.pdf = 1.0f / tcnn::PI;
             ray.attenuation *= rg;
+        } else if (type == Glossy) {
+            ray.dir = reflect(-src_dir, hit_info.normal);
+            auto longi = curand_uniform(&rand) * spec_angle;
+            auto latid = curand_uniform(&rand) * 2.0 * tcnn::PI;
+            ray.dir = sng::cone_random(ray.dir, hit_info.normal, longi, latid);
+            ray.pdf = 1.0f / max(1.0f, spec_angle);
+            ray.attenuation *= rg;
         } else {
             return false;
         }
@@ -122,6 +138,7 @@ struct Material {
     float n{1};
     float rg{0.9};
     MaterialType type;
+    float spec_angle{0.001};
     bool is_dirty{true};
 };
 

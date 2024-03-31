@@ -4,11 +4,10 @@
         "at" : [0.525,0.621,0.090],
         "zoom" : 2.608,
         "clear_color" : [1.0, 0.0, 0.0],
-        "path_trace_depth": 2,
         "show_ui": false,
         "fps" : 24,
         "total_time_ms" : 2000,
-        "move_on_start" : true,
+        "move_on_start" : false,
         "path" : [
             {"view" : [ 0.6119312, -0.104988195, -0.7839119 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
             {"view" : [ 0.36336237, -0.122328155, -0.923582 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
@@ -18,15 +17,14 @@
         ]
     },
     "rendering" : {
-        "res_factor" : 8,
+        "res_factor" : 64,
         "exposure" : 1.202,
+        "path_trace_depth": 2,
+        "light_samples": 8,
+        "shadow_samples": 2,
         "buffer_filter" : "Final",
         "nerf_filter" : "Shade",
         "tonemap" : "Hable"
-    },
-    "shader" : {
-        "nerf_blur_kernel_size": 0,
-        "syn_blur_kernel_size": 0
     },
     "lights": [
         {
@@ -42,12 +40,14 @@
             "pos" : [ -0.189, 0.478, -0.028 ],
             "rot" : [ 0.822, 0.000, 0.569, 0.000, 1.000, 0.000, -0.569, 0.000, 0.822 ],
             "scale" : 0.203,
-            "material": 1,
-            "anim" : {
-                "rot_axis" : [0.0, 1.0, 0.0],
-                "rot_angle" : 0.1,
-                "rot_center" : [0.0, 1.0, 0.0]
-            }
+            "material": 1
+        },
+        {
+            "file": "../data/obj/armadillo.obj",
+            "pos" : [ -0.402, 0.369, 0.337 ],
+            "rot" : [ -0.039, 0.000, 0.999, 0.000, 1.000, 0.000, -0.999, 0.000, -0.039 ],
+            "scale" : 0.703,
+            "material": 0
         }
     ],
     "materials": [
@@ -64,9 +64,10 @@
         },
         {
             "id": 1,
-            "type": "lambertian",
+            "type": "glossy",
             "n": 28.0,
             "rg": 1.0,
+            "spec_angle": 0.001,
             "kd": [
                 0.0,
                 1.0,

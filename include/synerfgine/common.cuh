@@ -38,7 +38,11 @@ __host__ __device__ inline vec3 cone_random(const vec3& orig, const vec3& up, fl
     vec3 B = normalize(cross(N, up));
     vec3 T = cross(B, N);
     mat3 perturb_frame = {T, B, N};
-    vec3 offset = {cos(longi) * sin(latid), sin(longi) * sin(latid), cos(longi)};
+    vec3 offset = {
+        sin(longi) * cos(latid), 
+        sin(longi) * sin(latid), 
+        cos(longi)
+    };
     return orig + perturb_frame * offset;
 }
 __host__ __device__ inline mat3 get_perturb_matrix(const vec3& tangent, const vec3& normal) {
