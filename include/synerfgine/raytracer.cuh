@@ -125,7 +125,8 @@ class RayTracer {
 			const GPUMemory<ObjectTransform>& world
 		);
 
-		void overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace color_space, ngp::ETonemapCurve tonemap_curve, float exposure);
+		void overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, 
+			ngp::EColorSpace color_space, ngp::ETonemapCurve tonemap_curve, float exposure);
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
 
 		void sync() {
@@ -146,6 +147,8 @@ class RayTracer {
 		int m_ray_iters = 2;
 		int m_shadow_iters = 4;
 		float m_lens_angle_constant = 0.009f;
+		float m_blend_ratio = 0.5f;
+		bool m_use_blend_ratio = false;
 		float m_attenuation_coeff = 1.0f;
 
 	private:

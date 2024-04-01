@@ -234,8 +234,11 @@ __global__ void overlay_nerf(ivec2 syn_res,
 	vec4 nrgba = nerf_rgba[nid];
 	float ndepth = nerf_depth[nid];
 
-	auto rgba_to_use = srgba + nrgba;
+	// vec4 rgba_to_use = use_blend_ratio ? 
+	// 	srgba * (1.0f - blend_ratio) + nrgba * blend_ratio :
 	auto& depth_to_use = sdepth < ndepth ? sdepth : ndepth;
+	vec4 rgba_to_use = 
+		srgba * (1.0f - nrgba.a) + nrgba * nrgba.a;
 	rgba_to_use.rgb() *= pow(vec3(2.0f), exposure);
 	rgba_to_use.rgb() = sng_tonemap(rgba_to_use.rgb(), tonemap_curve);
 	final_rgba[sid] = color_space == EColorSpace::SRGB ? vec4(linear_to_srgb(rgba_to_use.rgb()), rgba_to_use.a) : rgba_to_use;
@@ -391,6 +394,8 @@ void RayTracer::imgui() {
 		ImGui::InputInt("Shadow Samples", &m_shadow_iters);
 		ImGui::SliderFloat("Lens Angle Constant", &m_lens_angle_constant, -abs_lens_angle_constant_limit, abs_lens_angle_constant_limit);
 		ImGui::InputFloat("Attenuation", &m_attenuation_coeff);
+		// ImGui::Checkbox("Use blend ratio", &m_use_blend_ratio);
+		// ImGui::SliderFloat("Blend Ratio", &m_blend_ratio, 0.0, 1.0);
 		ImGui::SetNextItemOpen(true);
 		if (ImGui::TreeNode("Display Filter")) {
 			if (ImGui::Combo("Filter Type", (int*)&m_filter_to_use, img_filter_type_names, img_filter_type_count)) {

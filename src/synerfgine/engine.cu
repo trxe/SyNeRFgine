@@ -34,7 +34,9 @@ void Engine::set_virtual_world(const std::string& config_fp) {
             m_anim_speed = cam_conf["animation_speed"];
             m_enable_animations = m_anim_speed > 0.0f;
         }
-        m_camera_path = sng::CamPath(cam_conf);
+        if (cam_conf.count("path")) {
+            m_camera_path = sng::CamPath(cam_conf);
+        }
     }
     if (config.count("rendering")) {
         m_default_render_settings = config["rendering"];
@@ -140,6 +142,12 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("exposure")) {
         m_testbed->m_exposure = m_default_render_settings["exposure"].get<float>();
     }
+    if (m_default_render_settings.count("smooth_kernel_size")) {
+        m_testbed->sng_position_kernel_size = m_default_render_settings["smooth_kernel_size"].get<int>();
+    }
+    if (m_default_render_settings.count("smooth_threshold")) {
+        m_testbed->sng_position_kernel_threshold = m_default_render_settings["smooth_threshold"].get<float>();
+    }
     if (m_default_render_settings.count("path_trace_depth")) {
         m_raytracer.m_ray_iters = m_default_render_settings["path_trace_depth"];
     }
@@ -152,13 +160,17 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("attenuation")) {
         m_raytracer.m_attenuation_coeff = m_default_render_settings["attenuation"];
     }
+    // if (m_default_render_settings.count("blend_ratio")) {
+    //     m_raytracer.m_blend_ratio = m_default_render_settings["blend_ratio"];
+    //     m_raytracer.m_use_blend_ratio = true;
+    // }
     if (m_default_render_settings.count("lens_angle_constant")) {
         m_raytracer.m_lens_angle_constant = m_default_render_settings["lens_angle_constant"];
     }
-    if (m_default_render_settings.count("background_color")) {
-        auto& a = m_default_render_settings["background_color"];
-        m_testbed->m_background_color = vec3{ a[0], a[1], a[2] };
-    }
+    // if (m_default_render_settings.count("background_color")) {
+    //     auto& a = m_default_render_settings["background_color"];
+    //     m_testbed->m_background_color = vec3{ a[0], a[1], a[2] };
+    // }
 }
 
 void Engine::resize() {
