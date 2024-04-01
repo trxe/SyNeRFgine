@@ -76,7 +76,6 @@ private:
     GPUMemory<curandState_t> d_nerf_rand_state;
     GPUMemory<vec3> d_nerf_positions;
     GPUMemory<vec3> d_nerf_normals;
-    bool m_view_syn_shadow{true};
     float m_depth_offset{0.0};
     vec3 m_default_at_pos{0.0};
     vec3 m_default_view_dir{0.0};
@@ -102,6 +101,8 @@ private:
 
     // for imgui
     bool m_show_ui{false};
+    bool m_view_syn_shadow{true};
+    bool m_show_nerf{true};
     int m_relative_vo_scale{4};
     bool m_enable_animations{false};
     bool m_enable_reflections{false};

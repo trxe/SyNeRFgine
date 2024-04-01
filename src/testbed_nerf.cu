@@ -1461,6 +1461,7 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 		}
 	}
 }
+#define MAX_KERNEL_SQ_SIZE 100
 __global__ void blend_positions_in_buffer(
 	ivec2 resolution,
 	vec3* __restrict__ positions, 
@@ -1475,31 +1476,44 @@ __global__ void blend_positions_in_buffer(
 	if (x >= resolution.x || y >= resolution.y) {
 		return;
 	}
-
 	ivec2 p = {(int)x, (int)y};
 	uint32_t idx = x + resolution.x * y;
 	const vec3 pos = positions[idx];
+
+	if (!kernel_size)  {
+		if (render_mode == ERenderMode::Positions) 
+			rgba[idx] = vec4(srgb_to_linear(sng::vec3_to_col(pos)), 1.0);
+		return;
+	}
+
+	vec3 ppos_list[MAX_KERNEL_SQ_SIZE];
+	float ppos_dx2_list[MAX_KERNEL_SQ_SIZE];
+
 	// additional pass to smoothen positions
-	float ffactor {0.0f};
-	vec3 ave_position{0.0f};
+	float ave_position_dx2{0.0f};
+	size_t t{0};
 	for (int dx = -kernel_size; dx <= kernel_size; ++dx) {
 		int i = dx + x;
 		if (i < 0 || i >= resolution.x) continue;
 		for (int dy = -kernel_size; dy <= kernel_size; ++dy) {
 			int j = dy + y;
 			if (j < 0 || j >= resolution.y) continue;
-			vec3 ppos = positions[j * resolution.x + i];
-			if (length2(ppos - pos) < diff_threshold) {
-				ave_position += ppos;
-				ffactor += 1.0f;
-			}
+			size_t _t = t++;
+			ppos_list[_t] = positions[j * resolution.x + i];
+			ppos_dx2_list[_t] = length2(ppos_list[_t] - pos);
+			ave_position_dx2 += ppos_dx2_list[_t];
 		}
 	}
-	// int i = kernel_size + x;
-	// int j = kernel_size + y;
-	// vec3 ppos = (i < 0 || i >= resolution.x || j < 0 || j >= resolution.y) ? vec3(0.0) :  positions[j* resolution.x + i];
-	// ave_position += ppos;
-	// ffactor += 1.0f; 
+	float ffactor {0.0f};
+	vec3 ave_position{0.0f};
+	ave_position_dx2 /= (float)t;
+	ave_position_dx2 *= diff_threshold;
+	for (size_t _t = 0; _t < t; ++_t) {
+		if (ppos_dx2_list[_t] < ave_position_dx2) {
+			ave_position += ppos_list[_t];
+			ffactor += 1.0f;
+		}
+	}
 
 	if (ffactor > 0.0f) ave_position /= ffactor;
 	if (render_mode == ERenderMode::Positions) 

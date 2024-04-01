@@ -682,7 +682,7 @@ public:
 	ERenderMode m_render_mode = ERenderMode::Shade;
 	EMeshRenderMode m_mesh_render_mode = EMeshRenderMode::VertexNormals;
 	int sng_position_kernel_size = 1;
-	float sng_position_kernel_threshold = 0.3f;
+	float sng_position_kernel_threshold = 1.0f;
 
 	uint32_t m_seed = 1337;
 

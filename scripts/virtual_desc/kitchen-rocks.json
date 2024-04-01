@@ -22,15 +22,20 @@
         ]
     },
     "rendering" : {
-        "res_factor" : 8,
-        "exposure" : 1.202,
+        "res_factor" : 64,
+        "exposure" : 0.000,
         "path_trace_depth": 2,
         "light_samples": 16,
         "shadow_samples": 2,
         "lens_size" : 0.003,
         "buffer_filter" : "Final",
         "nerf_filter" : "Shade",
-        "tonemap" : "Hable"
+        "tonemap" : "Hable",
+
+        "show_virtual_obj" : true,
+        "show_nerf" : true,
+        "shadow_on_nerf" : true,
+        "shadow_on_virtual_obj" : true
     },
     "lights": [
         {

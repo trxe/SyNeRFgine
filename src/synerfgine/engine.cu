@@ -160,17 +160,24 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("attenuation")) {
         m_raytracer.m_attenuation_coeff = m_default_render_settings["attenuation"];
     }
-    // if (m_default_render_settings.count("blend_ratio")) {
-    //     m_raytracer.m_blend_ratio = m_default_render_settings["blend_ratio"];
-    //     m_raytracer.m_use_blend_ratio = true;
-    // }
     if (m_default_render_settings.count("lens_angle_constant")) {
         m_raytracer.m_lens_angle_constant = m_default_render_settings["lens_angle_constant"];
     }
-    // if (m_default_render_settings.count("background_color")) {
-    //     auto& a = m_default_render_settings["background_color"];
-    //     m_testbed->m_background_color = vec3{ a[0], a[1], a[2] };
-    // }
+    if (m_default_render_settings.count("shadow_on_virtual_obj")) {
+        m_raytracer.m_view_nerf_shadow = m_default_render_settings["shadow_on_virtual_obj"];
+    }
+    if (m_default_render_settings.count("shadow_on_nerf")) {
+        m_view_syn_shadow = m_default_render_settings["shadow_on_nerf"];
+    }
+    if (m_default_render_settings.count("shadow_on_virtual_obj")) {
+        m_raytracer.m_view_nerf_shadow = m_default_render_settings["shadow_on_virtual_obj"];
+    }
+    if (m_default_render_settings.count("show_virtual_obj")) {
+        m_raytracer.m_show_virtual_obj = m_default_render_settings["show_virtual_obj"];
+    }
+    if (m_default_render_settings.count("show_nerf")) {
+        m_show_nerf = m_default_render_settings["show_nerf"];
+    }
 }
 
 void Engine::resize() {
@@ -253,7 +260,7 @@ void Engine::imgui() {
                 m_is_dirty = true;
             }
             ImGui::SliderInt("Position blur kernel size", &m_testbed->sng_position_kernel_size, 0, 4);
-            ImGui::SliderFloat("Position blur kernel threshold", &m_testbed->sng_position_kernel_threshold, 0.001, 4.0f);
+            ImGui::SliderFloat("Position blur kernel threshold", &m_testbed->sng_position_kernel_threshold, 0.001, 8.0f);
         }
         if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
             m_camera_path.imgui(*m_testbed);
@@ -330,10 +337,12 @@ bool Engine::frame() {
         d_world
     );
 
-    m_testbed->render( m_stream_id, view, m_raytracer.get_tmp_frame_buffer(), m_raytracer.get_tmp_depth_buffer(),
-         m_relative_vo_scale, d_world, d_lights, d_materials, d_nerf_rand_state, d_nerf_normals, 
-        d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_syn_shadow_brightness, m_raytracer.m_shadow_iters );
-    sync(m_stream_id);
+    if (m_show_nerf) {
+        m_testbed->render( m_stream_id, view, m_raytracer.get_tmp_frame_buffer(), m_raytracer.get_tmp_depth_buffer(),
+            m_relative_vo_scale, d_world, d_lights, d_materials, d_nerf_rand_state, d_nerf_normals, 
+            d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_syn_shadow_brightness, m_raytracer.m_shadow_iters );
+        sync(m_stream_id);
+    }
     m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure);
 
     sync(m_stream_id);

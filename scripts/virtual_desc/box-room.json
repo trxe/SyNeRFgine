@@ -1,0 +1,64 @@
+{
+    "camera" : {
+        "view" : [0.532,-0.560,0.635],
+        "at" : [0.532,0.269,0.730],
+        "zoom" : 0.914,
+        "clear_color" : [1.0, 0.0, 0.0],
+        "attenuation" : 1.0
+    },
+    "rendering" : {
+        "res_factor" : 8,
+        "exposure" : 1.202,
+        "path_trace_depth": 2,
+        "light_samples": 8,
+        "shadow_samples": 2,
+        "lens_size" : 0.3,
+        "buffer_filter" : "Final",
+        "nerf_filter" : "Shade",
+        "tonemap" : "Hable"
+    },
+    "lights": [
+        {
+            "pos" : [0.279, 0.877, 0.304],
+            "size" : 0.040,
+            "intensity" : 1.0
+        },
+        {
+            "pos" : [0.019, 1.034, 0.545],
+            "size" : 0.040,
+            "intensity" : 1.0
+        }
+    ],
+    "objfile": [
+        {
+            "file": "../data/obj/smallbox.obj",
+            "pos" : [ 0.873, 0.106, 0.857 ],
+            "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
+            "scale" : 0.137,
+            "material": 0
+        },
+        {
+            "file": "../data/obj/rock.obj",
+            "pos" : [ 0.354, 0.077, 1.016 ],
+            "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
+            "scale" : 0.097,
+            "material": 1
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "n": 64.0,
+            "kd": [ 0.0, 0.0, 1.0 ],
+            "rg": 0.5
+        },
+        {
+            "id": 1,
+            "type": "lambertian",
+            "n": 28.0,
+            "kd": [ 1.0, 0.0, 0.0 ],
+            "rg": 0.5
+        }
+    ]
+}

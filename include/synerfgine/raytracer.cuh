@@ -58,7 +58,7 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 	const uint32_t& n_steps, const float& cone_angle_constant, 
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, 
 	const BoundingBox& render_aabb, const mat3& render_aabb_to_local,
-	curandState_t& rand_state);
+	curandState_t& rand_state, bool no_shadow);
 
 struct RaysSoa {
 #if defined(__CUDACC__) || (defined(__clang__) && defined(__CUDA__))
@@ -142,6 +142,7 @@ class RayTracer {
 		cudaStream_t m_stream_ray;
 
 		bool m_view_nerf_shadow{true};
+		bool m_show_virtual_obj{true};
 		int m_n_steps{8};
 		int m_samples = 2;
 		int m_ray_iters = 2;
