@@ -108,7 +108,7 @@ private:
     bool m_enable_reflections{false};
     float m_anim_speed{1.0f};
     float m_nerf_shadow_brightness{2.0f};
-    float m_syn_shadow_brightness{0.3f};
+    float m_nerf_self_shadow_threshold{0.3f};
 
     nlohmann::json m_default_render_settings;
     int m_default_fixed_res_factor{64};

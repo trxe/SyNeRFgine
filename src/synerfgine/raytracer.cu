@@ -20,8 +20,8 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 		const Light& light = lights[l];
 		for (size_t s = 0; s < shadow_count; ++s) {
 			if (light.type == LightType::Point) {
-				// vec3 lpos = light.sample(rand_state);
-				vec3 lpos = light.sample();
+				vec3 lpos = light.sample(rand_state);
+				// vec3 lpos = light.sample();
 				L = lpos - hit_info.pos;
 				float full_dist = length(L);
 				L = normalize(L);
@@ -133,7 +133,7 @@ __global__ void raytrace(uint32_t n_elements,
 		auto src_dir = vec3(0.0);
 		SampledRay ray;
 		auto longi = curand_uniform(&rand_state[i]) * lens_angle_constant;
-		auto latid = curand_uniform(&rand_state[i]) * 2.0 * tcnn::PI;
+		auto latid = lens_angle_constant ? 0.0 : curand_uniform(&rand_state[i]) * 2.0 * tcnn::PI;
 		ray.pos = src_positions[i];
 		ray.dir = cone_random(src_directions[i], up_vec, longi, latid);
 		ray.pdf = 1.0f / (float)bounce_count;

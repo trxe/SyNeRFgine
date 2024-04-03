@@ -1,8 +1,8 @@
 {
     "camera" : {
-        "view" : [0.007,-0.367,-0.930],
+        "view" : [0.015,-0.431,-0.902],
         "at" : [0.245,0.330,0.005],
-        "zoom" : 2.155,
+        "zoom" : 5.081,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "fps" : 24,
@@ -17,9 +17,9 @@
             {"view" : [ 0.34421092, -0.7434542, -0.57340676 ], "at" : [ 0.42162585, 0.40618336, 0.30646777 ], "zoom" : 1.9594287}
         ]
     },
-    "output" : { "folder" : "../render/garden-box-light" },
+    "output" : { "folder" : "../render/garden-box-light-further" },
     "rendering" : {
-        "res_factor" : 64,
+        "res_factor" : 8,
         "exposure" : 1.202,
         "path_trace_depth": 2,
         "light_samples": 16,
@@ -35,7 +35,7 @@
     "lights": [
         {
             "pos" : [0.000, 1.044, 0.874],
-            "size" : 0.04,
+            "size" : 0.00,
             "intensity" : 1.0,
             "type": "point",
             "anim" : {

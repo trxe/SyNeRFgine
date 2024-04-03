@@ -6,15 +6,32 @@
         "clear_color" : [1.0, 0.0, 0.0],
         "attenuation" : 1.0
     },
+    "rendering" : {
+        "res_factor" : 64,
+        "exposure" : 1.202,
+        "path_trace_depth": 2,
+        "background_color" : [0.0, 0.0, 0.0],
+        "light_samples": 8,
+        "shadow_samples": 8,
+        "lens_angle_constant" : 0.001,
+        "nerf_filter" : "Shade",
+        "smooth_kernel_size" : 4,
+        "smooth_threshold" : 2.0,
+
+        "show_virtual_obj" : true,
+        "show_nerf" : true,
+        "shadow_on_nerf" : true,
+        "shadow_on_virtual_obj" : true
+    },
     "lights": [
         {
             "pos" : [ 0.60, 0.902, 0.545 ],
-            "size" : 0.040,
+            "size" : 0.000,
             "intensity" : 1.0
         },
         {
             "pos" : [ 0.0, 0.602, 0.545 ],
-            "size" : 0.040,
+            "size" : 0.000,
             "intensity" : 1.0
         }
     ],

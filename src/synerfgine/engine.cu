@@ -21,9 +21,6 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("zoom")) {
             m_default_zoom = cam_conf["zoom"];
         }
-        if (cam_conf.count("clear_color")) {
-            m_default_clear_color = {cam_conf["clear_color"][0], cam_conf["clear_color"][1], cam_conf["clear_color"][2]};
-        }
         if (cam_conf.count("show_ui_start")) {
             m_show_ui = cam_conf["show_ui_start"];
         }
@@ -97,8 +94,11 @@ void Engine::update_world_objects() {
         is_any_obj_dirty = is_any_obj_dirty || l.is_dirty;
         l.is_dirty = false;
     }
-    if (is_any_obj_dirty) {
+    if (is_any_obj_dirty || m_enable_animations) {
         needs_reset = true;
+        for (auto& obj : m_lights) {
+            if (m_enable_animations) obj.next_frame(m_anim_speed);
+        }
         d_lights.check_guards();
         d_lights.resize_and_copy_from_host(m_lights);
     }
@@ -142,6 +142,9 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("exposure")) {
         m_testbed->m_exposure = m_default_render_settings["exposure"].get<float>();
     }
+    if (m_default_render_settings.count("clear_color")) {
+        m_default_clear_color = {m_default_render_settings["clear_color"][0], m_default_render_settings["clear_color"][1], m_default_render_settings["clear_color"][2]};
+    }
     if (m_default_render_settings.count("smooth_kernel_size")) {
         m_testbed->sng_position_kernel_size = m_default_render_settings["smooth_kernel_size"].get<int>();
     }
@@ -162,6 +165,15 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     }
     if (m_default_render_settings.count("lens_angle_constant")) {
         m_raytracer.m_lens_angle_constant = m_default_render_settings["lens_angle_constant"];
+    }
+    if (m_default_render_settings.count("nerf_on_nerf_shadow_threshold")) {
+        m_nerf_self_shadow_threshold = m_default_render_settings["nerf_on_nerf_shadow_threshold"];
+    }
+    if (m_default_render_settings.count("show_light_pos") && m_default_render_settings["show_light_pos"] == true) {
+        m_transform_type = WorldObjectType::LightObj;
+    }
+    if (m_default_render_settings.count("nerf_shadow_brightness")) {
+        m_nerf_shadow_brightness = m_default_render_settings["nerf_shadow_brightness"];
     }
     if (m_default_render_settings.count("shadow_on_virtual_obj")) {
         m_raytracer.m_view_nerf_shadow = m_default_render_settings["shadow_on_virtual_obj"];
@@ -256,11 +268,12 @@ void Engine::imgui() {
             if (ImGui::SliderFloat("Shadows of NeRF Brightness", &m_nerf_shadow_brightness, MIN_DEPTH(), 3.0f)) { 
                 m_is_dirty = true;
             }
-            if (ImGui::SliderFloat("Shadows of Syn Brightness", &m_syn_shadow_brightness, MIN_DEPTH(), 1.0f)) { 
+            if (ImGui::SliderFloat("Threshold for NeRF-on-NeRF shadow", &m_nerf_self_shadow_threshold, MIN_DEPTH(), 1.0f)) { 
                 m_is_dirty = true;
             }
-            ImGui::SliderInt("Position blur kernel size", &m_testbed->sng_position_kernel_size, 0, 4);
+            ImGui::SliderInt("Position blur kernel size", &m_testbed->sng_position_kernel_size, 0, 9);
             ImGui::SliderFloat("Position blur kernel threshold", &m_testbed->sng_position_kernel_threshold, 0.001, 8.0f);
+            ImGui::SliderFloat("Shadow Depth Variance", &m_testbed->sng_shadow_depth_variance, 0.000, 0.01f);
         }
         if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
             m_camera_path.imgui(*m_testbed);
@@ -340,7 +353,7 @@ bool Engine::frame() {
     if (m_show_nerf) {
         m_testbed->render( m_stream_id, view, m_raytracer.get_tmp_frame_buffer(), m_raytracer.get_tmp_depth_buffer(),
             m_relative_vo_scale, d_world, d_lights, d_materials, d_nerf_rand_state, d_nerf_normals, 
-            d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_syn_shadow_brightness, m_raytracer.m_shadow_iters );
+            d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_nerf_self_shadow_threshold, m_raytracer.m_shadow_iters );
         sync(m_stream_id);
     }
     m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure);

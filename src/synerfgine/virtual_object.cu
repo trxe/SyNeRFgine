@@ -28,15 +28,8 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 		auto a = config["anim"]["rot_center"];
 		anim_rot_centre = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
 		a = config["anim"]["rot_axis"];
-		vec3 ax = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
-		float angle = config["anim"]["rot_angle"];
-		float cost = std::cos(angle);
-		float sint = std::sin(angle);
-		anim_next_rot = mat3{
-			cost + ax.x * ax.x * (1.0f - cost),        ax.x * ax.y * (1.0f - cost) - ax.z * sint, ax.x * ax.z * (1.0f - cost) + ax.y * sint, 
-			ax.x * ax.y * (1.0f - cost) + ax.z * sint, cost + ax.y * ax.y * (1.0f - cost),        ax.y * ax.z * (1.0f - cost) - ax.x * sint, 
-			ax.z * ax.y * (1.0f - cost) - ax.y * sint, ax.z * ax.y * (1.0f - cost) + ax.x * sint, cost + ax.z * ax.z * (1.0f - cost) 
-		};
+		anim_rot_axis = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+		anim_rot_angle = config["anim"]["rot_angle"];
 	}
 
     name = fs::path(file_path).basename();
@@ -90,11 +83,8 @@ VirtualObject::VirtualObject(uint32_t id, const nlohmann::json& config)
 
 	if (tri_count) center = center / (float)tri_count;
 	triangles_bvh = TriangleBvh::make();
-	// orig_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
-	// cam_triangles_gpu.resize_and_copy_from_host(triangles_cpu);
 	triangles_bvh->build(triangles_cpu, prims_per_leaf);
 	triangles_gpu.resize_and_copy_from_host(triangles_cpu);
-	// TODO: build a bvh implementation that can be updated
 }
 
 void VirtualObject::imgui() {

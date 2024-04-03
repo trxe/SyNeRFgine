@@ -314,7 +314,7 @@ void Display::save_image(const char* filepath) {
 	glReadBuffer(GL_FRONT);
 	glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, m_writing_buffer.data());
 	stbi_flip_vertically_on_write(true);
-	auto full_fp = fmt::format("{}/output-{}.png", filepath, ++m_img_count);
+	auto full_fp = fmt::format("{}/output-{:#03}.png", filepath, ++m_img_count);
 	stbi_write_png(full_fp.c_str(), width, height, nrChannels, m_writing_buffer.data(), stride);
 	tlog::success() << "Image written to: " << full_fp;
 }

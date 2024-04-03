@@ -332,7 +332,7 @@ public:
 		const GPUMemory<sng::Material>& world_materials,
 		GPUMemory<curandState_t>& rand_states,
 		const float& nerf_shadow_brightness,
-		const float& syn_shadow_brightness,
+		const float& nerf_on_nerf_shadow_threshold,
 		const size_t& shadow_samples
 	);
 	void render_nerf_with_buffers(
@@ -411,7 +411,7 @@ public:
 		GPUMemory<vec3>& nerf_positions,
 		bool show_shadow,
 		float nerf_shadow_brightness,
-		float syn_shadow_brightness,
+		float nerf_on_nerf_shadow_threshold,
 		const size_t& shadow_samples
 	);
 
@@ -683,6 +683,7 @@ public:
 	EMeshRenderMode m_mesh_render_mode = EMeshRenderMode::VertexNormals;
 	int sng_position_kernel_size = 1;
 	float sng_position_kernel_threshold = 1.0f;
+	float sng_shadow_depth_variance = 0.0f;
 
 	uint32_t m_seed = 1337;
 

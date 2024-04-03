@@ -27,10 +27,10 @@
         "path_trace_depth": 2,
         "background_color" : [0.0, 0.0, 0.0],
         "light_samples": 8,
-        "shadow_samples": 8,
+        "shadow_samples": 1,
         "lens_angle_constant" : 0.001,
         "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 4,
+        "smooth_kernel_size" : 0,
         "smooth_threshold" : 2.0,
         "nerf_on_nerf_shadow_threshold" : 0.000,
         "nerf_shadow_brightness" : 0.30,
@@ -44,12 +44,12 @@
     "lights": [
         {
             "pos" : [-0.239, 0.782, 1.080],
-            "size" : 0.10,
+            "size" : 0.00,
             "intensity" : 1.0
         },
         {
             "pos" : [ 1.385, 2.2131, 0.248 ],
-            "size" : 0.30,
+            "size" : 0.00,
             "intensity" : 1.0
         }
     ],

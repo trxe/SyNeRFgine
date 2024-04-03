@@ -1,33 +1,48 @@
 {
     "camera" : {
-        "view" : [ -0.122,-0.992,0.043 ],
-        "at" : [ 0.575,0.697,-0.273 ],
-        "scale" : 3.452,
+        "view" : [0.743,-0.546,0.388],
+        "at" : [-0.606,0.811,0.074],
+        "zoom" : 0.318,
         "clear_color" : [ 1.0, 0.0, 0.0 ],
         "show_ui_start" : false,
-        "animation_speed" : 1.0
+        "animation_speed" : 1.00,
+        "total_time_ms" : 2000,
+        "move_on_start" : false
     },
-    "shader" : {
-        "nerf_blur_kernel_size": 0,
-        "syn_blur_kernel_size": 2
+    "rendering" : {
+        "res_factor" : 64,
+        "exposure" : 1.202,
+        "path_trace_depth": 2,
+        "background_color" : [0.0, 0.0, 0.0],
+        "light_samples": 8,
+        "shadow_samples": 8,
+        "lens_angle_constant" : 0.003,
+        "nerf_filter" : "Shade",
+        "smooth_kernel_size" : 4,
+        "smooth_threshold" : 2.0,
+
+        "show_virtual_obj" : true,
+        "show_nerf" : true,
+        "shadow_on_nerf" : true,
+        "shadow_on_virtual_obj" : true
     },
     "lights": [
         {
-            "pos" : [ -2.755, 1.000, -0.311 ],
-            "size" : 0.04,
+            "pos" : [-2.410, 2.000, -1.637],
+            "size" : 0.20,
             "intensity" : 1.0
         }
     ],
     "objfile": [
         {
             "file": "../data/obj/rock.obj",
-            "pos" : [ 0.692, 0.071, -0.30 ],
-            "scale" : 0.297,
+            "pos" : [ -0.454, 0.171, 0.542 ],
+            "scale" : 0.140,
             "material": 1,
             "anim" : {
                 "rot_axis" : [0.0, 1.0, 0.0],
-                "rot_angle" : 0.1,
-                "rot_center" : [0.0, 1.0, 0.0]
+                "rot_center" : [ -0.054, 0.171, 0.542 ],
+                "rot_angle" : 0.1
             }
         }
     ],

@@ -51,7 +51,16 @@ public:
     vec3& get_translate_mut() { return pos; }
     float& get_scale_mut() { return scale; }
     void next_frame(const float& speed) {
-        pos = anim_next_rot * (rot * (pos - anim_rot_centre) + anim_rot_centre);
+        if (anim_rot_angle == 0.0f) return;
+        vec3& ax = anim_rot_axis;
+		float cost = std::cos(anim_rot_angle * speed);
+		float sint = std::sin(anim_rot_angle * speed);
+		anim_next_rot = mat3{
+			cost + ax.x * ax.x * (1.0f - cost),        ax.x * ax.y * (1.0f - cost) - ax.z * sint, ax.x * ax.z * (1.0f - cost) + ax.y * sint, 
+			ax.x * ax.y * (1.0f - cost) + ax.z * sint, cost + ax.y * ax.y * (1.0f - cost),        ax.y * ax.z * (1.0f - cost) - ax.x * sint, 
+			ax.z * ax.y * (1.0f - cost) - ax.y * sint, ax.z * ax.y * (1.0f - cost) + ax.x * sint, cost + ax.z * ax.z * (1.0f - cost) 
+		};
+        pos = anim_next_rot * (rot * (pos - anim_rot_centre)) + anim_rot_centre;
     }
 
     int32_t get_mat_idx() const { return material_id; }
@@ -75,7 +84,9 @@ private:
     int32_t material_id;
     uint32_t id;
 
+    float anim_rot_angle{0.0f};
     mat3 anim_next_rot{mat3::identity()};
+    vec3 anim_rot_axis{0.0f, 1.0f, 0.0f};
     vec3 anim_rot_centre{0.0f};
 };
 

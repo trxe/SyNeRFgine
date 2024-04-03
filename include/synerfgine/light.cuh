@@ -27,7 +27,25 @@ struct Light {
             else if (type_str == "directional") type = LightType::Directional;
             else throw std::runtime_error(fmt::format("{} light not recognized", type_str.c_str()));
         }
+        if (config.count("anim")) {
+            anim_start_pos = pos;
+            auto& a = config["anim"]["end"];
+            anim_end_pos = { a[0].get<float>(), a[1].get<float>(), a[2].get<float>() };
+            anim_step_size = config["anim"]["step"];
+            anim_ratio = 0.0;
+        }
         tlog::success() << "Set " << type_str << " light position " << pos << " at intensity " << intensity;
+    }
+
+    void next_frame(const float& speed) {
+        if (anim_step_size == 0.0f) return;
+        float next_ratio = anim_ratio + anim_step_size;
+        if (next_ratio > 1.0 || next_ratio < 0.0) {
+            anim_step_size = -anim_step_size;
+            next_ratio = anim_ratio + anim_step_size;
+        }
+        anim_ratio = next_ratio;
+        pos = (1.0f - anim_ratio) * anim_start_pos + anim_ratio * anim_end_pos;
     }
 
     __host__ void imgui() {
@@ -65,6 +83,11 @@ struct Light {
     float intensity;
     float size;
     bool is_dirty{true};
+
+    vec3 anim_start_pos;
+    vec3 anim_end_pos;
+    float anim_ratio;
+    float anim_step_size;
 };
 
 }

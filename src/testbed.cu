@@ -4362,7 +4362,7 @@ void Testbed::render(
 	GPUMemory<vec3>& nerf_positions,
 	bool show_shadow,
 	float nerf_shadow_brightness,
-	float syn_shadow_brightness,
+	float nerf_on_nerf_shadow_threshold,
 	const size_t& shadow_samples
 ) {
 	if (!m_network) {
@@ -4391,7 +4391,7 @@ void Testbed::render(
 			view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
 		if (show_shadow) {
 			shade_nerf_shadows(stream, *view.device, view.camera0, view.render_buffer->view(), nerf_normals, nerf_positions,  world_objects, world_lights, 
-				world_materials, rand_states, nerf_shadow_brightness, syn_shadow_brightness, shadow_samples);
+				world_materials, rand_states, nerf_shadow_brightness, nerf_on_nerf_shadow_threshold, shadow_samples);
 		}
 		// render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
 		// 	focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);

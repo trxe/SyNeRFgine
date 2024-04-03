@@ -1637,8 +1637,9 @@ __global__ void shade_with_shadow(
 	vec4* __restrict__ frame_buffer,
 	float* __restrict__ depth_buffer,
 	float nerf_shadow_brightness,
-	float syn_shadow_brightness,
-	size_t shadow_samples
+	float nerf_on_nerf_shadow_threshold,
+	size_t shadow_samples,
+	float depth_variance_ratio // unused
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
@@ -1646,7 +1647,7 @@ __global__ void shade_with_shadow(
 
 	ivec2 tex_coord = {(int)idx % resolution.x, (int)idx / resolution.x};
 
-	const vec3 pos = positions[idx];
+	const vec3 orig_pos = positions[idx];
 	const vec3 normal = normals[idx];
 
 	float sum_shadow_depth = 0.0f;
@@ -1657,8 +1658,10 @@ __global__ void shade_with_shadow(
 			if (light.type == sng::LightType::Point) {
 				const vec3 lpos = light.sample(rand_state[idx]);
 				// const vec3 lpos = light.sample();
+				const vec3 l = normalize(lpos - orig_pos);
+				// const vec3 pos = orig_pos + (fractf(curand_uniform(&rand_state[idx])) - 0.5f) * depth_variance_ratio;
+				const vec3& pos = orig_pos;
 				const float full_d = length(lpos - pos);
-				const vec3 l = normalize(lpos - pos);
 				const vec3 invl = 1.0f / l;
 				// if (dot(normal, l) < 0.0) overall_shadow_depth = min(overall_shadow_depth, 0.1f);
 
@@ -1671,7 +1674,8 @@ __global__ void shade_with_shadow(
 
 				float nerf_depth = full_d - sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
 				float nerf_shadow_mask = smoothstep(1.0 - nerf_depth / full_d);
-				if (nerf_shadow_mask > syn_shadow_brightness + MIN_DEPTH()) {
+				// if (nerf_shadow_mask > nerf_on_nerf_shadow_threshold + MIN_DEPTH()) {
+				if (nerf_shadow_mask > nerf_on_nerf_shadow_threshold) {
 					overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_brightness * nerf_shadow_mask);
 				}
 			} else if (light.type == sng::LightType::Directional) {
@@ -2535,7 +2539,7 @@ void Testbed::shade_nerf_shadows(
 	const GPUMemory<sng::Material>& world_materials,
 	GPUMemory<curandState_t>& rand_states,
 	const float& nerf_shadow_brightness,
-	const float& syn_shadow_brightness,
+	const float& nerf_on_nerf_shadow_threshold,
 	const size_t& shadow_samples
 ) {
 	auto n_elements = product(render_buffer.resolution);
@@ -2563,8 +2567,9 @@ void Testbed::shade_nerf_shadows(
 		render_buffer.frame_buffer,
 		render_buffer.depth_buffer,
 		nerf_shadow_brightness,
-		syn_shadow_brightness,
-		shadow_samples
+		nerf_on_nerf_shadow_threshold,
+		shadow_samples,
+		sng_shadow_depth_variance
 	);
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }

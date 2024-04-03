@@ -27,31 +27,36 @@
             {"view" : [ 0.85829437, -0.25176355, 0.44715512 ], "at" : [ 0.50632495, 0.6364906, 0.4853502 ], "zoom" : 0.4262003}
         ]
     },
+    "output" : {
+        "folder" : "../render/boxvase/"
+    },
     "rendering" : {
         "res_factor" : 8,
         "exposure" : 1.202,
         "path_trace_depth": 2,
         "background_color" : [0.0, 0.0, 0.0],
-        "light_samples": 16,
-        "shadow_samples": 2,
-        "lens_size" : 0.002,
-        "buffer_filter" : "Final",
+        "light_samples": 8,
+        "shadow_samples": 8,
+        "lens_angle_constant" : 0.001,
         "nerf_filter" : "Shade",
-        "tonemap" : "Hable"
-    },
-    "output" : {
-        "folder" : "../render/boxvase/"
+        "smooth_kernel_size" : 4,
+        "smooth_threshold" : 2.0,
+
+        "show_virtual_obj" : true,
+        "show_nerf" : true,
+        "shadow_on_nerf" : true,
+        "shadow_on_virtual_obj" : true
     },
     "lights": [
         {
-            "pos" : [ -0.32, 1.0, 0.62 ],
-            "size" : 0.080,
+            "pos" : [-0.471, 0.624, 2.441],
+            "size" : 0.380,
             "type": "point",
             "intensity" : 1.0
         },
         {
-            "pos" : [ 0.0, 0.602, 0.545 ],
-            "size" : 0.040,
+            "pos" : [-3.031, 0.568, 0.545],
+            "size" : 0.240,
             "type": "point",
             "intensity" : 1.0
         }
