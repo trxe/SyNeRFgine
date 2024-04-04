@@ -1669,8 +1669,42 @@ __global__ void shade_with_shadow(
 	}
 	sum_shadow_depth /= (float)shadow_samples;
 	vec4& tmp = rgba[idx];
+	constexpr bool demo_diffuse = true;
+	constexpr bool demo_ao = true;
+	constexpr float cone_angle = 0.3f;
+
+	float ao = 1.0f;
+	vec3 diffuse_refl{0.0};
+	const vec3 view = normalize(pos - camera_matrix[3]);
+	for (size_t i = 0; demo_diffuse && i < shadow_samples; ++i) {
+		vec3 refl = normalize(sng::reflect(view, normal));
+		auto longi = curand_uniform(&rand_state[i]) * cone_angle;
+		auto latid = curand_uniform(&rand_state[i]) * 2.0 * tcnn::PI;
+		refl = sng::cone_random(refl, normal, longi, latid);
+		sng::HitRecord hit_info;
+		int32_t out_obj_id = -1;
+		float syn_depth = sng::depth_test_world(pos, refl, objs, obj_count, out_obj_id, hit_info);
+		if (out_obj_id >= 0) {
+			vec3 shading{0.0};
+			for (uint32_t i = 0; i < light_count; ++i) {
+				const sng::Light& light = lights[i];
+				if (light.type == sng::LightType::Point) {
+					vec3 L = normalize(light.pos - pos);
+					vec3& N = hit_info.normal;
+					const sng::Material& mat = materials[hit_info.material_idx];
+					
+					int32_t shadow_hit = -1;
+					sng::depth_test_world(hit_info.pos, L, objs, obj_count, out_obj_id, shadow_hit);
+					shading += max(0.0f, dot(L, N)) * mat.kd * 1.0f/length2(light.pos - pos) * (shadow_hit > -1 ? 0.0f : 0.3f);
+				}
+			}
+			// if (idx % 100 == 0) printf("%d: %f %f %f %f\n", idx, shading.r, shading.g, shading.b, 1.0f/ syn_depth);
+			diffuse_refl += min(1.0f, 1.0f/syn_depth) * shading / (cone_angle * 2.0f);
+		}
+	}
+	diffuse_refl /= (float)shadow_samples;
 	if (render_mode == ERenderMode::ShadowDepth) rgba[idx].rgb() = vec3(sum_shadow_depth);
-	else rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
+	else rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth + diffuse_refl;
 }
 
 __global__ void shade_kernel_nerf(
