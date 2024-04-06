@@ -1669,14 +1669,14 @@ __global__ void shade_with_shadow(
 				float syn_depth = sng::depth_test_world(pos, l, objs, obj_count, hit_obj_id, hit_obj_id);
 				float syn_shadow_mask = syn_depth / full_d;
 				if (syn_shadow_mask + MIN_DEPTH() < 1.00) {
-					overall_shadow_depth = min(overall_shadow_depth, smoothstep(syn_depth / full_d));
+					overall_shadow_depth = min(overall_shadow_depth, smoothstep(syn_shadow_mask * syn_shadow_mask));
 				}
 
 				float nerf_depth = full_d - sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
 				float nerf_shadow_mask = smoothstep(1.0 - nerf_depth / full_d);
 				// if (nerf_shadow_mask > nerf_on_nerf_shadow_threshold + MIN_DEPTH()) {
 				if (nerf_shadow_mask > nerf_on_nerf_shadow_threshold) {
-					overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_brightness * nerf_shadow_mask);
+					overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_brightness * nerf_shadow_mask * nerf_shadow_mask);
 				}
 			} else if (light.type == sng::LightType::Directional) {
 				const vec3& direction = normalize(-light.pos);

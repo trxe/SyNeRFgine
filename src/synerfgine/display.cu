@@ -134,10 +134,10 @@ void Display::init_opengl_shaders(const std::string& frag_fp) {
 }
 
 
-void Display::begin_frame() {
+bool Display::begin_frame() {
 	if (glfwWindowShouldClose(m_glfw_window) || ImGui::IsKeyPressed(GLFW_KEY_ESCAPE) || ImGui::IsKeyPressed(GLFW_KEY_Q)) {
 		destroy();
-		return;
+		return false;
 	}
 
 	glfwPollEvents();
@@ -147,6 +147,7 @@ void Display::begin_frame() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 	ImGuizmo::BeginFrame();
+	return true;
 }
 
 void Display::transfer_texture(const Foveation& foveation, [[maybe_unused]] GLint syn_rgba, GLint syn_depth, GLint rgba_filter_mode, 
@@ -301,8 +302,8 @@ bool Display::present(const vec3& clear_color, GLuint nerf_rgba_texid, GLuint ne
 	return true;
 }
 
-void Display::save_image(const char* filepath) {
-	if (m_img_count > m_img_count_max) return;
+bool Display::save_image(const char* filepath) {
+	if (m_img_count > m_img_count_max) return false;
 	int width, height;
 	glfwGetFramebufferSize(m_glfw_window, &width, &height);
 	GLsizei nrChannels = 3;
@@ -317,6 +318,7 @@ void Display::save_image(const char* filepath) {
 	auto full_fp = fmt::format("{}/output-{:#03}.png", filepath, ++m_img_count);
 	stbi_write_png(full_fp.c_str(), width, height, nrChannels, m_writing_buffer.data(), stride);
 	tlog::success() << "Image written to: " << full_fp;
+	return true;
 }
 
 void Display::destroy() {

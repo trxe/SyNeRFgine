@@ -93,6 +93,8 @@ void VirtualObject::imgui() {
 	std::string title = fmt::format("Object [{}]", id);
 	std::string unique_pos = fmt::format("Vals [{}]", id);
 	std::string unique_mat_id = fmt::format("[{}] mat id", id);
+	std::string unique_rot_pos = fmt::format("[{}] rot pos", id);
+	std::string unique_rot_angle = fmt::format("[{}] rot angle", id);
 	std::string info = fmt::format(
 		"\"pos\" : [ {:.3f}, {:.3f}, {:.3f} ],\n"
 		"\"rot\" : [ {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f} ],\n"
@@ -104,6 +106,9 @@ void VirtualObject::imgui() {
 		scale);
 	if (ImGui::TreeNode(title.c_str())) {
 		ImGui::InputTextMultiline(unique_pos.c_str(), info.data(), info.size() + 1, {300, 50});
+		if (ImGui::SliderFloat(unique_rot_angle.c_str(), &this->anim_rot_angle, 0.0, tcnn::PI)) { 
+			is_dirty = true;
+		}
 		if (ImGui::SliderFloat(unique_scale.c_str(), &this->scale, 0.0, g_vo_pos_bound)) { 
 			is_dirty = true;
 		}

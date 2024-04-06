@@ -2199,7 +2199,7 @@ void Testbed::mouse_drag() {
 
 bool Testbed::begin_frame() {
 	if (glfwWindowShouldClose(m_glfw_window) || ImGui::IsKeyPressed(GLFW_KEY_ESCAPE) || ImGui::IsKeyPressed(GLFW_KEY_Q)) {
-		destroy_window();
+		if (m_render_window) destroy_window();
 		return false;
 	}
 
@@ -3302,11 +3302,13 @@ void Testbed::destroy_window() {
 	m_dlss = false;
 	m_dlss_provider.reset();
 
-	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
-	glfwDestroyWindow(m_glfw_window);
-	glfwTerminate();
+	if (m_glfw_window) {
+		ImGui_ImplOpenGL3_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
+		glfwDestroyWindow(m_glfw_window);
+		glfwTerminate();
+	}
 
 	m_blit_program = 0;
 	m_blit_vao = 0;

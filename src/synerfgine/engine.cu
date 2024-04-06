@@ -44,7 +44,10 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (output_conf.count("img_count")) {
             m_display.m_img_count_max = output_conf["img_count"];
         } else {
-            m_display.m_img_count_max = m_camera_path.get_total_images();
+            m_display.m_img_count_max = max(1, m_camera_path.get_total_images());
+        }
+        if (output_conf.count("record")) {
+            m_has_output = output_conf["record"].get<bool>();
         }
     }
     nlohmann::json& mat_conf = config["materials"];
@@ -306,7 +309,7 @@ bool Engine::frame() {
     if (!m_display.is_alive()) return false;
     Testbed::CudaDevice& device = m_testbed->primary_device();
     device.device_guard();
-    m_display.begin_frame();
+    if (!m_display.begin_frame()) return false;
     imgui();
     ivec2 curr_window_res = m_display.get_window_res();
     if (curr_window_res != m_next_frame_resolution || !m_testbed->m_render_skip_due_to_lack_of_camera_movement_counter || 
@@ -378,7 +381,7 @@ bool Engine::frame() {
     m_display.present(m_default_clear_color, nerf_rgba_texid, nerf_depth_texid, syn_rgba_texid, syn_depth_texid, view.render_buffer->out_resolution(), rt_res, view.foveation, m_raytracer.filter_type());
     if (has_output()) {
         auto fp = m_output_dest.str();
-        m_display.save_image(fp.c_str());
+        return m_display.save_image(fp.c_str());
     }
     return m_display.is_alive();
 }

@@ -62,11 +62,11 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"vr"}
 	};
 
-	Flag no_train_flag{
+	Flag train_flag{
 		parser,
-		"NO_TRAIN",
-		"Disables training on startup.",
-		{"no-train"},
+		"TRAIN",
+		"Enables training on startup.",
+		{"train"},
 	};
 
 	ValueFlag<string> scene_flag{
@@ -173,7 +173,7 @@ int main_func(const std::vector<std::string>& arguments) {
 		engine.set_virtual_world(get(virtual_flag));
 	}
 
-	testbed.m_train = !no_train_flag;
+	const bool testbed_mode = train_flag;
 	testbed.m_dynamic_res = false;
 
 #ifdef NGP_GUI
@@ -185,24 +185,24 @@ int main_func(const std::vector<std::string>& arguments) {
 	try {
 		if (gui) {
 			fs::path p = fs::path::getcwd();
-			// testbed.init_window(width_flag ? get(width_flag) : 1280, height_flag ? get(height_flag) : 720);
-			engine.init(
-				width_flag ? get(width_flag) : 1280, 
-				height_flag ? get(height_flag) : 720, 
-				fragment_shader_flag ? get(fragment_shader_flag) : "../main.frag",
-				&testbed);
-		}
-
-		if (vr_flag) {
-			testbed.init_vr();
+			if (testbed_mode) {
+				testbed.init_window(width_flag ? get(width_flag) : 1280, height_flag ? get(height_flag) : 720);
+			} else {
+				engine.init(
+					width_flag ? get(width_flag) : 1280, 
+					height_flag ? get(height_flag) : 720, 
+					fragment_shader_flag ? get(fragment_shader_flag) : "../main.frag",
+					&testbed);
+			}
 		}
 
 		// Render/training loop
-		// while (testbed.frame()) {
-		while (engine.frame()) {
+		while (true) {
+			bool go_next_frame = testbed_mode ? testbed.frame() : engine.frame();
 			if (!gui) {
 				tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
 			}
+			if (!go_next_frame) break;
 		}
 	} catch (const std::runtime_error& e) {
 		tlog::error(e.what());
