@@ -275,7 +275,7 @@ static tlog::Stream& operator<<(tlog::Stream& ostr, const vec3& v) {
     return ostr << "[" << v.r << ", " << v.g << ", " << v.b << "]";
 }
 
-__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, const int32_t& this_obj, int32_t& out_obj_id);
+__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id);
 __device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id, HitRecord& hit_info);
 __device__ float depth_test_nerf(const float& full_d, const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& L, const vec3& invL,
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local);

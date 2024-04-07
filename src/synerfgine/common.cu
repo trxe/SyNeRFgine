@@ -25,12 +25,12 @@ __global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state) 
     curand_init(static_cast<uint64_t>(PT_SEED),  idx, (uint64_t)0, rand_state+idx);
 }
 
-__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, const int32_t& this_obj, int32_t& out_obj_id) {
+__device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id) {
     float depth = MAX_DEPTH();
+	const vec3 offset_origin = origin + dir * MIN_DEPTH();
     for (size_t c = 0; c < object_count; ++c) {
-        if (c == this_obj) continue;
         ObjectTransform obj = objects[c];
-        auto [tri_id, hit_d] = ngp::ray_intersect_nodes(origin, dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+        auto [tri_id, hit_d] = ngp::ray_intersect_nodes(offset_origin, dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
         if (hit_d < depth && hit_d > MIN_DEPTH()) {
             out_obj_id = c;
             depth = hit_d;
@@ -40,9 +40,10 @@ __device__ float depth_test_world(const vec3& origin, const vec3& dir, const Obj
 }
 
 __device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id, HitRecord& hit_info) {
+	const vec3 offset_origin = origin + dir * MIN_DEPTH();
     for (size_t c = 0; c < object_count; ++c) {
         ObjectTransform obj = objects[c];
-        auto [tri_id, hit_d] = ngp::ray_intersect_nodes(origin, dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
+        auto [tri_id, hit_d] = ngp::ray_intersect_nodes(offset_origin, dir, obj.scale, obj.pos, obj.rot, obj.g_node, obj.g_tris);
         if (hit_d < hit_info.t && hit_d > MIN_DEPTH()) {
             out_obj_id = c;
             hit_info.t = hit_d;

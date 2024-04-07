@@ -27,9 +27,9 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 				L = normalize(L);
 				vec3 invL = vec3(1.0f) / L;
 				int32_t obj_hit = -1; 
-				float syn_shadow = depth_test_world(hit_info.pos, L, objects, object_count, hit_info.object_idx, obj_hit);
-				float nerf_shadow = depth_test_nerf(syn_shadow + 1.0, n_steps, cone_angle_constant, hit_info.pos, L, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
-				float shadow_mask = no_shadow ? 1.0 : smoothstep(min(min(nerf_shadow, syn_shadow), full_dist) / full_dist);
+				float syn_shadow = depth_test_world(hit_info.pos, L, objects, object_count, obj_hit);
+				float nerf_shadow = no_shadow ? 1.0 : depth_test_nerf(syn_shadow + 1.0, n_steps, cone_angle_constant, hit_info.pos, L, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+				float shadow_mask = smoothstep(min(min(nerf_shadow, syn_shadow), full_dist) / full_dist);
 				vec3 R = reflect(L, hit_info.normal);
 				vec3 V = normalize(-wi);
 				color.rgb() += material.local_color(L, hit_info.normal, R, V, light) * shadow_mask;

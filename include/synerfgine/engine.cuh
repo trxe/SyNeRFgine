@@ -37,7 +37,7 @@ private:
     void sync(cudaStream_t stream) { 
         CUDA_CHECK_THROW(cudaStreamSynchronize(stream)); 
     }
-    bool has_output() const { return !m_output_dest.empty(); }
+    bool has_output() const { return !m_output_dest.empty() && m_has_output; }
     Testbed::View& nerf_render_buffer_view() {
         auto& view = m_testbed->m_views.front();
         view.device = &(m_testbed->primary_device());
@@ -65,6 +65,7 @@ private:
     ivec2 m_next_frame_resolution;
     const float m_factor_constant{8.0f};
     fs::path m_output_dest;
+    bool m_has_output{false};
 
     RayTracer m_raytracer;
     std::vector<Material> m_materials;
