@@ -25,6 +25,7 @@ enum ImgBufferType {
 	SrcDirection,
 	Normal,
 	Depth,
+	NerfShadow,
 	// MaterialIndex,
 	// Alive,
 };
@@ -37,6 +38,7 @@ static const char * img_buffer_type_names[] = {
 	"Src Direction",
 	"Normal",
 	"Depth",
+	"NerfShadow",
 	// "MaterialIndex",
 	// "Alive"
 };
@@ -126,7 +128,7 @@ class RayTracer {
 		);
 
 		void overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, 
-			ngp::EColorSpace color_space, ngp::ETonemapCurve tonemap_curve, float exposure);
+			ngp::EColorSpace color_space, ngp::ETonemapCurve tonemap_curve, float exposure, bool is_nerf_shown);
         void load(std::vector<vec4>& frame_cpu, std::vector<float>& depth_cpu);
 
 		void sync() {

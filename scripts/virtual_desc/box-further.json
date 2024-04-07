@@ -6,7 +6,7 @@
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "fps" : 24,
-        "animation_speed" : 1.0,
+        "animation_speed" : 0.0,
         "total_time_ms" : 4000,
         "move_on_start" : false,
         "path" : [
@@ -17,10 +17,9 @@
             {"view" : [ 0.34421092, -0.7434542, -0.57340676 ], "at" : [ 0.42162585, 0.40618336, 0.30646777 ], "zoom" : 1.9594287}
         ]
     },
-    "output" : { "folder" : "../render/garden-box-light-further" },
     "rendering" : {
         "res_factor" : 8,
-        "exposure" : 1.202,
+        "exposure" : 4.202,
         "path_trace_depth": 2,
         "light_samples": 16,
         "shadow_samples": 8,
@@ -29,9 +28,10 @@
         "nerf_filter" : "Shade",
         "tonemap" : "Hable",
         "show_light_pos" : true,
-        "nerf_on_nerf_shadow_threshold" : 0.000,
-        "nerf_shadow_brightness" : 0.30
+        "nerf_on_nerf_shadow_threshold" : 0.001,
+        "nerf_shadow_brightness" : 0.20
     },
+    "output" : { "folder" : "../render/garden-box-light-further", "record": false },
     "lights": [
         {
             "pos" : [0.000, 1.044, 0.874],

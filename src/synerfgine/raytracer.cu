@@ -10,7 +10,7 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 	const uint32_t& n_steps, const float& cone_angle_constant, 
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, 
 	const BoundingBox& render_aabb, const mat3& render_aabb_to_local,
-	curandState_t& rand_state, bool no_shadow
+	curandState_t& rand_state, float& out_nerf_shadow, bool no_shadow
 ) {
 	if (hit_info.material_idx < 0) return vec4(0.0);
 	const Material& material = materials[hit_info.material_idx];
@@ -29,7 +29,9 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 				int32_t obj_hit = -1; 
 				float syn_shadow = depth_test_world(hit_info.pos, L, objects, object_count, obj_hit);
 				float nerf_shadow = no_shadow ? 1.0 : depth_test_nerf(syn_shadow + 1.0, n_steps, cone_angle_constant, hit_info.pos, L, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
-				float shadow_mask = smoothstep(min(min(nerf_shadow, syn_shadow), full_dist) / full_dist);
+				out_nerf_shadow = min(pow(nerf_shadow/full_dist, 2.0), out_nerf_shadow);
+				float shadow = min(min(nerf_shadow, syn_shadow), full_dist);
+				float shadow_mask = smoothstep(shadow * shadow / full_dist);
 				vec3 R = reflect(L, hit_info.normal);
 				vec3 V = normalize(-wi);
 				color.rgb() += material.local_color(L, hit_info.normal, R, V, light) * shadow_mask;
@@ -128,6 +130,7 @@ __global__ void raytrace(uint32_t n_elements,
 	vec3 view_dir{0.0f};
 	vec3 next_dir{0.0f};
 	// float depth{0.0f};
+	float nerf_shadow{1.0f};
 	for (size_t spp = 0; spp < sample_count; ++spp) {
 		auto src_pos = vec3(0.0);
 		auto src_dir = vec3(0.0);
@@ -154,7 +157,7 @@ __global__ void raytrace(uint32_t n_elements,
 			if (hit_obj_id < 0) break;
 			SampledRay next_ray;
 			vec4 color = shade_object(src_dir, next_ray, shadow_count, hit_info, lights, light_count, world, world_count, materials, mat_count,
-				n_steps, cone_angle_constant, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local, rand_state[i], !show_nerf_shadow);
+				n_steps, cone_angle_constant, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local, rand_state[i], nerf_shadow,!show_nerf_shadow);
 			shade_s += color.rgb() * ray.pdf * ray.attenuation;
 			if (!bounce) {
 				next_dir += next_ray.dir;
@@ -195,6 +198,9 @@ __global__ void raytrace(uint32_t n_elements,
 	case ImgBufferType::Depth:
 		acc_rgba[i].rgb() = vec3(1.0 - fractf(depth / 10.0));
 		break;
+	case ImgBufferType::NerfShadow:
+		acc_rgba[i].rgb() = vec3(nerf_shadow);
+		break;
 	default:
 		if (dot(curr_shade, curr_shade) > 0.001f) {
 			shade = shade * 0.5f + acc_rgba[i].rgb() * 0.5f;
@@ -204,7 +210,9 @@ __global__ void raytrace(uint32_t n_elements,
 	}
 }
 
-__global__ void overlay_nerf(ivec2 syn_res, 
+__global__ void overlay_nerf(
+	bool is_nerf_shown,
+	ivec2 syn_res, 
 	int syn_px_scale, 
 	vec4* __restrict__ final_rgba, 
 	float* __restrict__ final_depth, 
@@ -236,7 +244,7 @@ __global__ void overlay_nerf(ivec2 syn_res,
 
 	// vec4 rgba_to_use = use_blend_ratio ? 
 	// 	srgba * (1.0f - blend_ratio) + nrgba * blend_ratio :
-	auto& depth_to_use = sdepth < ndepth ? sdepth : ndepth;
+	auto& depth_to_use = !is_nerf_shown || sdepth < ndepth ? sdepth : ndepth;
 	vec4 rgba_to_use = 
 		srgba * (1.0f - nrgba.a) + nrgba * nrgba.a;
 	rgba_to_use.rgb() *= pow(vec3(2.0f), exposure);
@@ -357,11 +365,12 @@ void RayTracer::render(
 	sync();
 }
 
-void RayTracer::overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace color_space, ngp::ETonemapCurve tonemap_curve, float exposure) {
+void RayTracer::overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ngp::EColorSpace color_space, ngp::ETonemapCurve tonemap_curve, float exposure, bool is_nerf_shown) {
 	ivec2 res = resolution();
 	const dim3 threads = { 16, 8, 1 };
 	const dim3 blocks = { div_round_up((uint32_t)res.x, threads.x), div_round_up((uint32_t)res.y, threads.y), 1 };
 	overlay_nerf<<<blocks, threads, 0, m_stream_ray>>>(
+		is_nerf_shown,
 		res, 
 		static_cast<int>(syn_px_scale),
 		m_render_buffer.frame_buffer(),

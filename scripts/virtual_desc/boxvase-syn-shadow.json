@@ -14,9 +14,8 @@
         "light_samples": 8,
         "shadow_samples": 8,
         "lens_angle_constant" : 0.001,
-        "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 4,
-        "smooth_threshold" : 2.0,
+        "nerf_on_nerf_shadow_threshold" : 0.900,
+        "nerf_shadow_brightness" : 0.80,
 
         "show_virtual_obj" : true,
         "show_nerf" : true,
@@ -25,13 +24,13 @@
     },
     "lights": [
         {
-            "pos" : [ 0.60, 0.902, 0.545 ],
-            "size" : 0.000,
+            "pos" : [0.321, 0.724, 0.545],
+            "size" : 0.050,
             "intensity" : 1.0
         },
         {
-            "pos" : [ 0.0, 0.602, 0.545 ],
-            "size" : 0.000,
+            "pos" : [-0.370, 0.740, 0.412],
+            "size" : 0.050,
             "intensity" : 1.0
         }
     ],
@@ -54,7 +53,7 @@
             "id": 0,
             "type": "lambertian",
             "n": 64.0,
-            "kd": [ 0.0, 0.0, 1.0 ],
+            "kd": [ 0.0, 0.3, 0.7 ],
             "rg": 0.5
         },
         {

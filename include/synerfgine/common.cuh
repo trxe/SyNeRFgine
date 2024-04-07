@@ -18,6 +18,7 @@
 #include <json/json.hpp>
 
 #define PT_SEED 1999
+#define MAX_SHADOW_SAMPLES 32
 
 namespace sng {
 

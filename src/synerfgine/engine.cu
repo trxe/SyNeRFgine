@@ -8,6 +8,16 @@
 
 namespace sng {
 
+const std::unordered_map<std::string, ngp::ERenderMode> RENDER_MODE_MAP = {
+    {"AO", ERenderMode::AO},
+    {"Shade", ERenderMode::Shade},
+    {"Normals", ERenderMode::Normals},
+    {"Positions", ERenderMode::Positions},
+    {"Depth", ERenderMode::Depth},
+    {"ShadowDepth", ERenderMode::ShadowDepth},
+    {"Cost", ERenderMode::Cost}
+};
+
 void Engine::set_virtual_world(const std::string& config_fp) {
     nlohmann::json config = File::read_json(config_fp);
     if (config.count("camera")) {
@@ -193,6 +203,15 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("show_nerf")) {
         m_show_nerf = m_default_render_settings["show_nerf"];
     }
+    if (m_default_render_settings.count("nerf_filter")) {
+        std::string filter_name = m_default_render_settings["nerf_filter"];
+        m_testbed->m_render_mode = RENDER_MODE_MAP.at(filter_name);
+    }
+    tlog::info() << "Default camera matrix: Matrix([Vector(" 
+        << m_testbed->m_camera[0] << "), Vector("
+        << m_testbed->m_camera[1] << "), Vector("
+        << m_testbed->m_camera[2] << "), Vector("
+        << m_testbed->m_camera[3] << ")]).to_mat4x4()";
 }
 
 void Engine::resize() {
@@ -359,7 +378,7 @@ bool Engine::frame() {
             d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_nerf_self_shadow_threshold, m_raytracer.m_shadow_iters );
         sync(m_stream_id);
     }
-    m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure);
+    m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure, m_show_nerf);
 
     sync(m_stream_id);
     view.prev_camera = view.camera0;

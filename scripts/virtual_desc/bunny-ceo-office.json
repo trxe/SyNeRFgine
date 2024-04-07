@@ -1,42 +1,44 @@
 {
     "camera" : {
-        "view" : [0.758,-0.467,-0.455],
-        "at" : [0.157,0.657,0.257],
-        "zoom" : 1.005,
+        "view" : [-0.709,-0.241,0.663],
+"at" : [-0.289,0.822,0.636],
+"zoom" : 0.568,
         "clear_color" : [1.0, 0.0, 0.0],
         "attenuation" : 1.0
     },
     "rendering" : {
-        "res_factor" : 64,
-        "exposure" : 1.202,
+        "res_factor" :8,
+        "exposure" : 1.602,
         "path_trace_depth": 2,
         "background_color" : [0.0, 0.0, 0.0],
         "light_samples": 8,
         "shadow_samples": 8,
         "lens_angle_constant" : 0.001,
         "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 4,
-        "smooth_threshold" : 2.0,
+        "smooth_kernel_size" : 0,
+        "smooth_threshold" : 1.0000,
+        "nerf_on_nerf_shadow_threshold" : 0.005,
+        "nerf_shadow_brightness" : 0.00,
 
         "show_virtual_obj" : true,
-        "show_nerf" : true,
         "shadow_on_nerf" : true,
+        "show_nerf" : true,
         "shadow_on_virtual_obj" : true
     },
     "lights": [
         {
-            "pos" : [-0.074, 1.237, 0.472],
-            "size" : 0.000,
+            "pos" : [-0.074, 1.434, 0.472],
+            "size" : 0.100,
             "intensity" : 1.0
         }
     ],
     "objfile": [
         {
             "file": "../data/obj/bunny.obj",
-            "view" : [0.758,-0.467,-0.455],
-            "at" : [0.157,0.657,0.257],
-            "zoom" : 1.005,
-            "material": 1
+            "pos" : [ -0.124, 0.872, 0.564 ],
+            "rot" : [ 0.542, 0.000, -0.841, 0.000, 1.000, 0.000, 0.841, 0.000, 0.542 ],
+            "scale" : 0.712,
+            "material": 0
         }
     ],
     "materials": [
@@ -44,8 +46,10 @@
             "id": 0,
             "type": "glossy",
             "n": 64.0,
+            "spec_angle": 0.001,
             "kd": [ 0.0, 0.8, 0.3 ],
-            "rg": 0.5
+            "ks": [ 0.0, 1.0, 0.5 ],
+            "rg" : 0.5
         }
     ]
 }

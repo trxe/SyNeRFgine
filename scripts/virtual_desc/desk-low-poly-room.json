@@ -12,7 +12,7 @@
     "output" : { 
         "folder" : "../render/desk-low-poly-room",
         "img_count" : 100,
-        "record" : true
+        "record" : false
     },
     "rendering" : {
         "res_factor" : 8,

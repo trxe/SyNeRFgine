@@ -28,7 +28,8 @@
         ]
     },
     "output" : {
-        "folder" : "../render/boxvase/"
+        "folder" : "../render/boxvase/",
+        "record" : false
     },
     "rendering" : {
         "res_factor" : 8,
@@ -38,9 +39,6 @@
         "light_samples": 8,
         "shadow_samples": 8,
         "lens_angle_constant" : 0.001,
-        "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 4,
-        "smooth_threshold" : 2.0,
 
         "show_virtual_obj" : true,
         "show_nerf" : true,
@@ -49,49 +47,44 @@
     },
     "lights": [
         {
-            "pos" : [-0.471, 0.624, 2.441],
-            "size" : 0.380,
-            "type": "point",
+            "pos" : [ 0.60, 0.902, 0.545 ],
+            "size" : 0.000,
             "intensity" : 1.0
         },
         {
-            "pos" : [-3.031, 0.568, 0.545],
-            "size" : 0.240,
-            "type": "point",
+            "pos" : [ 0.0, 0.602, 0.545 ],
+            "size" : 0.000,
             "intensity" : 1.0
         }
     ],
     "objfile": [
         {
             "file": "../data/obj/smallbox.obj",
-            "pos" : [ 0.943, 0.602, 0.545 ],
+            "pos" : [ 1.043, 0.602, 0.545 ],
             "scale" : 0.137,
             "material": 0
         },
         {
             "file": "../data/obj/rock.obj",
-            "pos" : [ 0.692, 0.071, -0.30 ],
-            "scale" : 0.297,
+            "pos" : [ 0.00, 0.602, 0.545 ],
+            "scale" : 0.097,
             "material": 1
         }
     ],
     "materials": [
         {
             "id": 0,
-            "type": "glossy",
+            "type": "lambertian",
             "n": 64.0,
-            "spec_angle": 0.001,
             "kd": [ 0.0, 0.0, 1.0 ],
-            "ks": [ 0.0, 0.0, 0.0 ],
-            "rg" : 0.3
+            "rg": 0.5
         },
         {
             "id": 1,
             "type": "lambertian",
-            "n": 128.0,
-            "kd": [ 0.0, 1.0, 0.8 ],
-            "ks": [ 0.0, 0.0, 0.0 ],
-            "rg" : 0.5
+            "n": 28.0,
+            "kd": [ 1.0, 0.0, 0.0 ],
+            "rg": 0.5
         }
     ]
 }
