@@ -20,7 +20,7 @@
     "output" : { "folder" : "../render/garden-box-light", "record": false },
     "rendering" : {
         "res_factor" : 8,
-        "exposure" : 3.202,
+        "exposure" : 1.202,
         "path_trace_depth": 2,
         "light_samples": 16,
         "shadow_samples": 8,
@@ -28,8 +28,8 @@
         "buffer_filter" : "Final",
         "nerf_filter" : "Shade",
         "show_light_pos" : true,
-        "nerf_on_nerf_shadow_threshold" : 0.010,
-        "nerf_shadow_brightness" : 0.30,
+        "nerf_on_nerf_shadow_threshold" : 0.072,
+        "nerf_shadow_brightness" : 0.20,
 
         "show_virtual_obj" : true,
         "shadow_on_nerf" : true,
@@ -38,8 +38,8 @@
     },
     "lights": [
         {
-            "pos" : [0.000, 1.044, 0.874],
-            "size" : 0.04,
+            "pos" : [0.411, 1.044, 1.041],
+            "size" : 0.02,
             "intensity" : 1.0,
             "type": "point",
             "anim" : {

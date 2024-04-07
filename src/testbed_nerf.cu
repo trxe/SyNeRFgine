@@ -1649,6 +1649,7 @@ __global__ void shade_with_shadow(
 
 	const vec3 orig_pos = positions[idx];
 	const vec3 normal = normals[idx];
+	float shadows_float_list[MAX_SHADOW_SAMPLES];
 
 	float sum_shadow_depth = 0.0f;
 	for (size_t i = 0; i < shadow_samples; ++i) {
@@ -1666,7 +1667,7 @@ __global__ void shade_with_shadow(
 				// if (dot(normal, l) < 0.0) overall_shadow_depth = min(overall_shadow_depth, 0.1f);
 
 				int32_t hit_obj_id = -1;
-				float syn_depth = sng::depth_test_world(pos, l, objs, obj_count, hit_obj_id, hit_obj_id);
+				float syn_depth = sng::depth_test_world(pos, l, objs, obj_count, hit_obj_id);
 				float syn_shadow_mask = syn_depth / full_d;
 				if (syn_shadow_mask + MIN_DEPTH() < 1.00) {
 					overall_shadow_depth = min(overall_shadow_depth, smoothstep(syn_shadow_mask * syn_shadow_mask));
@@ -1674,18 +1675,33 @@ __global__ void shade_with_shadow(
 
 				float nerf_depth = full_d - sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
 				float nerf_shadow_mask = smoothstep(1.0 - nerf_depth / full_d);
-				// if (nerf_shadow_mask > nerf_on_nerf_shadow_threshold + MIN_DEPTH()) {
-				if (nerf_shadow_mask > nerf_on_nerf_shadow_threshold) {
+				float nerf_rev_depth = sng::depth_test_nerf(n_steps, cone_angle_constant, pos + invl, lpos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
+				float nerf_rev_shadow_mask = smoothstep(1.0 - nerf_rev_depth / full_d);
+				float nerf_shadow_final = min(nerf_shadow_mask, nerf_rev_shadow_mask);
+				// if (nerf_shadow_mask > nerf_on_nerf_shadow_threshold) {
 					overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_brightness * nerf_shadow_mask * nerf_shadow_mask);
-				}
+				// }
 			} else if (light.type == sng::LightType::Directional) {
 				const vec3& direction = normalize(-light.pos);
 				overall_shadow_depth += dot(normal, direction);
 			}
 		}
-		sum_shadow_depth += overall_shadow_depth;
+		// sum_shadow_depth += overall_shadow_depth;
+		shadows_float_list[i] = overall_shadow_depth;
 	}
-	sum_shadow_depth /= (float)shadow_samples;
+
+	// sum_shadow_depth /= (float)shadow_samples;
+	float ave_shadow_depth = 0.0f;
+	float ave_shadow_depth_sqr = 0.0f;
+	for (size_t i = 0; i < shadow_samples; ++i) {
+		ave_shadow_depth += shadows_float_list[i];
+		ave_shadow_depth_sqr += shadows_float_list[i] * shadows_float_list[i];
+	}
+	ave_shadow_depth /= (float)shadow_samples;
+	ave_shadow_depth_sqr /= (float)shadow_samples;
+	float variance = abs(ave_shadow_depth_sqr - ave_shadow_depth);
+	sum_shadow_depth = (variance < nerf_on_nerf_shadow_threshold) ? ave_shadow_depth : 1.0;
+
 	vec4& tmp = rgba[idx];
 	if (render_mode == ERenderMode::ShadowDepth) rgba[idx].rgb() = vec3(sum_shadow_depth);
 	else rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
