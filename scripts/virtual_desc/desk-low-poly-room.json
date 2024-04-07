@@ -1,0 +1,81 @@
+{
+    "camera" : {
+        "view" : [-0.815,-0.455,-0.359],
+        "at" : [-0.457,1.287,1.163],
+        "zoom" : 1.005,
+        "animation_speed" : 1.0,
+        "clear_color" : [1.0, 0.0, 0.0],
+        "attenuation" : 1.0,
+        "show_ui": false,
+        "fps" : 24
+    },
+    "output" : { 
+        "folder" : "../render/desk-low-poly-room",
+        "img_count" : 100,
+        "record" : true
+    },
+    "rendering" : {
+        "res_factor" : 8,
+        "exposure" : 1.836,
+        "path_trace_depth": 2,
+        "background_color" : [0.0, 0.0, 0.0],
+        "light_samples": 8,
+        "shadow_samples": 8,
+        "lens_angle_constant" : 0.001,
+        "nerf_filter" : "Shade",
+        "smooth_kernel_size" : 4,
+        "smooth_threshold" : 2.0,
+        "show_light_pos" : true,
+        "nerf_on_nerf_shadow_threshold" : 0.001,
+        "nerf_shadow_brightness" : 0.60,
+
+        "show_virtual_obj" : true,
+        "show_nerf" : true,
+        "shadow_on_nerf" : true,
+        "shadow_on_virtual_obj" : true
+    },
+    "lights": [
+        {
+            "pos" : [0.082, 1.401, 1.214],
+            "size" : 0.000,
+            "intensity" : 1.0,
+            "anim" : {
+                "end" : [0.082, 2.001, 1.214],
+                "step" : 0.020
+            }
+        }
+        
+    ],
+    "objfile": [
+        {
+            "file": "../data/obj/rock.obj",
+            "pos" : [ -0.400, 1.130, 0.850 ],
+            "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
+            "scale" : 0.037,
+            "material": 0
+        },
+        {
+            "file": "../data/obj/armadillo.obj",
+            "pos" : [ -0.478, 1.170, 1.339 ],
+            "rot" : [ 0.970, 0.000, -0.244, 0.000, 1.000, 0.000, 0.244, 0.000, 0.970 ],
+            "scale" : 0.355,
+            "material": 1
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "n": 64.0,
+            "kd": [ 0.3, 0.1, 0.7 ],
+            "rg": 0.5
+        },
+        {
+            "id": 1,
+            "type": "lambertian",
+            "n": 28.0,
+            "kd": [ 0.7, 0.2, 0.3 ],
+            "rg": 0.5
+        }
+    ]
+}
