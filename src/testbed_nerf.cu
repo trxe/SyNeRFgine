@@ -1461,7 +1461,7 @@ __global__ void compute_extra_dims_gradient_train_nerf(
 		}
 	}
 }
-#define MAX_KERNEL_SQ_SIZE 100
+#define MAX_KERNEL_SQ_SIZE 900
 __global__ void blend_positions_in_buffer(
 	ivec2 resolution,
 	vec3* __restrict__ positions, 
@@ -1528,6 +1528,7 @@ __global__ void write_normals_to_buffer(
 	vec3* __restrict__ positions, 
 	vec3* __restrict__ normals,
 	vec4* __restrict__ rgba,
+	vec3 cam_origin,
 	ERenderMode render_mode
 ) {
 	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
@@ -1571,9 +1572,10 @@ __global__ void write_normals_to_buffer(
 		N += sng::get_normal(T, B);
 		factor += 1.0f;
 	}
-	normals[idx] = factor == 0.0 ? N : N / factor;
+	N = factor == 0.0 ? N : N / factor;
+	normals[idx] = normalize(N);
 	if (render_mode == ERenderMode::Normals) 
-		rgba[idx] = vec4(normals[idx], 1.0);
+		rgba[idx] = vec4(sng::vec3_to_col(normals[idx]), 1.0);
 }
 
 __global__ void extract_from_payload(
@@ -1643,16 +1645,19 @@ __global__ void shade_with_shadow(
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
-	if (render_mode != ERenderMode::Shade && render_mode != ERenderMode::ShadowDepth) return;
+	if (render_mode != ERenderMode::Shade && render_mode != ERenderMode::ShadowDepth && render_mode != ERenderMode::AO) return;
 
 	ivec2 tex_coord = {(int)idx % resolution.x, (int)idx / resolution.x};
 
 	const vec3 orig_pos = positions[idx];
+	const vec3 tangent = tex_coord.y == resolution.y ? orig_pos - positions[idx-resolution.x] : positions[idx+resolution.x] - orig_pos;
 	const vec3 normal = normals[idx];
+	const mat3 frame = sng::get_perturb_matrix(tangent, normal);
 	float shadows_float_list[MAX_SHADOW_SAMPLES];
+	float ambient_occlusion = 0.0f;
 
 	float sum_shadow_depth = 0.0f;
-	for (size_t i = 0; i < shadow_samples; ++i) {
+	for (size_t j = 0; j < shadow_samples; ++j) {
 		float overall_shadow_depth = 1.0f;
 		for (uint32_t i = 0; i < light_count; ++i) {
 			const sng::Light& light = lights[i];
@@ -1660,37 +1665,35 @@ __global__ void shade_with_shadow(
 				const vec3 lpos = light.sample(rand_state[idx]);
 				// const vec3 lpos = light.sample();
 				const vec3 l = normalize(lpos - orig_pos);
-				// const vec3 pos = orig_pos + (fractf(curand_uniform(&rand_state[idx])) - 0.5f) * depth_variance_ratio;
 				const vec3& pos = orig_pos;
 				const float full_d = length(lpos - pos);
 				const vec3 invl = 1.0f / l;
-				// if (dot(normal, l) < 0.0) overall_shadow_depth = min(overall_shadow_depth, 0.1f);
 
 				int32_t hit_obj_id = -1;
 				float syn_depth = sng::depth_test_world(pos, l, objs, obj_count, hit_obj_id);
 				float syn_shadow_mask = syn_depth / full_d;
-				if (syn_shadow_mask + MIN_DEPTH() < 1.00) {
-					overall_shadow_depth = min(overall_shadow_depth, smoothstep(syn_shadow_mask * syn_shadow_mask));
-				}
+				overall_shadow_depth = min(overall_shadow_depth, syn_shadow_mask);
 
-				float nerf_depth = full_d - sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
-				float nerf_shadow_mask = smoothstep(1.0 - nerf_depth / full_d);
-				float nerf_rev_depth = sng::depth_test_nerf(n_steps, cone_angle_constant, pos + invl, lpos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
-				float nerf_rev_shadow_mask = smoothstep(1.0 - nerf_rev_depth / full_d);
-				float nerf_shadow_final = min(nerf_shadow_mask, nerf_rev_shadow_mask);
-				// if (nerf_shadow_mask > nerf_on_nerf_shadow_threshold) {
-					overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_brightness * nerf_shadow_mask * nerf_shadow_mask);
-				// }
-			} else if (light.type == sng::LightType::Directional) {
-				const vec3& direction = normalize(-light.pos);
-				overall_shadow_depth += dot(normal, direction);
+				// Depth test from light position towards frag position. Avoid intersecting with first density grid
+				float nerf_depth = min(full_d, sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local));
+				float nerf_shadow_mask = nerf_depth / full_d;
+				overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_mask);
 			}
 		}
 		// sum_shadow_depth += overall_shadow_depth;
-		shadows_float_list[i] = overall_shadow_depth;
+		shadows_float_list[j] = overall_shadow_depth;
+
+		// calculate ambient occlusion
+		int32_t hit_obj_id = -1;
+		auto longi = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI / 2.0f;
+		auto latid = fractf(curand_uniform(&rand_state[idx])) * 2.0 * tcnn::PI;
+		vec3 point_test = sng::cone_random(normal, frame, longi, latid);
+		float syn_depth = sng::depth_test_world(orig_pos, point_test, objs, obj_count, hit_obj_id);
+		syn_depth /= nerf_shadow_brightness;
+		syn_depth *= dot(point_test, normal);
+		ambient_occlusion += smoothstep(clamp(syn_depth, 0.0f, 1.0f));
 	}
 
-	// sum_shadow_depth /= (float)shadow_samples;
 	float ave_shadow_depth = 0.0f;
 	float ave_shadow_depth_sqr = 0.0f;
 	for (size_t i = 0; i < shadow_samples; ++i) {
@@ -1701,9 +1704,17 @@ __global__ void shade_with_shadow(
 	ave_shadow_depth_sqr /= (float)shadow_samples;
 	float variance = abs(ave_shadow_depth_sqr - ave_shadow_depth);
 	sum_shadow_depth = (variance < nerf_on_nerf_shadow_threshold) ? ave_shadow_depth : 1.0;
+	// if (idx % 100 == 0) printf("%d: %f\n", idx, length(normal));
+
+	ambient_occlusion = sqrt(ambient_occlusion / (float)shadow_samples);
+	ambient_occlusion *= ambient_occlusion;
+	sum_shadow_depth = min(sum_shadow_depth, ambient_occlusion);
+	// sum_shadow_depth = smoothstep(sum_shadow_depth);
+	// if (sum_shadow_depth < 1.0f) sum_shadow_depth = 0.0f;
 
 	vec4& tmp = rgba[idx];
 	if (render_mode == ERenderMode::ShadowDepth) rgba[idx].rgb() = vec3(sum_shadow_depth);
+	else if (render_mode == ERenderMode::AO) rgba[idx].rgb() = vec3(ambient_occlusion);
 	else rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
 }
 
@@ -2526,6 +2537,7 @@ void Testbed::render_nerf_with_buffers(
 		nerf_positions.data(),
 		nerf_normals.data(),
 		render_buffer.frame_buffer,
+		camera_matrix0[3],
 		render_mode
 	);
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));

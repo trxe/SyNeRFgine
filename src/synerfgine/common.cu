@@ -25,6 +25,14 @@ __global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state) 
     curand_init(static_cast<uint64_t>(PT_SEED),  idx, (uint64_t)0, rand_state+idx);
 }
 
+__device__ vec3 random_unit_vector(curandState_t* rand_state) {
+	return normalize(vec3{
+		fractf(curand_uniform(rand_state)),
+		fractf(curand_uniform(rand_state)),
+		fractf(curand_uniform(rand_state))
+	});
+}
+
 __device__ float depth_test_world(const vec3& origin, const vec3& dir, const ObjectTransform* __restrict__ objects, const size_t& object_count, int32_t& out_obj_id) {
     float depth = MAX_DEPTH();
 	const vec3 offset_origin = origin + dir * MIN_DEPTH();
