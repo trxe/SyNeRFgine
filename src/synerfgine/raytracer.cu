@@ -30,8 +30,10 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 				float syn_shadow = depth_test_world(hit_info.pos, L, objects, object_count, obj_hit);
 				float nerf_shadow = no_shadow ? 1.0 : depth_test_nerf(syn_shadow + 1.0, n_steps, cone_angle_constant, hit_info.pos, L, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
 				out_nerf_shadow = min(nerf_shadow/full_dist, out_nerf_shadow);
+				out_nerf_shadow *= out_nerf_shadow;
 				float shadow = min(min(nerf_shadow, syn_shadow), full_dist);
 				float shadow_mask = smoothstep(shadow / full_dist);
+				shadow_mask *= shadow_mask;
 				vec3 R = reflect(L, hit_info.normal);
 				vec3 V = normalize(-wi);
 				color.rgb() += material.local_color(L, hit_info.normal, R, V, light) * shadow_mask;
@@ -178,25 +180,22 @@ __global__ void raytrace(uint32_t n_elements,
 	vec3 curr_shade = acc_rgba[i].rgb();
 	switch (buffer_type) {
 	case ImgBufferType::Normal:
-		// acc_rgba[i].rgb() = vec3_to_col(normal);
-		acc_rgba[i].rgb() = normal;
+		acc_rgba[i].rgb() = vec3_to_col(normal);
 		break;
 	case ImgBufferType::NextDirection:
-		// acc_rgba[i].rgb() = vec3_to_col(next_dir);
-		acc_rgba[i].rgb() = next_dir;
+		acc_rgba[i].rgb() = vec3_to_col(next_dir);
 		break;
 	case ImgBufferType::SrcDirection:
-		// acc_rgba[i].rgb() = vec3_to_col(src_dir);
-		acc_rgba[i].rgb() = view_dir;
+		acc_rgba[i].rgb() = vec3_to_col(view_dir);
 		break;
 	case ImgBufferType::NextOrigin:
-		acc_rgba[i].rgb() = vec3_to_col(next_pos);
+		acc_rgba[i].rgb() = length(next_pos - view_pos) + MIN_DEPTH() > MAX_DEPTH() ? vec3(0.0) : vec3_to_col(normalize(next_pos));
 		break;
 	case ImgBufferType::SrcOrigin:
-		acc_rgba[i].rgb() = vec3_to_col(view_pos);
+		acc_rgba[i].rgb() = vec3_to_col(normalize(view_pos));
 		break;
 	case ImgBufferType::Depth:
-		acc_rgba[i].rgb() = vec3(1.0 - fractf(depth / 10.0));
+		acc_rgba[i].rgb() = vec3(depth);
 		break;
 	case ImgBufferType::NerfShadow:
 		acc_rgba[i].rgb() = vec3(nerf_shadow);
@@ -242,11 +241,8 @@ __global__ void overlay_nerf(
 	vec4 nrgba = nerf_rgba[nid];
 	float ndepth = nerf_depth[nid];
 
-	// vec4 rgba_to_use = use_blend_ratio ? 
-	// 	srgba * (1.0f - blend_ratio) + nrgba * blend_ratio :
 	auto& depth_to_use = !is_nerf_shown || sdepth < ndepth ? sdepth : ndepth;
-	vec4 rgba_to_use = 
-		srgba * (1.0f - nrgba.a) + nrgba * nrgba.a;
+	vec4 rgba_to_use = !is_nerf_shown || sdepth < ndepth ? srgba : nrgba;
 	rgba_to_use.rgb() *= pow(vec3(2.0f), exposure);
 	rgba_to_use.rgb() = sng_tonemap(rgba_to_use.rgb(), tonemap_curve);
 	final_rgba[sid] = color_space == EColorSpace::SRGB ? vec4(linear_to_srgb(rgba_to_use.rgb()), rgba_to_use.a) : rgba_to_use;

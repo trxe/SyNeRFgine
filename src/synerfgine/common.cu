@@ -101,6 +101,44 @@ __device__ float depth_test_nerf(const uint32_t& n_steps, const float& cone_angl
 	return nerf_shadow;
 }
 
+__device__ std::pair<bool, float> depth_test_nerf_far(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
+	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local
+) {
+	if (!density_grid) return {false, 0.0f};
+    float full_d = length(dst - src);
+    vec3 L = normalize(dst - src);
+    vec3 invL = 1.0f / L;
+	bool found_occupied = false;
+	const float t = depth_test_nerf(n_steps, cone_angle_constant, src, dst, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+	if (!density_grid || t >= full_d) return {false, full_d};
+	float nerf_shadow = t;
+	for (uint32_t i = 0; i < n_steps; ++i) {
+		while (true) {
+			vec3 pos = src + nerf_shadow * L;
+			if (nerf_shadow >= full_d) {
+				return {false, nerf_shadow}; // source pos intersected by something else
+			}
+
+			uint32_t mip = clamp(mip_from_pos(pos), min_mip, max_mip);
+			if (!density_grid_occupied_at(pos, density_grid, mip)) {
+				return {true, nerf_shadow};
+			}
+
+			// Find largest empty voxel surrounding us, such that we can advance as far as possible in the next step.
+			// Other places that do voxel stepping don't need this, because they don't rely on thread coherence as
+			// much as this one here.
+			while (mip < max_mip && density_grid_occupied_at(pos, density_grid, mip+1)) {
+				++mip;
+			}
+
+			nerf_shadow = advance_to_next_voxel(nerf_shadow, cone_angle_constant, pos, L, invL, mip);
+		}
+		float dt = calc_dt(nerf_shadow, cone_angle_constant);
+		nerf_shadow += dt;
+	}
+	return {false, nerf_shadow};
+}
+
 __device__ vec4 box_filter_vec4(uint32_t idx, ivec2 resolution, vec4* __restrict__ buffer, int kernel_size) {
     vec4 sum{};
     int nidx = idx;

@@ -69,6 +69,7 @@ __host__ __device__ inline int get_idx(ivec2 coord, const ivec2& res) {
 __global__ void init_rand_state(uint32_t n_elements, curandState_t* rand_state);
 __device__ vec4 box_filter_vec4(uint32_t idx, ivec2 resolution, vec4* __restrict__ buffer, int kernel_size);
 __device__ vec3 sng_tonemap(vec3 x, ETonemapCurve curve);
+__device__ vec3 random_unit_vector(curandState_t* rand_state);
 
 // Always initialize the benchmarker, __timer should not be redeclared in the
 // current context.
@@ -281,9 +282,9 @@ __device__ float depth_test_world(const vec3& origin, const vec3& dir, const Obj
 __device__ float depth_test_nerf(const float& full_d, const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& L, const vec3& invL,
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local);
 __device__ float depth_test_nerf(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
-	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local
-);
-
+	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local);
+__device__ std::pair<bool, float> depth_test_nerf_far(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
+	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local);
 
 
 }

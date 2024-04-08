@@ -185,6 +185,9 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("show_light_pos") && m_default_render_settings["show_light_pos"] == true) {
         m_transform_type = WorldObjectType::LightObj;
     }
+    if (m_default_render_settings.count("max_shadow_variance")) {
+        m_testbed->sng_shadow_depth_variance = m_default_render_settings["max_shadow_variance"];
+    }
     if (m_default_render_settings.count("nerf_shadow_brightness")) {
         m_nerf_shadow_brightness = m_default_render_settings["nerf_shadow_brightness"];
     }
@@ -206,6 +209,10 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("nerf_filter")) {
         std::string filter_name = m_default_render_settings["nerf_filter"];
         m_testbed->m_render_mode = RENDER_MODE_MAP.at(filter_name);
+    }
+    if (m_default_render_settings.count("syn_filter")) {
+        std::string filter_name = m_default_render_settings["syn_filter"];
+        m_raytracer.set_buffer(filter_name);
     }
     tlog::info() << "Default camera matrix: Matrix([Vector(" 
         << m_testbed->m_camera[0] << "), Vector("
@@ -293,9 +300,9 @@ void Engine::imgui() {
             if (ImGui::SliderFloat("Threshold for NeRF-on-NeRF shadow", &m_nerf_self_shadow_threshold, MIN_DEPTH(), 1.0f)) { 
                 m_is_dirty = true;
             }
-            ImGui::SliderInt("Position blur kernel size", &m_testbed->sng_position_kernel_size, 0, 9);
+            ImGui::SliderInt("Position blur kernel size", &m_testbed->sng_position_kernel_size, 0, 14);
             ImGui::SliderFloat("Position blur kernel threshold", &m_testbed->sng_position_kernel_threshold, 0.001, 8.0f);
-            ImGui::SliderFloat("Shadow Depth Variance", &m_testbed->sng_shadow_depth_variance, 0.000, 0.01f);
+            ImGui::SliderFloat("Variance Threshold (Shadows)", &m_testbed->sng_shadow_depth_variance, 0.000, 1.000f);
         }
         if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
             m_camera_path.imgui(*m_testbed);

@@ -2,7 +2,7 @@
     "camera" : {
         "view" : [0.007,-0.367,-0.930],
         "at" : [0.245,0.330,0.005],
-        "zoom" : 2.155,
+        "zoom" : 3.155,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "fps" : 24,
@@ -20,16 +20,19 @@
     "output" : { "folder" : "../render/garden-box-light", "record": false },
     "rendering" : {
         "res_factor" : 8,
-        "exposure" : 1.202,
+        "exposure" : 0.002,
         "path_trace_depth": 2,
-        "light_samples": 16,
+        "light_samples": 8,
         "shadow_samples": 8,
         "lens_size" : 0.003,
-        "buffer_filter" : "Final",
-        "nerf_filter" : "Shade",
+        "syn_filter" : "Final",
+        "nerf_filter" : "Normals",
+        "smooth_kernel_size" : 2,
+        "smooth_threshold" : 1.7000,
         "show_light_pos" : true,
-        "nerf_on_nerf_shadow_threshold" : 0.072,
-        "nerf_shadow_brightness" : 0.20,
+        "nerf_on_nerf_shadow_threshold" : 0.00001,
+        "nerf_shadow_brightness" : 3.00,
+        "max_shadow_variance" : 0.01,
 
         "show_virtual_obj" : true,
         "shadow_on_nerf" : true,
@@ -38,7 +41,7 @@
     },
     "lights": [
         {
-            "pos" : [0.411, 1.044, 1.041],
+            "pos" : [0.311, 1.044, 1.041],
             "size" : 0.02,
             "intensity" : 1.0,
             "type": "point",
@@ -69,7 +72,7 @@
             "id": 0,
             "type": "lambertian",
             "n": 64.0,
-            "rg": 0.8,
+            "rg": 0.5,
             "kd": [
                 1.0,
                 0.0,

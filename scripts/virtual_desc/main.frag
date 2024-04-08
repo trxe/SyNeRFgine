@@ -111,7 +111,7 @@ void main() {
     // gl_FragDepth = nd;
 
     // To check depths
-    // frag_color = vec4(vec3(sd), 1.0);
+    // frag_color = vec4(vec3(1.0 - min(1.0, sd/2.0)), 1.0);
     // if (sd < nd) frag_color = vec4(vec2(sd / 3.0), 0.0, 1.0);
     // else frag_color = vec4(0.0, vec2(sd / 3.0), 1.0);
 }

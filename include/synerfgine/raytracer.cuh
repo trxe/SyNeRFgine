@@ -135,6 +135,16 @@ class RayTracer {
 			CUDA_CHECK_THROW(cudaStreamSynchronize(m_stream_ray));
 		}
 
+		void set_buffer(const std::string& buffer_name) {
+			constexpr int img_buffer_type_count = sizeof(img_buffer_type_names) / sizeof(img_buffer_type_names[0]);
+			for (int i = 0; i < img_buffer_type_count; ++i) {
+				if (strcmp(img_buffer_type_names[i], buffer_name.c_str()) == 0) {
+					m_buffer_to_show = static_cast<ImgBufferType>(i);
+					break;
+				}
+			}
+		}
+
 		CudaRenderBuffer& render_buffer() { return m_render_buffer; }
 
 		void imgui();

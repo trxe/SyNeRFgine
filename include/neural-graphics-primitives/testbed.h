@@ -684,6 +684,7 @@ public:
 	int sng_position_kernel_size = 1;
 	float sng_position_kernel_threshold = 1.0f;
 	float sng_shadow_depth_variance = 0.0f;
+	bool sng_use_default=false;
 
 	uint32_t m_seed = 1337;
 

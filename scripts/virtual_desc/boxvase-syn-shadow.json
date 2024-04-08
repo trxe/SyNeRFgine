@@ -12,10 +12,10 @@
         "path_trace_depth": 2,
         "background_color" : [0.0, 0.0, 0.0],
         "light_samples": 8,
-        "shadow_samples": 8,
+        "shadow_samples": 12,
         "lens_angle_constant" : 0.001,
-        "nerf_on_nerf_shadow_threshold" : 0.900,
-        "nerf_shadow_brightness" : 0.80,
+        "nerf_on_nerf_shadow_threshold" : 0.400,
+        "nerf_shadow_brightness" : 0.005,
 
         "show_virtual_obj" : true,
         "show_nerf" : true,
@@ -24,13 +24,8 @@
     },
     "lights": [
         {
-            "pos" : [0.321, 0.724, 0.545],
-            "size" : 0.050,
-            "intensity" : 1.0
-        },
-        {
-            "pos" : [-0.370, 0.740, 0.412],
-            "size" : 0.050,
+            "pos" : [-1.795, 0.761, 0.545],
+            "size" : 0.080,
             "intensity" : 1.0
         }
     ],
@@ -40,12 +35,6 @@
             "pos" : [ 1.043, 0.602, 0.545 ],
             "scale" : 0.137,
             "material": 0
-        },
-        {
-            "file": "../data/obj/rock.obj",
-            "pos" : [ 0.00, 0.602, 0.545 ],
-            "scale" : 0.097,
-            "material": 1
         }
     ],
     "materials": [

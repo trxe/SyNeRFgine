@@ -111,23 +111,14 @@ struct Material {
 
     __device__ bool scatter(const HitRecord& hit_info, const vec3& src_dir, SampledRay& ray, curandState& rand) const {
         ray.pos = hit_info.pos;
-        if (type == Lambertian) {
-            ray.dir = Rand::random_unit_vector(&rand);
-            if (dot(ray.dir, hit_info.normal) < 0.0) {
-                ray.dir = -ray.dir;
-            }
-            ray.pdf = 1.0f / tcnn::PI;
-            ray.attenuation *= rg;
-        } else if (type == Glossy) {
-            ray.dir = reflect(-src_dir, hit_info.normal);
-            auto longi = curand_uniform(&rand) * spec_angle;
-            auto latid = curand_uniform(&rand) * 2.0 * tcnn::PI;
-            ray.dir = sng::cone_random(ray.dir, hit_info.normal, longi, latid);
-            ray.pdf = 1.0f / max(1.0f, spec_angle);
-            ray.attenuation *= rg;
-        } else {
-            return false;
-        }
+        if (type != Lambertian && type != Glossy) return false;
+        float specular_angle = type == Lambertian ? tcnn::PI / 2 : spec_angle;
+        ray.dir = reflect(-src_dir, hit_info.normal);
+        auto longi = curand_uniform(&rand) * specular_angle;
+        auto latid = curand_uniform(&rand) * 2.0 * tcnn::PI;
+        ray.dir = sng::cone_random(hit_info.normal, hit_info.perturb_matrix, longi, latid);
+        ray.pdf = 1.0f / max(1.0f, specular_angle * 2.0f);
+        ray.attenuation *= rg;
         return true;
     }
 

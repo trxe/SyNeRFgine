@@ -521,17 +521,16 @@ __global__ void composite_kernel_nerf_alt(
 	uint32_t actual_n_steps = payload.n_steps;
 	uint32_t j = 0;
 
-	int pidx = payload.idx;
-	ivec2 texel_coord = { pidx % (int)resolution.x, pidx / (int)resolution.x };
-	ivec2 syn_texel_coord = (int)syn_px_scale * texel_coord + ivec2(syn_px_scale / 2);
-	vec2 uv = {
-		(float)syn_texel_coord.x / (float)(resolution.x * syn_px_scale),
-		(float)syn_texel_coord.y / (float)(resolution.y * syn_px_scale)
-	};
-	int row_size = resolution.x * (int)syn_px_scale;
-	int syn_texel_id = syn_texel_coord.x + row_size * syn_texel_coord.y;
-	float max_syn_depth = syn_depth[syn_texel_id];
-	vec4 add_syn_rgba{0.0};
+	// int pidx = payload.idx;
+	// ivec2 texel_coord = { pidx % (int)resolution.x, pidx / (int)resolution.x };
+	// ivec2 syn_texel_coord = (int)syn_px_scale * texel_coord + ivec2(syn_px_scale / 2);
+	// vec2 uv = {
+	// 	(float)syn_texel_coord.x / (float)(resolution.x * syn_px_scale),
+	// 	(float)syn_texel_coord.y / (float)(resolution.y * syn_px_scale)
+	// };
+	// int row_size = resolution.x * (int)syn_px_scale;
+	// int syn_texel_id = syn_texel_coord.x + row_size * syn_texel_coord.y;
+	// float max_syn_depth = syn_depth[syn_texel_id];
 
 	for (; j < actual_n_steps; ++j) {
 		tvec<network_precision_t, 4> local_network_output;
@@ -555,9 +554,6 @@ __global__ void composite_kernel_nerf_alt(
 
 		local_rgba += vec4(rgb * weight, weight);
 		local_depth = dot(cam_fwd, pos - camera_matrix[3]);
-		if (local_depth < max_syn_depth) {
-			add_syn_rgba = local_rgba;
-		}
 		if (weight > payload.max_weight) {
 			payload.max_weight = weight;
 		}
@@ -573,8 +569,9 @@ __global__ void composite_kernel_nerf_alt(
 		payload.n_steps = j + current_step;
 	}
 
-	rgba[i] = add_syn_rgba;
+	rgba[i] = local_rgba;
 	depth[i] = local_depth;
+	payload.t = local_depth / dot(cam_fwd, payload.dir);
 }
 
 __global__ void composite_kernel_nerf(
@@ -1641,7 +1638,8 @@ __global__ void shade_with_shadow(
 	float nerf_shadow_brightness,
 	float nerf_on_nerf_shadow_threshold,
 	size_t shadow_samples,
-	float depth_variance_ratio // unused
+	float depth_variance_ratio,
+	bool use_default
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
@@ -1653,7 +1651,7 @@ __global__ void shade_with_shadow(
 	const vec3 tangent = tex_coord.y == resolution.y ? orig_pos - positions[idx-resolution.x] : positions[idx+resolution.x] - orig_pos;
 	const vec3 normal = normals[idx];
 	const mat3 frame = sng::get_perturb_matrix(tangent, normal);
-	float shadows_float_list[MAX_SHADOW_SAMPLES];
+	// float shadows_float_list[MAX_SHADOW_SAMPLES];
 	float ambient_occlusion = 0.0f;
 
 	float sum_shadow_depth = 0.0f;
@@ -1674,14 +1672,21 @@ __global__ void shade_with_shadow(
 				float syn_shadow_mask = syn_depth / full_d;
 				overall_shadow_depth = min(overall_shadow_depth, syn_shadow_mask);
 
-				// Depth test from light position towards frag position. Avoid intersecting with first density grid
-				float nerf_depth = min(full_d, sng::depth_test_nerf(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local));
-				float nerf_shadow_mask = nerf_depth / full_d;
+				// v1: Depth test from light position towards frag position. Avoid intersecting with first density grid
+				// vec3 fract_offset = full_d * nerf_on_nerf_shadow_threshold * lpos;
+				// float nerf_depth = min(full_d, sng::depth_test_nerf(n_steps, cone_angle_constant, pos + fract_offset, lpos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local));
+				// float nerf_shadow_mask = nerf_depth / full_d;
+
+				// v2: Intersect with furthest
+				auto [has_hit, nerf_depth] = //min(full_d, 
+					sng::depth_test_nerf_far(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
+					//);
+				float nerf_shadow_mask = !has_hit ?  1.0 : 1.0 - nerf_depth / full_d;
 				overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_mask);
 			}
 		}
-		// sum_shadow_depth += overall_shadow_depth;
-		shadows_float_list[j] = overall_shadow_depth;
+		sum_shadow_depth += overall_shadow_depth;
+		// shadows_float_list[j] = overall_shadow_depth;
 
 		// calculate ambient occlusion
 		int32_t hit_obj_id = -1;
@@ -1689,28 +1694,27 @@ __global__ void shade_with_shadow(
 		auto latid = fractf(curand_uniform(&rand_state[idx])) * 2.0 * tcnn::PI;
 		vec3 point_test = sng::cone_random(normal, frame, longi, latid);
 		float syn_depth = sng::depth_test_world(orig_pos, point_test, objs, obj_count, hit_obj_id);
-		syn_depth /= nerf_shadow_brightness;
+		syn_depth /= depth_variance_ratio; // TODO: Rename all occurrences of nerf_shadow_brightness to AO
 		syn_depth *= dot(point_test, normal);
 		ambient_occlusion += smoothstep(clamp(syn_depth, 0.0f, 1.0f));
 	}
 
-	float ave_shadow_depth = 0.0f;
-	float ave_shadow_depth_sqr = 0.0f;
-	for (size_t i = 0; i < shadow_samples; ++i) {
-		ave_shadow_depth += shadows_float_list[i];
-		ave_shadow_depth_sqr += shadows_float_list[i] * shadows_float_list[i];
-	}
-	ave_shadow_depth /= (float)shadow_samples;
-	ave_shadow_depth_sqr /= (float)shadow_samples;
-	float variance = abs(ave_shadow_depth_sqr - ave_shadow_depth);
-	sum_shadow_depth = (variance < nerf_on_nerf_shadow_threshold) ? ave_shadow_depth : 1.0;
-	// if (idx % 100 == 0) printf("%d: %f\n", idx, length(normal));
+	// float ave_shadow_depth = 0.0f;
+	// float ave_shadow_depth_sqr = 0.0f;
+	// for (size_t i = 0; i < shadow_samples; ++i) {
+	// 	ave_shadow_depth += shadows_float_list[i];
+	// 	ave_shadow_depth_sqr += shadows_float_list[i] * shadows_float_list[i];
+	// }
+	// ave_shadow_depth /= (float)shadow_samples;
+	// ave_shadow_depth_sqr /= (float)shadow_samples;
+	// float variance = abs(ave_shadow_depth_sqr - ave_shadow_depth);
+	// sum_shadow_depth = (variance < depth_variance_ratio) ? ave_shadow_depth : 1.0;
+	sum_shadow_depth /=(float) shadow_samples;
 
 	ambient_occlusion = sqrt(ambient_occlusion / (float)shadow_samples);
 	ambient_occlusion *= ambient_occlusion;
 	sum_shadow_depth = min(sum_shadow_depth, ambient_occlusion);
-	// sum_shadow_depth = smoothstep(sum_shadow_depth);
-	// if (sum_shadow_depth < 1.0f) sum_shadow_depth = 0.0f;
+	sum_shadow_depth = pow(sum_shadow_depth, nerf_shadow_brightness);
 
 	vec4& tmp = rgba[idx];
 	if (render_mode == ERenderMode::ShadowDepth) rgba[idx].rgb() = vec3(sum_shadow_depth);
@@ -2523,14 +2527,15 @@ void Testbed::render_nerf_with_buffers(
 	auto& resolution = render_buffer.resolution;
 	const dim3 threads = { 16, 8, 1 };
 	const dim3 blocks = { div_round_up((uint32_t)resolution.x, threads.x), div_round_up((uint32_t)resolution.y, threads.y), 1 };
-	blend_positions_in_buffer<<<blocks, threads, 0, stream>>>(
-		resolution,
-		nerf_positions.data(),
-		render_buffer.frame_buffer,
-		sng_position_kernel_size,
-		sng_position_kernel_threshold,
-		render_mode
-	);
+	// Makes the shadow blob problem worse
+	// blend_positions_in_buffer<<<blocks, threads, 0, stream>>>(
+	// 	resolution,
+	// 	nerf_positions.data(),
+	// 	render_buffer.frame_buffer,
+	// 	sng_position_kernel_size,
+	// 	sng_position_kernel_threshold,
+	// 	render_mode
+	// );
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 	write_normals_to_buffer<<<blocks, threads, 0, stream>>>(
 		resolution,
@@ -2597,7 +2602,8 @@ void Testbed::shade_nerf_shadows(
 		nerf_shadow_brightness,
 		nerf_on_nerf_shadow_threshold,
 		shadow_samples,
-		sng_shadow_depth_variance
+		sng_shadow_depth_variance,
+		sng_use_default
 	);
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }
