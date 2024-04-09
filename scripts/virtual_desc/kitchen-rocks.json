@@ -1,8 +1,8 @@
 {
     "camera" : {
-        "view" : [0.799,-0.362,0.481],
-        "at" : [0.003,0.948,0.210],
-        "zoom" : 0.511,
+        "view" : [0.693,-0.635,0.342],
+    "at" : [0.028,0.980,0.253],
+    "zoom" : 0.089,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "total_time_ms" : 8000,
@@ -32,10 +32,10 @@
         "nerf_filter" : "Shade",
         "smooth_kernel_size" : 14,
         "smooth_threshold" : 0.0002,
-        "show_light_pos" : true,
-        "nerf_on_nerf_shadow_threshold" : 0.00,
+        "show_light_pos" : false,
+        "nerf_on_nerf_shadow_threshold" : 0.20,
         "nerf_shadow_brightness" : 1.000,
-        "max_shadow_variance" : 0.000,
+        "max_shadow_variance" : 0.500,
 
         "show_virtual_obj" : true,
         "shadow_on_nerf" : true,
@@ -48,36 +48,31 @@
     },
     "lights": [
         {
-            "pos" : [0.675, 1.452, -0.131],
-            "size" : 0.090,
-            "intensity" : 1.0
-        },
-        {
             "pos" : [-0.040, 1.109, 0.304],
             "size" : 0.090,
-            "intensity" : 0.524
+            "intensity" : 1.00
         }
     ],
     "objfile": [
         {
             "file": "../data/obj/rock.obj",
-            "pos" : [ 0.252, 0.480, 0.500 ],
-            "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
-            "scale" : 0.067,
+            "pos" : [ 0.322, 0.503, 0.448 ],
+"rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
+"scale" : 0.047,
             "material": 1
         },
         {
             "file": "../data/obj/bunny.obj",
-            "pos" : [ 0.551, 0.572, 0.837 ],
-            "rot" : [ 0.372, 0.000, 0.928, 0.000, 1.000, 0.000, -0.928, 0.000, 0.372 ],
-            "scale" : 1.718,
+            "pos" : [ 0.577, 0.572, 0.772 ],
+"rot" : [ 0.372, 0.000, 0.928, 0.000, 1.000, 0.000, -0.928, 0.000, 0.372 ],
+"scale" : 1.174,
             "material": 0
         },
         {
             "file": "../data/obj/smallbox.obj",
-            "pos" : [ 0.773, 0.701, 0.304 ],
-            "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
-            "scale" : 0.087,
+            "pos" : [ 0.773, 0.640, 0.400 ],
+"rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
+"scale" : 0.058,
             "material": 2
         }
     ],

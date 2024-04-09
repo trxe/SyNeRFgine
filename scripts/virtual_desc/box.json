@@ -8,7 +8,7 @@
         "fps" : 24,
         "animation_speed" : 0.0,
         "total_time_ms" : 4000,
-        "move_on_start" : false,
+        "move_on_start" : true,
         "path" : [
             {"view" : [ 0.6119312, -0.104988195, -0.7839119 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
             {"view" : [ 0.36336237, -0.122328155, -0.923582 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
@@ -29,9 +29,9 @@
         "nerf_filter" : "Shade",
         "smooth_kernel_size" : 4,
         "smooth_threshold" : 2.0002,
-        "show_light_pos" : true,
-        "nerf_on_nerf_shadow_threshold" : 0.0,
-        "nerf_shadow_brightness" : 1.00,
+        "show_light_pos" : false,
+        "nerf_on_nerf_shadow_threshold" : 0.20,
+        "nerf_shadow_brightness" : 3.00,
         "max_shadow_variance" : 0.01,
 
         "show_virtual_obj" : true,

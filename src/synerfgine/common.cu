@@ -101,27 +101,31 @@ __device__ float depth_test_nerf(const uint32_t& n_steps, const float& cone_angl
 	return nerf_shadow;
 }
 
-__device__ std::pair<bool, float> depth_test_nerf_far(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
+__device__ std::tuple<bool, float, float> depth_test_nerf_far(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local
 ) {
-	if (!density_grid) return {false, 0.0f};
+	if (!density_grid) return {false, 0.0f, 0.0f};
     float full_d = length(dst - src);
     vec3 L = normalize(dst - src);
     vec3 invL = 1.0f / L;
 	bool found_occupied = false;
 	const float t = depth_test_nerf(n_steps, cone_angle_constant, src, dst, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
-	if (!density_grid || t >= full_d) return {false, full_d};
+	if (!density_grid || t >= full_d) return {false, full_d, 0.0f};
 	float nerf_shadow = t;
+	bool empty_space_reached = false;
 	for (uint32_t i = 0; i < n_steps; ++i) {
 		while (true) {
 			vec3 pos = src + nerf_shadow * L;
 			if (nerf_shadow >= full_d) {
-				return {false, nerf_shadow}; // source pos intersected by something else
+				// return {false, nerf_shadow, nerf_shadow - t}; // source pos intersected by something else
+				break;
 			}
 
 			uint32_t mip = clamp(mip_from_pos(pos), min_mip, max_mip);
 			if (!density_grid_occupied_at(pos, density_grid, mip)) {
-				return {true, nerf_shadow};
+				// return {true, nerf_shadow, nerf_shadow - t};
+				empty_space_reached = true;
+				break;
 			}
 
 			// Find largest empty voxel surrounding us, such that we can advance as far as possible in the next step.
@@ -136,7 +140,31 @@ __device__ std::pair<bool, float> depth_test_nerf_far(const uint32_t& n_steps, c
 		float dt = calc_dt(nerf_shadow, cone_angle_constant);
 		nerf_shadow += dt;
 	}
-	return {false, nerf_shadow};
+	return {empty_space_reached, min(full_d, nerf_shadow), nerf_shadow - t};
+}
+
+// Not used: results not favourable (similar  problem to going in inverse dierection)
+__device__ std::pair<bool, float> depth_test_nerf_furthest(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
+	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local,
+	const float& threshold
+) {
+	uint32_t i = threadIdx.x + blockIdx.x * blockDim.x;
+	if (!density_grid) return {false, 0.0f};
+    float full_d = length(dst - src);
+    const vec3 L = normalize(dst - src);
+	vec3 curr_src = src;
+	float nerf_shadow = 0.0f;
+	bool has_hit_something = false;
+	while (true) {
+		auto [has_hit_further, dist, thickness] = depth_test_nerf_far(n_steps, cone_angle_constant, curr_src, dst, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
+		// if (i % 100000 == 0) printf("%d: %f | %f\n", i, thickness, threshold);
+		if (!has_hit_further) return {has_hit_something, nerf_shadow};
+		has_hit_something = has_hit_further;
+		nerf_shadow += dist;
+		curr_src += src + nerf_shadow * L;
+		// if (i % 100000 == 0) printf("%d: d[%f] %f/%f\n", i, dist, nerf_shadow, full_d);
+		if (thickness > threshold) return {has_hit_something, nerf_shadow};
+	}
 }
 
 __device__ vec4 box_filter_vec4(uint32_t idx, ivec2 resolution, vec4* __restrict__ buffer, int kernel_size) {

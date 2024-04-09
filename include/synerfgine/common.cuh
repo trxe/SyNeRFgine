@@ -283,8 +283,11 @@ __device__ float depth_test_nerf(const float& full_d, const uint32_t& n_steps, c
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local);
 __device__ float depth_test_nerf(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local);
-__device__ std::pair<bool, float> depth_test_nerf_far(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
+//  returns has_hit, depth and thickness
+__device__ std::tuple<bool, float, float> depth_test_nerf_far(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local);
+__device__ std::pair<bool, float> depth_test_nerf_furthest(const uint32_t& n_steps, const float& cone_angle_constant, const vec3& src, const vec3& dst,
+	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, const BoundingBox& render_aabb, const mat3& render_aabb_to_local, const float& max_depth);
 
 
 }

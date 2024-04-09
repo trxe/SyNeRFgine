@@ -68,12 +68,12 @@ struct Light {
         return pos;
     }
 
-    __device__ vec3 sample(curandState_t& rand_state) const {
+    __device__ vec3 sample(curandState_t& rand_state, float multiplier = 1.0f) const {
         vec3 offset = {
             fractf(curand_uniform(&rand_state)),
             fractf(curand_uniform(&rand_state)),
             fractf(curand_uniform(&rand_state)) };
-        return pos + offset * size;
+        return pos + offset * size * multiplier;
     }
 
     uint32_t id;

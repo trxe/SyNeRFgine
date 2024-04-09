@@ -14,8 +14,9 @@
         "light_samples": 8,
         "shadow_samples": 12,
         "lens_angle_constant" : 0.001,
-        "nerf_on_nerf_shadow_threshold" : 0.400,
+        "nerf_on_nerf_shadow_threshold" : 0.12,
         "nerf_shadow_brightness" : 0.005,
+        "max_shadow_variance" : 0.01,
 
         "show_virtual_obj" : true,
         "show_nerf" : true,
@@ -24,7 +25,7 @@
     },
     "lights": [
         {
-            "pos" : [-1.795, 0.761, 0.545],
+            "pos" : [-0.795, 0.761, 0.545],
             "size" : 0.080,
             "intensity" : 1.0
         }
