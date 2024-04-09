@@ -30,10 +30,10 @@
         "lens_size" : 0.003,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 0,
-        "smooth_threshold" : 0.391,
+        "smooth_kernel_size" : 14,
+        "smooth_threshold" : 0.0002,
         "show_light_pos" : true,
-        "nerf_on_nerf_shadow_threshold" : 0.00001,
+        "nerf_on_nerf_shadow_threshold" : 0.00,
         "nerf_shadow_brightness" : 1.000,
         "max_shadow_variance" : 0.000,
 

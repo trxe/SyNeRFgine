@@ -1639,7 +1639,8 @@ __global__ void shade_with_shadow(
 	float nerf_on_nerf_shadow_threshold,
 	size_t shadow_samples,
 	float depth_variance_ratio,
-	bool use_default
+	int kernel_size,
+	float kernel_threshold
 ) {
 	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
 	if (idx >= n_elements) return;
@@ -1653,6 +1654,33 @@ __global__ void shade_with_shadow(
 	const mat3 frame = sng::get_perturb_matrix(tangent, normal);
 	// float shadows_float_list[MAX_SHADOW_SAMPLES];
 	float ambient_occlusion = 0.0f;
+
+	// float ave_angle{0.0f};
+	// float ave_angle_sqr{0.0f};
+
+	// // additional pass to smoothen positions
+	// size_t t{0};
+	// int x = idx % resolution.x;
+	// int y = idx / resolution.x;
+	// for (int dx = -kernel_size; dx <= kernel_size; ++dx) {
+	// 	int tx = dx + x;
+	// 	if (tx < 0 || t >= resolution.x) continue;
+	// 	for (int dy = -kernel_size; dy <= kernel_size; ++dy) {
+	// 		int ty = dy + y;
+	// 		if (ty < 0 || ty >= resolution.y) continue;
+	// 		size_t _t = ty * resolution.x + tx;
+	// 		float ddot = length(positions[t] - orig_pos);
+	// 		ave_angle += ddot;
+	// 		ave_angle_sqr += ddot * ddot;
+	// 		++t;
+	// 	}
+	// }
+	// ave_angle /= (float)t;
+	// ave_angle_sqr /= (float)t;
+	// float variance = abs(ave_angle_sqr - ave_angle * ave_angle);
+	// bool allow_shadow = variance < kernel_threshold;
+
+	// if (idx % 100000 == 0) printf("allow shadow for %d:  %d (%f - %f*%f = %f | %f) \n", idx, ave_angle_sqr, ave_angle, ave_angle, variance, kernel_threshold, allow_shadow);
 
 	float sum_shadow_depth = 0.0f;
 	for (size_t j = 0; j < shadow_samples; ++j) {
@@ -1682,6 +1710,7 @@ __global__ void shade_with_shadow(
 					sng::depth_test_nerf_far(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
 					//);
 				float nerf_shadow_mask = !has_hit ?  1.0 : 1.0 - nerf_depth / full_d;
+				// if (allow_shadow) 
 				overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_mask);
 			}
 		}
@@ -1699,16 +1728,6 @@ __global__ void shade_with_shadow(
 		ambient_occlusion += smoothstep(clamp(syn_depth, 0.0f, 1.0f));
 	}
 
-	// float ave_shadow_depth = 0.0f;
-	// float ave_shadow_depth_sqr = 0.0f;
-	// for (size_t i = 0; i < shadow_samples; ++i) {
-	// 	ave_shadow_depth += shadows_float_list[i];
-	// 	ave_shadow_depth_sqr += shadows_float_list[i] * shadows_float_list[i];
-	// }
-	// ave_shadow_depth /= (float)shadow_samples;
-	// ave_shadow_depth_sqr /= (float)shadow_samples;
-	// float variance = abs(ave_shadow_depth_sqr - ave_shadow_depth);
-	// sum_shadow_depth = (variance < depth_variance_ratio) ? ave_shadow_depth : 1.0;
 	sum_shadow_depth /=(float) shadow_samples;
 
 	ambient_occlusion = sqrt(ambient_occlusion / (float)shadow_samples);
@@ -1720,6 +1739,8 @@ __global__ void shade_with_shadow(
 	if (render_mode == ERenderMode::ShadowDepth) rgba[idx].rgb() = vec3(sum_shadow_depth);
 	else if (render_mode == ERenderMode::AO) rgba[idx].rgb() = vec3(ambient_occlusion);
 	else rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
+
+	// if (render_mode == ERenderMode::ShadowDepth && !allow_shadow) rgba[idx].rgb() = vec3(1.0, 0.0, 0.0);
 }
 
 __global__ void shade_kernel_nerf(
@@ -2603,7 +2624,8 @@ void Testbed::shade_nerf_shadows(
 		nerf_on_nerf_shadow_threshold,
 		shadow_samples,
 		sng_shadow_depth_variance,
-		sng_use_default
+		sng_position_kernel_size,
+		sng_position_kernel_threshold
 	);
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 }

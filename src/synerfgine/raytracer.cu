@@ -241,13 +241,11 @@ __global__ void overlay_nerf(
 	vec4 nrgba = nerf_rgba[nid];
 	float ndepth = nerf_depth[nid];
 
-	auto& depth_to_use = !is_nerf_shown || sdepth < ndepth ? sdepth : ndepth;
 	vec4 rgba_to_use = !is_nerf_shown || sdepth < ndepth ? srgba : nrgba;
 	rgba_to_use.rgb() *= pow(vec3(2.0f), exposure);
 	rgba_to_use.rgb() = sng_tonemap(rgba_to_use.rgb(), tonemap_curve);
 	final_rgba[sid] = color_space == EColorSpace::SRGB ? vec4(linear_to_srgb(rgba_to_use.rgb()), rgba_to_use.a) : rgba_to_use;
-	final_depth[sid] = depth_to_use;
-
+	final_depth[sid] = sdepth;
 }
 
 void RayTracer::enlarge(const ivec2& res) {
