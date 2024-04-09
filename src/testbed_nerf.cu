@@ -1653,7 +1653,7 @@ __global__ void shade_with_shadow(
 	const vec3 normal = normals[idx];
 	const mat3 frame = sng::get_perturb_matrix(tangent, normal);
 	// float shadows_float_list[MAX_SHADOW_SAMPLES];
-	// float ambient_occlusion = 0.0f;
+	float ambient_occlusion = 0.0f;
 
 	// float ave_angle{0.0f};
 	// float ave_angle_sqr{0.0f};
@@ -1705,7 +1705,7 @@ __global__ void shade_with_shadow(
 				// v1: Depth test from light position towards frag position. Avoid intersecting with first density grid
 				vec3 fract_offset = full_d * nerf_on_nerf_shadow_threshold * lpos;
 				float nerf_depth = min(full_d, sng::depth_test_nerf(n_steps, cone_angle_constant, pos + fract_offset, lpos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local));
-				float nerf_shadow_mask = nerf_depth / (full_d * (1.0 - nerf_on_nerf_shadow_threshold));
+				float nerf_shadow_mask = nerf_depth * (1.0f - min(light.intensity, 0.0f))/ (full_d * (1.0 - nerf_on_nerf_shadow_threshold));
 
 				// v2: Intersect with furthest
 				// auto [has_hit, nerf_depth, thickness] = //min(full_d, 
@@ -1715,27 +1715,30 @@ __global__ void shade_with_shadow(
 				// float nerf_shadow_mask = !has_hit ?  1.0 : 1.0 - pow(nerf_depth / full_d, full_d * full_d);
 				// if (allow_shadow) 
 				overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_mask);
+			} else if (light.type == sng::LightType::Directional) {
+				const vec3 l = normalize(light.pos - orig_pos);
+				overall_shadow_depth = min(1.0, overall_shadow_depth + dot(l, normal) * light.intensity);
 			}
 		}
 		sum_shadow_depth += overall_shadow_depth;
 		// shadows_float_list[j] = overall_shadow_depth;
 
-		// // calculate ambient occlusion
-		// int32_t hit_obj_id = -1;
-		// auto longi = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI / 2.0f;
-		// auto latid = fractf(curand_uniform(&rand_state[idx])) * 2.0 * tcnn::PI;
-		// vec3 point_test = sng::cone_random(normal, frame, longi, latid);
-		// float syn_depth = sng::depth_test_world(orig_pos, point_test, objs, obj_count, hit_obj_id);
-		// syn_depth /= depth_variance_ratio; // TODO: Rename all occurrences of nerf_shadow_brightness to AO
-		// syn_depth *= dot(point_test, normal);
-		// ambient_occlusion += smoothstep(clamp(syn_depth, 0.0f, 1.0f));
+		// calculate ambient occlusion
+		int32_t hit_obj_id = -1;
+		auto longi = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI / 2.0f;
+		auto latid = fractf(curand_uniform(&rand_state[idx])) * 2.0 * tcnn::PI;
+		vec3 point_test = sng::cone_random(normal, frame, longi, latid);
+		float syn_depth = sng::depth_test_world(orig_pos, point_test, objs, obj_count, hit_obj_id);
+		syn_depth /= fractf(curand_uniform(&rand_state[idx])) * depth_variance_ratio; // TODO: Rename all occurrences of nerf_shadow_brightness to AO
+		syn_depth *= dot(point_test, normal);
+		ambient_occlusion += smoothstep(clamp(syn_depth, 0.0f, 1.0f));
 	}
 
 	sum_shadow_depth /=(float) shadow_samples;
 
-	// ambient_occlusion = sqrt(ambient_occlusion / (float)shadow_samples);
-	// ambient_occlusion *= ambient_occlusion;
-	// sum_shadow_depth = min(sum_shadow_depth, ambient_occlusion);
+	ambient_occlusion = sqrt(ambient_occlusion / (float)shadow_samples);
+	ambient_occlusion *= ambient_occlusion;
+	sum_shadow_depth = min(sum_shadow_depth, ambient_occlusion);
 	sum_shadow_depth = pow(sum_shadow_depth, nerf_shadow_brightness);
 
 	vec4& tmp = rgba[idx];

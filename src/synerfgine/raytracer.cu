@@ -38,8 +38,16 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 				vec3 V = normalize(-wi);
 				color.rgb() += material.local_color(L, hit_info.normal, R, V, light) * shadow_mask;
 			} else if (light.type == LightType::Directional) {
-				const vec3& L = normalize(-light.pos);
-				color.rgb() += dot(L, hit_info.normal) * material.kd * light.intensity;
+				vec3 lpos = light.sample(rand_state);
+				// vec3 lpos = light.sample();
+				L = lpos - hit_info.pos;
+				float full_dist = length(L);
+				L = normalize(L);
+				vec3 invL = vec3(1.0f) / L;
+				int32_t obj_hit = -1; 
+				vec3 R = reflect(L, hit_info.normal);
+				vec3 V = normalize(-wi);
+				color.rgb() += material.local_color(L, hit_info.normal, R, V, light);
 			}
 		}
 	}
