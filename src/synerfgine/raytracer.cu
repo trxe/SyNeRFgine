@@ -10,7 +10,7 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 	const uint32_t& n_steps, const float& cone_angle_constant, 
 	const uint8_t* __restrict__ density_grid, const uint32_t& min_mip, const uint32_t& max_mip, 
 	const BoundingBox& render_aabb, const mat3& render_aabb_to_local,
-	curandState_t& rand_state, float& out_nerf_shadow, bool no_shadow
+	curandState_t& rand_state, float& out_nerf_shadow, bool no_shadow, float syn_shadow_factor
 ) {
 	if (hit_info.material_idx < 0) return vec4(0.0);
 	const Material& material = materials[hit_info.material_idx];
@@ -30,10 +30,9 @@ __device__ vec4 shade_object(const vec3& wi, SampledRay& ray, const uint32_t& sh
 				float syn_shadow = no_shadow ? 1.0 : depth_test_world(hit_info.pos, L, objects, object_count, obj_hit);
 				float nerf_shadow = no_shadow ? 1.0 : depth_test_nerf(syn_shadow + 1.0, n_steps, cone_angle_constant, hit_info.pos, L, invL, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local);
 				out_nerf_shadow = min(nerf_shadow/full_dist, out_nerf_shadow);
-				out_nerf_shadow *= out_nerf_shadow;
 				float shadow = min(min(nerf_shadow, syn_shadow), full_dist);
 				float shadow_mask = smoothstep(shadow / full_dist);
-				shadow_mask *= shadow_mask;
+				shadow_mask = pow(shadow_mask, syn_shadow_factor);
 				vec3 R = reflect(L, hit_info.normal);
 				vec3 V = normalize(-wi);
 				color.rgb() += material.local_color(L, hit_info.normal, R, V, light) * shadow_mask;
@@ -127,7 +126,8 @@ __global__ void raytrace(uint32_t n_elements,
 	float depth_offset,
 	curandState_t* __restrict__ rand_state,
 	vec4* __restrict__ acc_rgba, 
-	float* __restrict__ acc_depth
+	float* __restrict__ acc_depth,
+	float shadow_factor
 ) {
 	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i >= n_elements) return;
@@ -167,7 +167,7 @@ __global__ void raytrace(uint32_t n_elements,
 			if (hit_obj_id < 0) break;
 			SampledRay next_ray;
 			vec4 color = shade_object(src_dir, next_ray, shadow_count, hit_info, lights, light_count, world, world_count, materials, mat_count,
-				n_steps, cone_angle_constant, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local, rand_state[i], nerf_shadow,!show_nerf_shadow);
+				n_steps, cone_angle_constant, density_grid, min_mip, max_mip, render_aabb, render_aabb_to_local, rand_state[i], nerf_shadow,!show_nerf_shadow, shadow_factor);
 			shade_s += color.rgb() * ray.pdf * ray.attenuation;
 			if (!bounce) {
 				next_dir += next_ray.dir;
@@ -229,7 +229,8 @@ __global__ void overlay_nerf(
 	float* __restrict__ nerf_depth,
 	EColorSpace color_space,
 	ETonemapCurve tonemap_curve,
-	float exposure
+	float exposure,
+	float depth_offset
 ) {
 	int x = threadIdx.x + blockDim.x * blockIdx.x;
 	int y = threadIdx.y + blockDim.y * blockIdx.y;
@@ -249,7 +250,7 @@ __global__ void overlay_nerf(
 	vec4 nrgba = nerf_rgba[nid];
 	float ndepth = nerf_depth[nid];
 
-	vec4 rgba_to_use = !is_nerf_shown || sdepth < ndepth ? srgba : nrgba;
+	vec4 rgba_to_use = !is_nerf_shown || sdepth - depth_offset < ndepth ? srgba : nrgba;
 	rgba_to_use.rgb() *= pow(vec3(2.0f), exposure);
 	rgba_to_use.rgb() = sng_tonemap(rgba_to_use.rgb(), tonemap_curve);
 	final_rgba[sid] = color_space == EColorSpace::SRGB ? vec4(linear_to_srgb(rgba_to_use.rgb()), rgba_to_use.a) : rgba_to_use;
@@ -362,7 +363,8 @@ void RayTracer::render(
 		depth_offset,
 		m_rand_state,
 		m_rays[0].rgba,
-		m_rays[0].depth
+		m_rays[0].depth,
+		m_syn_shadow_factor
 	);
 	sync();
 }
@@ -383,7 +385,8 @@ void RayTracer::overlay(CudaRenderBufferView nerf_scene, size_t syn_px_scale, ng
 		nerf_scene.depth_buffer,
 		color_space,
 		tonemap_curve,
-		exposure
+		exposure,
+		m_depth_offset
 	);
 	sync();
 }
@@ -408,6 +411,7 @@ void RayTracer::imgui() {
 		ImGui::InputFloat("Attenuation", &m_attenuation_coeff);
 		// ImGui::Checkbox("Use blend ratio", &m_use_blend_ratio);
 		// ImGui::SliderFloat("Blend Ratio", &m_blend_ratio, 0.0, 1.0);
+		ImGui::SliderFloat("Depth offset", &m_depth_offset, 0.0, 1.0);
 		ImGui::SetNextItemOpen(true);
 		if (ImGui::TreeNode("Display Filter")) {
 			if (ImGui::Combo("Filter Type", (int*)&m_filter_to_use, img_filter_type_names, img_filter_type_count)) {

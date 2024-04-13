@@ -1,8 +1,8 @@
 {
     "camera" : {
-        "view" : [0.636,-0.220,0.739],
-        "at" : [0.709,0.693,0.445],
-        "zoom" : 0.918,
+        "view" : [-0.000,-0.139,-0.990],
+"at" : [0.880,0.749,0.494],
+"zoom" : 1.025,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "fps" : 24,
@@ -28,23 +28,20 @@
         ]
     },
     "output" : {
-        "folder" : "../render/boxvase/",
+        "folder" : "../render/monkey-bg/",
         "record" : false
     },
     "rendering" : {
         "res_factor" : 64,
-        "exposure" : 0.702,
+        "exposure" : 1.202,
         "path_trace_depth": 2,
         "background_color" : [0.0, 0.0, 0.0],
-        "lens size" : 0.003,
-        "syn_filter" : "Final",
-        "nerf_filter" : "Shade",
-        "light_samples": 4,
-        "shadow_samples": 4,
+        "light_samples": 8,
+        "shadow_samples": 8,
         "lens_angle_constant" : 0.001,
-        "nerf_on_nerf_shadow_threshold" : 0.32,
-        "nerf_shadow_brightness" : 0.20,
-        "max_shadow_variance" : 0.00,
+        "nerf_on_nerf_shadow_threshold" : 0.200,
+        "nerf_shadow_brightness" : 1.00,
+        "max_shadow_variance" : 0.0,
 
         "show_virtual_obj" : true,
         "show_nerf" : true,
@@ -53,29 +50,24 @@
     },
     "lights": [
         {
-            "pos" : [0.376, 0.823, -0.280],
-            "size" : 0.040,
+            "pos" : [0.975, 1.322, 0.749],
+            "size" : 0.500,
             "intensity" : 1.0
         },
         {
-            "pos" : [-0.795, 0.761, 0.545],
-            "size" : 0.080,
+            "pos" : [ 0.0, 0.602, 0.545 ],
+            "size" : 0.000,
+            "type" : "directional",
             "intensity" : 1.0
         }
     ],
     "objfile": [
         {
-            "file": "../data/obj/smallbox.obj",
-            "pos" : [ 1.043, 0.602, 0.545 ],
-            "scale" : 0.137,
+            "file": "../data/obj/rock.obj",
+            "pos" : [ 0.630, 0.534, 0.299 ],
+"rot" : [ 0.836, 0.000, 0.549, 0.000, 1.000, 0.000, -0.549, 0.000, 0.836 ],
+"scale" : 0.137,
             "material": 0
-        },
-        {
-            "file": "../data/obj/bunny.obj",
-            "pos" : [ 1.019, 0.692, 1.578 ],
-"rot" : [ -0.773, -0.257, -0.579, -0.298, 0.954, -0.026, 0.559, 0.152, -0.815 ],
-"scale" : 1.274,
-            "material": 1
         }
     ],
     "materials": [
@@ -83,14 +75,14 @@
             "id": 0,
             "type": "lambertian",
             "n": 64.0,
-            "kd": [ 0.0, 0.3, 0.7 ],
+            "kd": [ 0.0, 0.0, 1.0 ],
             "rg": 0.5
         },
         {
             "id": 1,
             "type": "lambertian",
-            "n": 38.0,
-            "kd": [ 0.5, 0.1, 0.1 ],
+            "n": 28.0,
+            "kd": [ 1.0, 0.0, 0.0 ],
             "rg": 0.5
         }
     ]

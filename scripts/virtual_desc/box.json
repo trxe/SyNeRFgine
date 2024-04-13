@@ -1,14 +1,12 @@
 {
     "camera" : {
-        "view" : [0.007,-0.367,-0.930],
-        "at" : [0.245,0.330,0.005],
-        "zoom" : 3.155,
+            "view" : [ 0.6119312, -0.104988195, -0.7839119 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "fps" : 24,
         "animation_speed" : 0.0,
         "total_time_ms" : 4000,
-        "move_on_start" : true,
+        "move_on_start" : false,
         "path" : [
             {"view" : [ 0.6119312, -0.104988195, -0.7839119 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
             {"view" : [ 0.36336237, -0.122328155, -0.923582 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
@@ -29,19 +27,19 @@
         "nerf_filter" : "Shade",
         "smooth_kernel_size" : 4,
         "smooth_threshold" : 2.0002,
-        "show_light_pos" : false,
+        "show_light_pos" : true,
         "nerf_on_nerf_shadow_threshold" : 0.20,
-        "nerf_shadow_brightness" : 3.00,
-        "max_shadow_variance" : 0.01,
+        "nerf_shadow_brightness" : 1.00,
+        "max_shadow_variance" : 0.20,
 
         "show_virtual_obj" : true,
-        "shadow_on_nerf" : true,
+        "shadow_on_nerf" : false,
         "show_nerf" : true,
-        "shadow_on_virtual_obj" : true
+        "shadow_on_virtual_obj" : false
     },
     "lights": [
         {
-            "pos" : [0.311, 1.044, 1.041],
+            "pos" : [0.311, 1.044, 0.612],
             "size" : 0.02,
             "intensity" : 1.0,
             "type": "point",
@@ -49,6 +47,12 @@
                 "end" : [0.000, 0.144, 0.874],
                 "step" : 0.020
             }
+        },
+        {
+            "pos" : [0.311, 1.579, 1.356],
+            "size" : 0.02,
+            "intensity" : 1.0,
+            "type": "directional"
         }
     ],
     "objfile": [
