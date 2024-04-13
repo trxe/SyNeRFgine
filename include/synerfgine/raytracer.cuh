@@ -162,7 +162,9 @@ class RayTracer {
 		float m_lens_angle_constant = 0.009f;
 		float m_blend_ratio = 0.5f;
 		bool m_use_blend_ratio = false;
+		float m_depth_offset = 0.1f;
 		float m_attenuation_coeff = 1.0f;
+		float m_syn_shadow_factor = 1.0f;
 
 	private:
 		RaysSoa m_rays[1];

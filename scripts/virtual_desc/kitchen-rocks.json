@@ -22,8 +22,8 @@
         ]
     },
     "rendering" : {
-        "res_factor" : 8,
-        "exposure" : 1.002,
+        "res_factor" : 32,
+        "exposure" : 0.502,
         "path_trace_depth": 2,
         "light_samples": 8,
         "shadow_samples": 8,
@@ -35,7 +35,8 @@
         "show_light_pos" : false,
         "nerf_on_nerf_shadow_threshold" : 0.20,
         "nerf_shadow_brightness" : 1.000,
-        "max_shadow_variance" : 0.500,
+        "syn_shadow_brightness" : 0.300,
+        "max_shadow_variance" : 0.000,
 
         "show_virtual_obj" : true,
         "shadow_on_nerf" : true,
@@ -48,24 +49,24 @@
     },
     "lights": [
         {
-            "pos" : [-0.040, 1.109, 0.304],
-            "size" : 0.090,
+            "pos" : [0.484, 1.088, 0.304],
+            "size" : 0.050,
             "intensity" : 1.00
         }
     ],
     "objfile": [
         {
-            "file": "../data/obj/rock.obj",
+            "file": "../data/obj/bunny.obj",
             "pos" : [ 0.322, 0.503, 0.448 ],
 "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
-"scale" : 0.047,
+"scale" : 1.174,
             "material": 1
         },
         {
-            "file": "../data/obj/bunny.obj",
+            "file": "../data/obj/rock.obj",
             "pos" : [ 0.577, 0.572, 0.772 ],
 "rot" : [ 0.372, 0.000, 0.928, 0.000, 1.000, 0.000, -0.928, 0.000, 0.372 ],
-"scale" : 1.174,
+"scale" : 0.047,
             "material": 0
         },
         {

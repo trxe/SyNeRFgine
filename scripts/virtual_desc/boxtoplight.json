@@ -1,13 +1,14 @@
 {
     "camera" : {
-        "view" : [0.351,-0.470,-0.810],
-        "at" : [0.341,0.284,0.065],
-        "zoom" : 2.155,
+        "view" : [ 0.6119312, -0.104988195, -0.7839119 ],
+        "at" : [ 0.525, 0.62100005, 0.09000015 ],
+        "zoom" : 2.608,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "fps" : 24,
+        "animation_speed" : 0.0,
         "total_time_ms" : 4000,
-        "move_on_start" : true,
+        "move_on_start" : false,
         "path" : [
             {"view" : [ 0.6119312, -0.104988195, -0.7839119 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
             {"view" : [ 0.36336237, -0.122328155, -0.923582 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
@@ -16,41 +17,54 @@
             {"view" : [ 0.34421092, -0.7434542, -0.57340676 ], "at" : [ 0.42162585, 0.40618336, 0.30646777 ], "zoom" : 1.9594287}
         ]
     },
+    "output" : { "folder" : "../render/garden-box-light", "record": false },
     "rendering" : {
-        "res_factor" : 64,
-        "exposure" : 1.202,
-        "background_color" : [1.0, 1.0, 1.0],
-        "show_ui": false,
+        "res_factor" : 8,
+        "exposure" : 1.002,
         "path_trace_depth": 2,
-        "light_samples": 16,
-        "shadow_samples": 2,
-        "lens_angle_constant" : 0.001,
-        "buffer_filter" : "Final",
+        "light_samples": 8,
+        "shadow_samples": 4,
+        "lens_size" : 0.003,
+        "syn_filter" : "Final",
         "nerf_filter" : "Shade",
-        "tonemap" : "Hable"
+        "smooth_kernel_size" : 0,
+        "smooth_threshold" : 2.0002,
+        "show_light_pos" : false,
+        "nerf_on_nerf_shadow_threshold" : 0.20,
+        "nerf_shadow_brightness" : 1.20,
+        "max_shadow_variance" : 0.00,
+
+        "show_virtual_obj" : true,
+        "show_nerf" : true,
+        "shadow_on_nerf" : true,
+        "shadow_on_virtual_obj" : true
     },
     "lights": [
         {
-            "pos" : [-0.478, 1.196, 0.156],
-            "size" : 0.04,
+            "pos" : [0.311, 1.044, 1.041],
+            "size" : 0.02,
             "intensity" : 1.0,
-            "type": "point"
+            "type": "point",
+            "anim" : {
+                "end" : [0.000, 0.144, 0.874],
+                "step" : 0.020
+            }
         }
     ],
     "objfile": [
-        {
-            "file": "../data/obj/armadillo.obj",
-            "pos" : [ -0.362, 0.411, 0.292 ],
-            "rot" : [ -0.039, 0.000, 0.999, 0.000, 1.000, 0.000, -0.999, 0.000, -0.039 ],
-            "scale" : 0.703,
-            "material": 0
-        },
         {
             "file": "../data/obj/smallbox.obj",
             "pos" : [ -0.071, 0.546, -0.014 ],
             "rot" : [ 0.822, 0.000, 0.569, 0.000, 1.000, 0.000, -0.569, 0.000, 0.822 ],
             "scale" : 0.203,
             "material": 1
+        },
+        {
+            "file": "../data/obj/armadillo.obj",
+            "pos" : [ 0.240, 0.667, 0.710 ],
+            "rot" : [ -0.039, 0.000, 0.999, 0.000, 1.000, 0.000, -0.999, 0.000, -0.039 ],
+            "scale" : 0.703,
+            "material": 0
         }
     ],
     "materials": [
@@ -58,7 +72,7 @@
             "id": 0,
             "type": "lambertian",
             "n": 64.0,
-            "rg": 0.2,
+            "rg": 0.5,
             "kd": [
                 1.0,
                 0.0,
@@ -70,7 +84,7 @@
             "type": "glossy",
             "n": 28.0,
             "rg": 1.0,
-            "spec_angle": 0.5,
+            "spec_angle": 0.001,
             "kd": [
                 0.0,
                 1.0,

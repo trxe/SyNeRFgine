@@ -331,7 +331,8 @@ public:
 		const GPUMemory<sng::Light>& world_light,
 		const GPUMemory<sng::Material>& world_materials,
 		GPUMemory<curandState_t>& rand_states,
-		const float& nerf_shadow_brightness,
+		const float& nerf_shadow_intensity,
+		const float& nerf_ao_intensity,
 		const float& nerf_on_nerf_shadow_threshold,
 		const size_t& shadow_samples
 	);
@@ -410,7 +411,8 @@ public:
 		GPUMemory<vec3>& nerf_normals,
 		GPUMemory<vec3>& nerf_positions,
 		bool show_shadow,
-		float nerf_shadow_brightness,
+		float nerf_shadow_intensity,
+		float nerf_ao_intensity,
 		float nerf_on_nerf_shadow_threshold,
 		const size_t& shadow_samples
 	);

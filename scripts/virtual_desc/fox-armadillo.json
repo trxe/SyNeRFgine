@@ -1,36 +1,59 @@
 {
     "camera" : {
-        "view" : [0.689,-0.107,-0.717],
-        "at" : [0.387,0.719,0.812],
-        "zoom" : 3.452,
+        "view" : [-0.892,-0.276,-0.357],
+"at" : [-0.153,1.290,0.917],
+"zoom" : 0.010,
         "clear_color" : [1.0, 0.0, 0.0],
-        "show_ui_start" : true,
-        "vo_scale" : 6.0
+        "show_ui_start" : false
     },
-    "shader" : {
-        "nerf_blur_kernel_size": 6,
-        "syn_blur_kernel_size": 2
+    "rendering" : {
+        "res_factor" : 8,
+        "exposure" : 1.002,
+        "path_trace_depth": 2,
+        "light_samples": 8,
+        "shadow_samples": 8,
+        "lens_size" : 0.000,
+        "syn_filter" : "Final",
+        "nerf_filter" : "Shade",
+        "smooth_kernel_size" : 8,
+        "smooth_threshold" : 2.0002,
+        "show_light_pos" : false,
+        "nerf_on_nerf_shadow_threshold" : 0.942,
+        "nerf_shadow_brightness" : 0.700,
+        "max_shadow_variance" : 0.20,
+
+        "show_virtual_obj" : true,
+        "shadow_on_nerf" : true,
+        "show_nerf" : true,
+        "shadow_on_virtual_obj" : true
     },
     "lights": [
         {
-            "pos" : [-0.042, 1.708, 1.547],
-            "size" : 0.04,
+            "pos" : [-0.592, 1.516, 0.708],
+            "size" : 0.01,
             "intensity" : 1.0
         },
         {
             "pos" : [-0.042, 1.708, 1.547],
             "size" : 0.04,
-            "intensity" : 1.0,
-            "type" : "Directional"
+            "intensity" : 0.2,
+            "type" : "directional"
         }
     ],
     "objfile": [
         {
             "file": "../data/obj/bunny.obj",
-            "pos" : [ -0.140, -0.121, 0.923 ],
-            "rot" : [ -0.048, 0.000, 0.999, 0.000, 1.000, 0.000, -0.999, 0.000, -0.048 ],
-            "scale" : 4.000,
+            "pos" : [ -0.633, 1.180, 0.791 ],
+"rot" : [ 0.955, 0.000, 0.296, 0.000, 1.000, 0.000, -0.296, 0.000, 0.955 ],
+"scale" : 1.000,
             "material": 0
+        },
+        {
+            "file": "../data/obj/armadillo.obj",
+            "pos" : [ -0.463, 1.170, 0.721 ],
+"rot" : [ 0.813, 0.000, 0.582, 0.000, 1.000, 0.000, -0.582, 0.000, 0.813 ],
+"scale" : 0.364,
+            "material": 1
         }
     ],
     "materials": [
@@ -39,6 +62,13 @@
             "type": "lambertian",
             "n": 64.0,
             "kd": [ 0.8, 0.0, 0.5 ]
+        },
+        {
+            "id": 1,
+            "type": "glossy",
+            "n": 64.0,
+            "spec_angle": 0.01,
+            "kd": [ 0.0, 1.0, 0.5 ]
         }
     ]
 }

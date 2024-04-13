@@ -1,8 +1,8 @@
 {
     "camera" : {
-        "view" : [0.015,-0.431,-0.902],
+        "view" : [0.007,-0.367,-0.930],
         "at" : [0.245,0.330,0.005],
-        "zoom" : 5.081,
+        "zoom" : 3.155,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "fps" : 24,
@@ -17,25 +17,32 @@
             {"view" : [ 0.34421092, -0.7434542, -0.57340676 ], "at" : [ 0.42162585, 0.40618336, 0.30646777 ], "zoom" : 1.9594287}
         ]
     },
+    "output" : { "folder" : "../render/garden-box-light", "record": false },
     "rendering" : {
         "res_factor" : 8,
-        "exposure" : 4.202,
+        "exposure" : 0.002,
         "path_trace_depth": 2,
-        "light_samples": 16,
+        "light_samples": 8,
         "shadow_samples": 8,
         "lens_size" : 0.003,
-        "buffer_filter" : "Final",
+        "syn_filter" : "Final",
         "nerf_filter" : "Shade",
-        "tonemap" : "Hable",
-        "show_light_pos" : true,
-        "nerf_on_nerf_shadow_threshold" : 0.001,
-        "nerf_shadow_brightness" : 0.20
+        "smooth_kernel_size" : 4,
+        "smooth_threshold" : 2.0002,
+        "show_light_pos" : false,
+        "nerf_on_nerf_shadow_threshold" : 0.20,
+        "nerf_shadow_brightness" : 3.00,
+        "max_shadow_variance" : 0.01,
+
+        "show_virtual_obj" : true,
+        "shadow_on_nerf" : true,
+        "show_nerf" : true,
+        "shadow_on_virtual_obj" : true
     },
-    "output" : { "folder" : "../render/garden-box-light-further", "record": false },
     "lights": [
         {
-            "pos" : [0.000, 1.044, 0.874],
-            "size" : 0.00,
+            "pos" : [0.311, 1.044, 1.041],
+            "size" : 0.02,
             "intensity" : 1.0,
             "type": "point",
             "anim" : {
@@ -65,7 +72,7 @@
             "id": 0,
             "type": "lambertian",
             "n": 64.0,
-            "rg": 0.8,
+            "rg": 0.5,
             "kd": [
                 1.0,
                 0.0,

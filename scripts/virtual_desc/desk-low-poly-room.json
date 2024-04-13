@@ -1,9 +1,9 @@
 {
     "camera" : {
-        "view" : [-0.815,-0.455,-0.359],
-        "at" : [-0.457,1.287,1.163],
-        "zoom" : 1.005,
-        "animation_speed" : 1.0,
+        "view" : [-0.668,-0.359,-0.652],
+        "at" : [0.660,0.589,0.335],
+        "zoom" : 1.217,
+        "animation_speed" : 0.0,
         "clear_color" : [1.0, 0.0, 0.0],
         "attenuation" : 1.0,
         "show_ui": false,
@@ -16,18 +16,21 @@
     },
     "rendering" : {
         "res_factor" : 8,
-        "exposure" : 0.002,
+        "exposure" : 0.702,
         "path_trace_depth": 2,
-        "light_samples": 8,
-        "shadow_samples": 8,
+        "light_samples": 4,
+        "shadow_samples": 4,
         "lens_size" : 0.003,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
         "smooth_kernel_size" : 8,
-        "smooth_threshold" : 1.0000,
+        "smooth_threshold" : 2.510,
         "show_light_pos" : true,
-        "nerf_on_nerf_shadow_threshold" : 0.472,
-        "nerf_shadow_brightness" : 0.850,
+        "nerf_on_nerf_shadow_threshold" : 0.172,
+        "nerf_shadow_intensity" : 1.000,
+        "nerf_ao_intensity" : 0.150,
+        "max_shadow_variance" : 0.007,
+        "depth_offset" : 0.100,
 
         "show_virtual_obj" : true,
         "shadow_on_nerf" : true,
@@ -36,29 +39,25 @@
     },
     "lights": [
         {
-            "pos" : [0.082, 1.401, 1.214],
-            "size" : 0.000,
-            "intensity" : 1.0,
-            "anim" : {
-                "end" : [0.082, 2.001, 1.214],
-                "step" : 0.020
-            }
+            "pos" : [1.463, 1.401, 1.214],
+            "size" : 0.020,
+            "intensity" : 1.0
         }
         
     ],
     "objfile": [
         {
             "file": "../data/obj/rock.obj",
-            "pos" : [ -0.400, 1.130, 0.850 ],
+            "pos" : [ 0.705, 0.591, 0.850 ],
             "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
-            "scale" : 0.037,
+            "scale" : 0.137,
             "material": 0
         },
         {
             "file": "../data/obj/armadillo.obj",
-            "pos" : [ -0.478, 1.170, 1.339 ],
-            "rot" : [ 0.970, 0.000, -0.244, 0.000, 1.000, 0.000, 0.244, 0.000, 0.970 ],
-            "scale" : 0.355,
+            "pos" : [ 1.321, 0.931, 0.739 ],
+            "rot" : [ 0.208, 0.352, 0.913, -0.000, 0.933, -0.360, -0.978, 0.075, 0.194 ],
+            "scale" : 0.555,
             "material": 1
         }
     ],

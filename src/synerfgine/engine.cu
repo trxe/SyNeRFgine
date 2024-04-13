@@ -168,7 +168,7 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
         m_raytracer.m_ray_iters = m_default_render_settings["path_trace_depth"];
     }
     if (m_default_render_settings.count("light_samples")) {
-        m_raytracer.m_shadow_iters = m_default_render_settings["light_samples"];
+        m_raytracer.m_samples = m_default_render_settings["light_samples"];
     }
     if (m_default_render_settings.count("shadow_samples")) {
         m_raytracer.m_shadow_iters = m_default_render_settings["shadow_samples"];
@@ -176,8 +176,8 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("attenuation")) {
         m_raytracer.m_attenuation_coeff = m_default_render_settings["attenuation"];
     }
-    if (m_default_render_settings.count("lens_angle_constant")) {
-        m_raytracer.m_lens_angle_constant = m_default_render_settings["lens_angle_constant"];
+    if (m_default_render_settings.count("lens_size")) {
+        m_raytracer.m_lens_angle_constant = m_default_render_settings["lens_size"];
     }
     if (m_default_render_settings.count("nerf_on_nerf_shadow_threshold")) {
         m_nerf_self_shadow_threshold = m_default_render_settings["nerf_on_nerf_shadow_threshold"];
@@ -188,8 +188,14 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("max_shadow_variance")) {
         m_testbed->sng_shadow_depth_variance = m_default_render_settings["max_shadow_variance"];
     }
-    if (m_default_render_settings.count("nerf_shadow_brightness")) {
-        m_nerf_shadow_brightness = m_default_render_settings["nerf_shadow_brightness"];
+    if (m_default_render_settings.count("nerf_shadow_intensity")) {
+        m_nerf_shadow_intensity = m_default_render_settings["nerf_shadow_intensity"];
+    }
+    if (m_default_render_settings.count("nerf_ao_intensity")) {
+        m_nerf_ao_intensity = m_default_render_settings["nerf_ao_intensity"];
+    }
+    if (m_default_render_settings.count("syn_shadow_brightness")) {
+        m_raytracer.m_syn_shadow_factor = m_default_render_settings["syn_shadow_brightness"];
     }
     if (m_default_render_settings.count("shadow_on_virtual_obj")) {
         m_raytracer.m_view_nerf_shadow = m_default_render_settings["shadow_on_virtual_obj"];
@@ -213,6 +219,9 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("syn_filter")) {
         std::string filter_name = m_default_render_settings["syn_filter"];
         m_raytracer.set_buffer(filter_name);
+    }
+    if (m_default_render_settings.count("depth_offset")) {
+        m_raytracer.m_depth_offset = m_default_render_settings["depth_offset"];
     }
     tlog::info() << "Default camera matrix: Matrix([Vector(" 
         << m_testbed->m_camera[0] << "), Vector("
@@ -294,14 +303,20 @@ void Engine::imgui() {
             }
         }
         if (ImGui::CollapsingHeader("Shader", ImGuiTreeNodeFlags_DefaultOpen)) {
-            if (ImGui::SliderFloat("Shadows of NeRF Brightness", &m_nerf_shadow_brightness, MIN_DEPTH(), 3.0f)) { 
+            if (ImGui::SliderFloat("NeRF Shadow Darkness", &m_nerf_shadow_intensity, MIN_DEPTH(), 10.0f)) { 
                 m_is_dirty = true;
             }
-            if (ImGui::SliderFloat("Threshold for NeRF-on-NeRF shadow", &m_nerf_self_shadow_threshold, MIN_DEPTH(), 1.0f)) { 
+            if (ImGui::SliderFloat("AO Shadow Darkness", &m_nerf_ao_intensity, MIN_DEPTH(), 10.0f)) { 
+                m_is_dirty = true;
+            }
+            if (ImGui::SliderFloat("VO Shadow Darkness", &m_raytracer.m_syn_shadow_factor, MIN_DEPTH(), 10.0f)) { 
+                m_is_dirty = true;
+            }
+            if (ImGui::SliderFloat("Threshold for NeRF shadow ray", &m_nerf_self_shadow_threshold, MIN_DEPTH(), 1.0f)) { 
                 m_is_dirty = true;
             }
             ImGui::SliderInt("Position blur kernel size", &m_testbed->sng_position_kernel_size, 0, 14);
-            ImGui::SliderFloat("Position blur kernel threshold", &m_testbed->sng_position_kernel_threshold, 0.001, 8.0f);
+            ImGui::SliderFloat("Position blur kernel threshold", &m_testbed->sng_position_kernel_threshold, 0.000, 8.0f);
             ImGui::SliderFloat("Variance Threshold (Shadows)", &m_testbed->sng_shadow_depth_variance, 0.000, 1.000f);
         }
         if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -382,7 +397,7 @@ bool Engine::frame() {
     if (m_show_nerf) {
         m_testbed->render( m_stream_id, view, m_raytracer.get_tmp_frame_buffer(), m_raytracer.get_tmp_depth_buffer(),
             m_relative_vo_scale, d_world, d_lights, d_materials, d_nerf_rand_state, d_nerf_normals, 
-            d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_brightness, m_nerf_self_shadow_threshold, m_raytracer.m_shadow_iters );
+            d_nerf_positions, m_view_syn_shadow, m_nerf_shadow_intensity, m_nerf_ao_intensity, m_nerf_self_shadow_threshold, m_raytracer.m_shadow_iters );
         sync(m_stream_id);
     }
     m_raytracer.overlay(view.render_buffer->view(), m_relative_vo_scale, EColorSpace::SRGB, m_testbed->m_tonemap_curve, m_testbed->m_exposure, m_show_nerf);
