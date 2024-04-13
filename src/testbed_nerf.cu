@@ -1528,8 +1528,8 @@ __global__ void write_normals_to_buffer(
 	vec3 cam_origin,
 	ERenderMode render_mode
 ) {
-	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
-	uint32_t y = threadIdx.y + blockDim.y * blockIdx.y;
+	int x = threadIdx.x + blockDim.x * blockIdx.x;
+	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
 	if (x >= resolution.x || y >= resolution.y) {
 		return;
@@ -1611,6 +1611,96 @@ __global__ void extract_from_payload(
 	}
 }
 
+__device__ float shadow_for_px(
+	const ivec2& tex_coord,
+	const ivec2& resolution,
+	vec3* __restrict__ positions,
+	vec3* __restrict__ normals,
+	const sng::Light* __restrict__ lights,
+	uint32_t light_count,
+	const sng::ObjectTransform* __restrict__ objs,
+	uint32_t obj_count,
+	curandState_t* __restrict__ rand_state,
+	const uint8_t* __restrict__ density_grid,
+	uint32_t n_steps,
+	float cone_angle_constant,
+	uint32_t max_mip,
+	BoundingBox render_aabb,
+	mat4x3 render_aabb_to_local,
+	ERenderMode render_mode,
+	float nerf_shadow_intensity,
+	float nerf_on_nerf_shadow_threshold,
+	size_t shadow_samples
+){
+	int idx = tex_coord.y * resolution.x + tex_coord.x;
+	const vec3 orig_pos = positions[idx];
+	const vec3 tangent = tex_coord.y == resolution.y ? orig_pos - positions[idx-resolution.x] : positions[idx+resolution.x] - orig_pos;
+	const vec3 normal = normals[idx];
+	// const mat3 frame = sng::get_perturb_matrix(tangent, normal);
+	// float shadows_float_list[MAX_SHADOW_SAMPLES];
+	// float ambient_occlusion = 0.0f;
+
+	// float sum_shadow_depth = 0.0f;
+	// for (size_t j = 0; j < 1; ++j) {
+	// for (size_t j = 0; j < shadow_samples; ++j) {
+	float overall_shadow_depth = 1.0f;
+	for (uint32_t i = 0; i < light_count; ++i) {
+		const sng::Light& light = lights[i];
+		if (light.type == sng::LightType::Point) {
+			// float length_sqr = length2(light.pos - orig_pos);
+			// const vec3 lpos = light.sample(rand_state[idx], length_sqr);
+			// const vec3 lpos = light.sample(rand_state[idx]);
+			const vec3 lpos = light.sample();
+			const vec3 l = normalize(lpos - orig_pos);
+			const vec3& pos = orig_pos;
+			const float full_d = length(lpos - pos);
+			const vec3 invl = 1.0f / l;
+
+			int32_t hit_obj_id = -1;
+			float syn_depth = sng::depth_test_world(pos, l, objs, obj_count, hit_obj_id);
+			float syn_shadow_mask = syn_depth / full_d;
+			overall_shadow_depth = min(overall_shadow_depth, pow(syn_shadow_mask, nerf_shadow_intensity));
+
+			// v1: Depth test from light position towards frag position. Avoid intersecting with first density grid
+			vec3 fract_offset = full_d * nerf_on_nerf_shadow_threshold * lpos;
+			float nerf_depth = min(full_d, sng::depth_test_nerf(n_steps, cone_angle_constant, pos + fract_offset, lpos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local));
+			float nerf_shadow_mask = nerf_depth * (1.0f - min(light.intensity, 0.0f))/ (full_d * (1.0 - nerf_on_nerf_shadow_threshold));
+			overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_mask);
+
+			// v2: Intersect with furthest
+			// auto [has_hit, nerf_depth, thickness] = //min(full_d, 
+			// 	// sng::depth_test_nerf_furthest(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local, nerf_on_nerf_shadow_threshold);
+			// 	sng::depth_test_nerf_far(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
+			// 	//);
+			// float nerf_shadow_mask = !has_hit ?  1.0 : 1.0 - pow(nerf_depth / full_d, full_d * full_d);
+			// if (allow_shadow) 
+			// overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_mask);
+		} else if (light.type == sng::LightType::Directional) {
+			const vec3 l = normalize(light.pos - orig_pos);
+			overall_shadow_depth = min(1.0, overall_shadow_depth + min(0.0, dot(l, normal)) * light.intensity);
+		}
+	}
+	return overall_shadow_depth;
+		// sum_shadow_depth += overall_shadow_depth;
+		// shadows_float_list[j] = overall_shadow_depth;
+
+		// calculate ambient occlusion
+		// if (depth_variance_ratio > 0.0) {
+		// 	int32_t hit_obj_id = -1;
+		// 	auto longi = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI / 2.0f;
+		// 	auto latid = fractf(curand_uniform(&rand_state[idx])) * 2.0 * tcnn::PI;
+		// 	vec3 point_test = sng::cone_random(normal, frame, longi, latid);
+		// 	float syn_depth = sng::depth_test_world(orig_pos, point_test, objs, obj_count, hit_obj_id);
+		// 	syn_depth /= fractf(curand_uniform(&rand_state[idx])) * depth_variance_ratio; // TODO: Rename all occurrences of nerf_shadow_intensity to AO
+		// 	syn_depth *= dot(point_test, normal);
+		// 	ambient_occlusion += pow(smoothstep(clamp(syn_depth, 0.0f, 1.0f)), nerf_ao_intensity);
+		// } else {
+		// 	ambient_occlusion += 1.0f;
+		// }
+	// }
+	// return sum_shadow_depth;
+}
+
 __global__ void shade_with_shadow(
 	const uint32_t n_elements,
 	ivec2 resolution,
@@ -1638,7 +1728,7 @@ __global__ void shade_with_shadow(
 	float nerf_shadow_intensity,
 	float nerf_ao_intensity,
 	float nerf_on_nerf_shadow_threshold,
-	size_t shadow_samples,
+	int shadow_samples,
 	float depth_variance_ratio,
 	int kernel_size,
 	float kernel_threshold
@@ -1649,107 +1739,25 @@ __global__ void shade_with_shadow(
 
 	ivec2 tex_coord = {(int)idx % resolution.x, (int)idx / resolution.x};
 
-	const vec3 orig_pos = positions[idx];
-	const vec3 tangent = tex_coord.y == resolution.y ? orig_pos - positions[idx-resolution.x] : positions[idx+resolution.x] - orig_pos;
-	const vec3 normal = normals[idx];
-	const mat3 frame = sng::get_perturb_matrix(tangent, normal);
-	// float shadows_float_list[MAX_SHADOW_SAMPLES];
-	float ambient_occlusion = 0.0f;
-
-	// float ave_angle{0.0f};
-	// float ave_angle_sqr{0.0f};
-
-	// // additional pass to smoothen positions
-	// size_t t{0};
-	// int x = idx % resolution.x;
-	// int y = idx / resolution.x;
-	// for (int dx = -kernel_size; dx <= kernel_size; ++dx) {
-	// 	int tx = dx + x;
-	// 	if (tx < 0 || t >= resolution.x) continue;
-	// 	for (int dy = -kernel_size; dy <= kernel_size; ++dy) {
-	// 		int ty = dy + y;
-	// 		if (ty < 0 || ty >= resolution.y) continue;
-	// 		size_t _t = ty * resolution.x + tx;
-	// 		float ddot = length(positions[t] - orig_pos);
-	// 		ave_angle += ddot;
-	// 		ave_angle_sqr += ddot * ddot;
-	// 		++t;
-	// 	}
-	// }
-	// ave_angle /= (float)t;
-	// ave_angle_sqr /= (float)t;
-	// float variance = abs(ave_angle_sqr - ave_angle * ave_angle);
-	// bool allow_shadow = variance < kernel_threshold;
-
-	// if (idx % 100000 == 0) printf("allow shadow for %d:  %d (%f - %f*%f = %f | %f) \n", idx, ave_angle_sqr, ave_angle, ave_angle, variance, kernel_threshold, allow_shadow);
-
+	float blend_factor = 0.0f;
 	float sum_shadow_depth = 0.0f;
-	for (size_t j = 0; j < shadow_samples; ++j) {
-		float overall_shadow_depth = 1.0f;
-		for (uint32_t i = 0; i < light_count; ++i) {
-			const sng::Light& light = lights[i];
-			if (light.type == sng::LightType::Point) {
-				// float length_sqr = length2(light.pos - orig_pos);
-				// const vec3 lpos = light.sample(rand_state[idx], length_sqr);
-				const vec3 lpos = light.sample(rand_state[idx]);
-				// const vec3 lpos = light.sample();
-				const vec3 l = normalize(lpos - orig_pos);
-				const vec3& pos = orig_pos;
-				const float full_d = length(lpos - pos);
-				const vec3 invl = 1.0f / l;
 
-				int32_t hit_obj_id = -1;
-				float syn_depth = sng::depth_test_world(pos, l, objs, obj_count, hit_obj_id);
-				float syn_shadow_mask = syn_depth / full_d;
-				overall_shadow_depth = min(overall_shadow_depth, pow(syn_shadow_mask, nerf_shadow_intensity));
-
-				// v1: Depth test from light position towards frag position. Avoid intersecting with first density grid
-				vec3 fract_offset = full_d * nerf_on_nerf_shadow_threshold * lpos;
-				float nerf_depth = min(full_d, sng::depth_test_nerf(n_steps, cone_angle_constant, pos + fract_offset, lpos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local));
-				float nerf_shadow_mask = nerf_depth * (1.0f - min(light.intensity, 0.0f))/ (full_d * (1.0 - nerf_on_nerf_shadow_threshold));
-				overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_mask);
-
-				// v2: Intersect with furthest
-				// auto [has_hit, nerf_depth, thickness] = //min(full_d, 
-				// 	// sng::depth_test_nerf_furthest(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local, nerf_on_nerf_shadow_threshold);
-				// 	sng::depth_test_nerf_far(n_steps, cone_angle_constant, lpos, pos, density_grid, 0, max_mip, render_aabb, render_aabb_to_local);
-				// 	//);
-				// float nerf_shadow_mask = !has_hit ?  1.0 : 1.0 - pow(nerf_depth / full_d, full_d * full_d);
-				// if (allow_shadow) 
-				// overall_shadow_depth = min(overall_shadow_depth, nerf_shadow_mask);
-			} else if (light.type == sng::LightType::Directional) {
-				const vec3 l = normalize(light.pos - orig_pos);
-				overall_shadow_depth = min(1.0, overall_shadow_depth + min(0.0, dot(l, normal)) * light.intensity);
-			}
-		}
-		sum_shadow_depth += overall_shadow_depth;
-		// shadows_float_list[j] = overall_shadow_depth;
-
-		// calculate ambient occlusion
-		if (depth_variance_ratio > 0.0) {
-			int32_t hit_obj_id = -1;
-			auto longi = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI / 2.0f;
-			auto latid = fractf(curand_uniform(&rand_state[idx])) * 2.0 * tcnn::PI;
-			vec3 point_test = sng::cone_random(normal, frame, longi, latid);
-			float syn_depth = sng::depth_test_world(orig_pos, point_test, objs, obj_count, hit_obj_id);
-			syn_depth /= fractf(curand_uniform(&rand_state[idx])) * depth_variance_ratio; // TODO: Rename all occurrences of nerf_shadow_intensity to AO
-			syn_depth *= dot(point_test, normal);
-			ambient_occlusion += pow(smoothstep(clamp(syn_depth, 0.0f, 1.0f)), nerf_ao_intensity);
-		} else {
-			ambient_occlusion += 1.0f;
+	for (int i = -shadow_samples; i <= shadow_samples; ++i) {
+		for (int j = -shadow_samples; j <= shadow_samples; ++j) {
+			ivec2 final_coord = tex_coord + ivec2(i, j);
+			if (final_coord.x < 0 || final_coord.y < 0 || final_coord.x >= resolution.x || final_coord.y >= resolution.y ) continue;
+			sum_shadow_depth += shadow_for_px(final_coord, resolution, positions, normals, lights, light_count, objs, obj_count, 
+				rand_state, density_grid, n_steps, cone_angle_constant, max_mip, render_aabb, render_aabb_to_local, render_mode, nerf_shadow_intensity, nerf_on_nerf_shadow_threshold, shadow_samples);
+			blend_factor += 1.0f;
 		}
 	}
 
-	sum_shadow_depth /=(float) shadow_samples;
-
-	ambient_occlusion = sqrt(ambient_occlusion / (float)shadow_samples);
-	ambient_occlusion *= ambient_occlusion;
-	sum_shadow_depth = min(sum_shadow_depth, ambient_occlusion);
+	sum_shadow_depth /=(float) blend_factor;
 	sum_shadow_depth = pow(sum_shadow_depth, nerf_shadow_intensity);
 
 	vec4& tmp = rgba[idx];
 	if (render_mode == ERenderMode::ShadowDepth) rgba[idx].rgb() = vec3(sum_shadow_depth);
-	else if (render_mode == ERenderMode::AO) rgba[idx].rgb() = vec3(ambient_occlusion);
+	// else if (render_mode == ERenderMode::AO) rgba[idx].rgb() = vec3(ambient_occlusion);
 	else rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
 
 	// if (render_mode == ERenderMode::ShadowDepth && !allow_shadow) rgba[idx].rgb() = vec3(1.0, 0.0, 0.0);
@@ -2561,17 +2569,17 @@ void Testbed::render_nerf_with_buffers(
 	const dim3 threads = { 16, 8, 1 };
 	const dim3 blocks = { div_round_up((uint32_t)resolution.x, threads.x), div_round_up((uint32_t)resolution.y, threads.y), 1 };
 	// Makes the shadow blob problem worse
-	if (sng_position_kernel_size > 0) {
-		blend_positions_in_buffer<<<blocks, threads, 0, stream>>>(
-			resolution,
-			nerf_positions.data(),
-			render_buffer.frame_buffer,
-			sng_position_kernel_size,
-			sng_position_kernel_threshold,
-			render_mode
-		);
-	}
-	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+	// if (sng_position_kernel_size > 0) {
+	// 	blend_positions_in_buffer<<<blocks, threads, 0, stream>>>(
+	// 		resolution,
+	// 		nerf_positions.data(),
+	// 		render_buffer.frame_buffer,
+	// 		sng_position_kernel_size,
+	// 		sng_position_kernel_threshold,
+	// 		render_mode
+	// 	);
+	// }
+	// CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 	write_normals_to_buffer<<<blocks, threads, 0, stream>>>(
 		resolution,
 		nerf_positions.data(),
