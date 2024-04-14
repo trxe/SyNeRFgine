@@ -20,9 +20,9 @@
         "path_trace_depth": 2,
         "lens_size" : 0.003,
         "light_samples": 4,
-        "syn_shadow_samples": 1,
+        "syn_shadow_samples": 2,
         "nerf_shadow_samples" : 4,
-        "syn_shadow_intensity" : 1.00,
+        "syn_shadow_intensity" : 0.50,
         "nerf_shadow_intensity" : 1.00,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
@@ -39,7 +39,7 @@
     "lights": [
         {
             "pos" : [1.463, 1.401, 1.214],
-            "size" : 0.15,
+            "size" : 0.06,
             "intensity" : 1.0
         }
         

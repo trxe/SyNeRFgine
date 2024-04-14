@@ -1744,6 +1744,9 @@ __global__ void shade_with_shadow(
 	ivec2 offset_coords [MAX_KERNEL_SQ_SIZE];
 	vec3 offset_pos [MAX_KERNEL_SQ_SIZE];
 	vec3 offset_normals [MAX_KERNEL_SQ_SIZE];
+	// vec3 ave_pos{0.0};
+	// vec3 ave_norm{0.0};
+	// if (!idx) printf("val : %f\n", val);
 	for (int i = -kernel_size; i <= kernel_size; ++i) {
 		for (int j = -kernel_size; j <= kernel_size; ++j) {
 			ivec2 final_coord = tex_coord + ivec2(i, j);
@@ -1754,15 +1757,21 @@ __global__ void shade_with_shadow(
 			offset_coords[blend_factor] = final_coord;
 			int tidx = final_coord.y * resolution.x + final_coord.x;
 			offset_pos[blend_factor] = positions[tidx];
+			// ave_pos += offset_pos[blend_factor];
 			offset_normals[blend_factor] = normals[tidx];
+			// ave_norm += offset_normals[blend_factor];
 			++blend_factor;
 		}
 	}
+	// ave_pos /= (float)blend_factor;
+	// ave_norm /= (float)blend_factor;
 
 	for (int t = 0; t < blend_factor; ++t) {
 		// const vec3 tangent = tex_coord.y == resolution.y ? orig_pos - positions[tidx-resolution.x] : positions[tidx+resolution.x] - orig_pos;
 		sum_shadow_depth += shadow_for_px(offset_coords[t], resolution, offset_pos[t], offset_normals[t], lights, light_count, objs, obj_count, 
 			rand_state, density_grid, n_steps, cone_angle_constant, max_mip, render_aabb, render_aabb_to_local, render_mode, nerf_shadow_intensity, nerf_on_nerf_shadow_threshold, shadow_samples);
+		// sum_shadow_depth += shadow_for_px(tex_coord, resolution, ave_pos, ave_norm, lights, light_count, objs, obj_count, 
+		// 	rand_state, density_grid, n_steps, cone_angle_constant, max_mip, render_aabb, render_aabb_to_local, render_mode, nerf_shadow_intensity, nerf_on_nerf_shadow_threshold, shadow_samples);
 	}
 
 	sum_shadow_depth /=(float) blend_factor;

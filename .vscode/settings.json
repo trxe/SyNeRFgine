@@ -44,13 +44,13 @@
             "..\\scripts\\virtual_desc\\main.frag",
             // "..\\scripts\\virtual_desc\\debug.frag",
             "--width",
-            "1280",
-            // "600",
+            // "1280",
+            "600",
             // "800",
             "--height",
-            "720",
+            // "720",
             // "800",
-            // "600",
+            "600",
         ]
     },
     "files.associations": {
