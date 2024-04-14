@@ -32,34 +32,37 @@
         "record" : false
     },
     "rendering" : {
-        "res_factor" : 64,
+        "res_factor" : 8,
         "exposure" : 0.702,
         "path_trace_depth": 2,
+        "light_samples": 4,
         "background_color" : [0.0, 0.0, 0.0],
         "lens size" : 0.003,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
-        "light_samples": 4,
-        "shadow_samples": 4,
         "lens_angle_constant" : 0.001,
         "nerf_on_nerf_shadow_threshold" : 0.32,
-        "nerf_shadow_brightness" : 0.20,
-        "max_shadow_variance" : 0.00,
+        "syn_shadow_samples": 8,
+        "nerf_shadow_samples" : 1,
+        "syn_shadow_intensity" : 2.00,
+        "nerf_shadow_intensity" : 1.00,
+        "lens_size" : 0.003,
+        "show_light_pos" : false,
 
         "show_virtual_obj" : true,
-        "show_nerf" : true,
         "shadow_on_nerf" : true,
+        "show_nerf" : true,
         "shadow_on_virtual_obj" : true
     },
     "lights": [
         {
             "pos" : [0.376, 0.823, -0.280],
-            "size" : 0.040,
+            "size" : 0.020,
             "intensity" : 1.0
         },
         {
             "pos" : [-0.795, 0.761, 0.545],
-            "size" : 0.080,
+            "size" : 0.060,
             "intensity" : 1.0
         }
     ],

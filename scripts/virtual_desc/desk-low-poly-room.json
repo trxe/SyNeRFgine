@@ -18,18 +18,17 @@
         "res_factor" : 8,
         "exposure" : 0.702,
         "path_trace_depth": 2,
-        "light_samples": 4,
-        "shadow_samples": 4,
         "lens_size" : 0.003,
+        "light_samples": 4,
+        "syn_shadow_samples": 1,
+        "nerf_shadow_samples" : 4,
+        "syn_shadow_intensity" : 1.00,
+        "nerf_shadow_intensity" : 1.00,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 0,
-        "smooth_threshold" : 2.510,
         "show_light_pos" : true,
         "nerf_on_nerf_shadow_threshold" : 0.172,
-        "nerf_shadow_intensity" : 1.000,
         "nerf_ao_intensity" : 0.150,
-        "max_shadow_variance" : 0.007,
         "depth_offset" : 0.100,
 
         "show_virtual_obj" : true,
@@ -40,7 +39,7 @@
     "lights": [
         {
             "pos" : [1.463, 1.401, 1.214],
-            "size" : 0.020,
+            "size" : 0.15,
             "intensity" : 1.0
         }
         
