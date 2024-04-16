@@ -321,6 +321,10 @@ bool Display::save_image(const char* filepath) {
 	return true;
 }
 
+bool Display::advance_image_count() {
+	return m_img_count++ < m_img_count_max;
+}
+
 void Display::destroy() {
 	if (!Display::m_is_init) {
 		return;

@@ -1,10 +1,10 @@
 {
     "camera" : {
-        "view" : [0.007,-0.367,-0.930],
-        "at" : [0.245,0.330,0.005],
-        "zoom" : 3.155,
+        "view" : [0.811,-0.429,-0.398],
+        "at" : [0.426,0.610,0.460],
+        "zoom" : 0.537,
         "clear_color" : [1.0, 0.0, 0.0],
-        "show_ui": false,
+        "show_ui": true,
         "fps" : 24,
         "animation_speed" : 0.0,
         "total_time_ms" : 4000,
@@ -22,17 +22,16 @@
         "res_factor" : 8,
         "exposure" : 0.002,
         "path_trace_depth": 2,
-        "light_samples": 8,
-        "shadow_samples": 8,
         "lens_size" : 0.003,
+        "light_samples": 4,
+        "syn_shadow_samples": 2,
+        "nerf_shadow_samples": 4,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 4,
-        "smooth_threshold" : 2.0002,
-        "show_light_pos" : false,
-        "nerf_on_nerf_shadow_threshold" : 0.20,
-        "nerf_shadow_brightness" : 3.00,
-        "max_shadow_variance" : 0.01,
+        "show_light_pos" : true,
+        "nerf_on_nerf_shadow_threshold" : 0.010,
+        "nerf_shadow_intensity" : 0.60,
+        "syn_shadow_intensity" : 1.00,
 
         "show_virtual_obj" : true,
         "shadow_on_nerf" : true,
@@ -41,30 +40,50 @@
     },
     "lights": [
         {
-            "pos" : [0.311, 1.044, 1.041],
-            "size" : 0.02,
+            "pos" : [-1.700, 5.0, -0.700],
+            "size" : 0.20,
             "intensity" : 1.0,
             "type": "point",
             "anim" : {
-                "end" : [0.000, 0.144, 0.874],
+                "end" : [-1.700, 0.548, -0.700],
                 "step" : 0.020
             }
+        },
+        {
+            "pos" : [2.430, 1.465, 0.700],
+            "size" : 0.3,
+            "intensity" : 0.545,
+            "type": "directional"
         }
     ],
     "objfile": [
         {
-            "file": "../data/obj/smallbox.obj",
-            "pos" : [ -0.071, 0.546, -0.014 ],
-            "rot" : [ 0.822, 0.000, 0.569, 0.000, 1.000, 0.000, -0.569, 0.000, 0.822 ],
-            "scale" : 0.203,
+            "file": "../data/obj/armadillo.obj",
+            "pos" : [ 0.390, 0.615, 0.675 ],
+"rot" : [ 0.996, 0.000, -0.087, 0.000, 1.000, 0.000, 0.087, 0.000, 0.996 ],
+"scale" : 0.500,
+            "material": 0
+        },
+        {
+            "file": "../data/obj/bunny.obj",
+            "pos" : [ 0.633, 0.583, 0.352 ],
+"rot" : [ 1.000, 0.000, 0.008, 0.000, 1.000, 0.000, -0.008, 0.000, 1.000 ],
+"scale" : 0.603,
             "material": 1
         },
         {
-            "file": "../data/obj/armadillo.obj",
-            "pos" : [ 0.240, 0.667, 0.710 ],
-            "rot" : [ -0.039, 0.000, 0.999, 0.000, 1.000, 0.000, -0.999, 0.000, -0.039 ],
-            "scale" : 0.703,
+            "file": "../data/obj/monkey.obj",
+            "pos" : [ 0.866, 0.581, 0.525 ],
+"rot" : [ -0.067, 0.000, -0.998, 0.000, 1.000, 0.000, 0.998, 0.000, -0.067 ],
+"scale" : 0.035,
             "material": 0
+        },
+        {
+            "file": "../data/obj/shortbox.obj",
+            "pos" : [ 0.409, 0.674, 0.364 ],
+"rot" : [ -0.033, -0.599, -0.800, 0.025, 0.799, -0.600, 0.999, -0.040, -0.012 ],
+"scale" : 1.000,
+            "material": 1
         }
     ],
     "materials": [
@@ -73,17 +92,13 @@
             "type": "lambertian",
             "n": 64.0,
             "rg": 0.5,
-            "kd": [
-                1.0,
-                0.0,
-                0.3
-            ]
+            "kd": [ 0.95, 0.3176, 0.1176 ]
         },
         {
             "id": 1,
             "type": "glossy",
             "n": 28.0,
-            "rg": 1.0,
+            "rg": 0.2,
             "spec_angle": 0.001,
             "kd": [
                 0.0,

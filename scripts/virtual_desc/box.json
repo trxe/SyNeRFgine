@@ -17,25 +17,25 @@
     },
     "output" : { "folder" : "../render/garden-box-light", "record": false },
     "rendering" : {
-        "res_factor" : 8,
-        "exposure" : 0.002,
+        "res_factor" : 64,
+        "exposure" : 0.802,
         "path_trace_depth": 2,
-        "light_samples": 8,
-        "shadow_samples": 8,
         "lens_size" : 0.003,
+        "light_samples": 4,
+        "syn_shadow_samples": 2,
+        "nerf_shadow_samples" : 4,
+        "syn_shadow_intensity" : 0.50,
+        "nerf_shadow_intensity" : 1.00,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 4,
-        "smooth_threshold" : 2.0002,
-        "show_light_pos" : true,
+        "show_light_pos" : false,
         "nerf_on_nerf_shadow_threshold" : 0.20,
-        "nerf_shadow_brightness" : 1.00,
-        "max_shadow_variance" : 0.20,
+        "depth_offset" : 0.10,
 
         "show_virtual_obj" : true,
-        "shadow_on_nerf" : false,
         "show_nerf" : true,
-        "shadow_on_virtual_obj" : false
+        "shadow_on_nerf" : true,
+        "shadow_on_virtual_obj" : true
     },
     "lights": [
         {

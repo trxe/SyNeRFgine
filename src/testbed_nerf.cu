@@ -1528,8 +1528,8 @@ __global__ void write_normals_to_buffer(
 	vec3 cam_origin,
 	ERenderMode render_mode
 ) {
-	uint32_t x = threadIdx.x + blockDim.x * blockIdx.x;
-	uint32_t y = threadIdx.y + blockDim.y * blockIdx.y;
+	int x = threadIdx.x + blockDim.x * blockIdx.x;
+	int y = threadIdx.y + blockDim.y * blockIdx.y;
 
 	if (x >= resolution.x || y >= resolution.y) {
 		return;
@@ -1611,20 +1611,15 @@ __global__ void extract_from_payload(
 	}
 }
 
-__global__ void shade_with_shadow(
-	const uint32_t n_elements,
-	ivec2 resolution,
-	mat4x3 camera_matrix,
-	vec4* __restrict__ rgba,
-	float* __restrict__ depth,
-	vec3* __restrict__ positions,
-	vec3* __restrict__ normals,
+__device__ float shadow_for_px(
+	const ivec2& tex_coord,
+	const ivec2& resolution,
+	const vec3& __restrict__ orig_pos,
+	const vec3& __restrict__ normal,
 	const sng::Light* __restrict__ lights,
 	uint32_t light_count,
 	const sng::ObjectTransform* __restrict__ objs,
 	uint32_t obj_count,
-	const sng::Material* __restrict__ materials,
-	uint32_t material_count,
 	curandState_t* __restrict__ rand_state,
 	const uint8_t* __restrict__ density_grid,
 	uint32_t n_steps,
@@ -1633,58 +1628,18 @@ __global__ void shade_with_shadow(
 	BoundingBox render_aabb,
 	mat4x3 render_aabb_to_local,
 	ERenderMode render_mode,
-	vec4* __restrict__ frame_buffer,
-	float* __restrict__ depth_buffer,
 	float nerf_shadow_intensity,
-	float nerf_ao_intensity,
 	float nerf_on_nerf_shadow_threshold,
-	size_t shadow_samples,
-	float depth_variance_ratio,
-	int kernel_size,
-	float kernel_threshold
-) {
-	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
-	if (idx >= n_elements) return;
-	if (render_mode != ERenderMode::Shade && render_mode != ERenderMode::ShadowDepth && render_mode != ERenderMode::AO) return;
-
-	ivec2 tex_coord = {(int)idx % resolution.x, (int)idx / resolution.x};
-
-	const vec3 orig_pos = positions[idx];
-	const vec3 tangent = tex_coord.y == resolution.y ? orig_pos - positions[idx-resolution.x] : positions[idx+resolution.x] - orig_pos;
-	const vec3 normal = normals[idx];
-	const mat3 frame = sng::get_perturb_matrix(tangent, normal);
+	size_t shadow_samples
+){
+	const int idx = tex_coord.y * resolution.x + tex_coord.x;
+	// const mat3 frame = sng::get_perturb_matrix(tangent, normal);
 	// float shadows_float_list[MAX_SHADOW_SAMPLES];
-	float ambient_occlusion = 0.0f;
+	// float ambient_occlusion = 0.0f;
 
-	// float ave_angle{0.0f};
-	// float ave_angle_sqr{0.0f};
-
-	// // additional pass to smoothen positions
-	// size_t t{0};
-	// int x = idx % resolution.x;
-	// int y = idx / resolution.x;
-	// for (int dx = -kernel_size; dx <= kernel_size; ++dx) {
-	// 	int tx = dx + x;
-	// 	if (tx < 0 || t >= resolution.x) continue;
-	// 	for (int dy = -kernel_size; dy <= kernel_size; ++dy) {
-	// 		int ty = dy + y;
-	// 		if (ty < 0 || ty >= resolution.y) continue;
-	// 		size_t _t = ty * resolution.x + tx;
-	// 		float ddot = length(positions[t] - orig_pos);
-	// 		ave_angle += ddot;
-	// 		ave_angle_sqr += ddot * ddot;
-	// 		++t;
-	// 	}
-	// }
-	// ave_angle /= (float)t;
-	// ave_angle_sqr /= (float)t;
-	// float variance = abs(ave_angle_sqr - ave_angle * ave_angle);
-	// bool allow_shadow = variance < kernel_threshold;
-
-	// if (idx % 100000 == 0) printf("allow shadow for %d:  %d (%f - %f*%f = %f | %f) \n", idx, ave_angle_sqr, ave_angle, ave_angle, variance, kernel_threshold, allow_shadow);
-
-	float sum_shadow_depth = 0.0f;
-	for (size_t j = 0; j < shadow_samples; ++j) {
+	// float sum_shadow_depth = 0.0f;
+	// for (size_t j = 0; j < 1; ++j) {
+	// for (size_t j = 0; j < shadow_samples; ++j) {
 		float overall_shadow_depth = 1.0f;
 		for (uint32_t i = 0; i < light_count; ++i) {
 			const sng::Light& light = lights[i];
@@ -1722,29 +1677,104 @@ __global__ void shade_with_shadow(
 				overall_shadow_depth = min(1.0, overall_shadow_depth + min(0.0, dot(l, normal)) * light.intensity);
 			}
 		}
-		sum_shadow_depth += overall_shadow_depth;
+		return overall_shadow_depth;
+		// sum_shadow_depth += overall_shadow_depth;
 		// shadows_float_list[j] = overall_shadow_depth;
 
 		// calculate ambient occlusion
-		if (depth_variance_ratio > 0.0) {
-			int32_t hit_obj_id = -1;
-			auto longi = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI / 2.0f;
-			auto latid = fractf(curand_uniform(&rand_state[idx])) * 2.0 * tcnn::PI;
-			vec3 point_test = sng::cone_random(normal, frame, longi, latid);
-			float syn_depth = sng::depth_test_world(orig_pos, point_test, objs, obj_count, hit_obj_id);
-			syn_depth /= fractf(curand_uniform(&rand_state[idx])) * depth_variance_ratio; // TODO: Rename all occurrences of nerf_shadow_intensity to AO
-			syn_depth *= dot(point_test, normal);
-			ambient_occlusion += pow(smoothstep(clamp(syn_depth, 0.0f, 1.0f)), nerf_ao_intensity);
-		} else {
-			ambient_occlusion += 1.0f;
+		// if (depth_variance_ratio > 0.0) {
+		// 	int32_t hit_obj_id = -1;
+		// 	auto longi = fractf(curand_uniform(&rand_state[idx])) * tcnn::PI / 2.0f;
+		// 	auto latid = fractf(curand_uniform(&rand_state[idx])) * 2.0 * tcnn::PI;
+		// 	vec3 point_test = sng::cone_random(normal, frame, longi, latid);
+		// 	float syn_depth = sng::depth_test_world(orig_pos, point_test, objs, obj_count, hit_obj_id);
+		// 	syn_depth /= fractf(curand_uniform(&rand_state[idx])) * depth_variance_ratio; // TODO: Rename all occurrences of nerf_shadow_intensity to AO
+		// 	syn_depth *= dot(point_test, normal);
+		// 	ambient_occlusion += pow(smoothstep(clamp(syn_depth, 0.0f, 1.0f)), nerf_ao_intensity);
+		// } else {
+		// 	ambient_occlusion += 1.0f;
+		// }
+	// }
+	// return sum_shadow_depth;
+	// return sum_shadow_depth / (float) shadow_samples;
+}
+
+__global__ void shade_with_shadow(
+	const uint32_t n_elements,
+	ivec2 resolution,
+	mat4x3 camera_matrix,
+	vec4* __restrict__ rgba,
+	float* __restrict__ depth,
+	vec3* __restrict__ positions,
+	vec3* __restrict__ normals,
+	const sng::Light* __restrict__ lights,
+	uint32_t light_count,
+	const sng::ObjectTransform* __restrict__ objs,
+	uint32_t obj_count,
+	const sng::Material* __restrict__ materials,
+	uint32_t material_count,
+	curandState_t* __restrict__ rand_state,
+	const uint8_t* __restrict__ density_grid,
+	uint32_t n_steps,
+	float cone_angle_constant,
+	uint32_t max_mip,
+	BoundingBox render_aabb,
+	mat4x3 render_aabb_to_local,
+	ERenderMode render_mode,
+	vec4* __restrict__ frame_buffer,
+	float* __restrict__ depth_buffer,
+	float nerf_shadow_intensity,
+	float nerf_ao_intensity,
+	float nerf_on_nerf_shadow_threshold,
+	int shadow_samples,
+	float depth_variance_ratio,
+	int kernel_size,
+	float kernel_threshold
+) {
+	const uint32_t idx = threadIdx.x + blockIdx.x * blockDim.x;
+	if (idx >= n_elements) return;
+	if (render_mode != ERenderMode::Shade && render_mode != ERenderMode::ShadowDepth && render_mode != ERenderMode::AO) return;
+
+	ivec2 tex_coord = {(int)idx % resolution.x, (int)idx / resolution.x};
+
+	float sum_shadow_depth = 0.0f;
+	kernel_size /= 2;
+	int blend_factor = 0;
+
+	ivec2 offset_coords [MAX_KERNEL_SQ_SIZE];
+	vec3 offset_pos [MAX_KERNEL_SQ_SIZE];
+	vec3 offset_normals [MAX_KERNEL_SQ_SIZE];
+	// vec3 ave_pos{0.0};
+	// vec3 ave_norm{0.0};
+	// if (!idx) printf("val : %f\n", val);
+	for (int i = -kernel_size; i <= kernel_size; ++i) {
+		for (int j = -kernel_size; j <= kernel_size; ++j) {
+			ivec2 final_coord = tex_coord + ivec2(i, j);
+			if (final_coord.x < 0 || final_coord.y < 0 || final_coord.x >= resolution.x || final_coord.y >= resolution.y ) continue;
+			// sum_shadow_depth += shadow_for_px(final_coord, resolution, positions, normals, lights, light_count, objs, obj_count, 
+			// 	rand_state, density_grid, n_steps, cone_angle_constant, max_mip, render_aabb, render_aabb_to_local, render_mode, nerf_shadow_intensity, nerf_on_nerf_shadow_threshold, shadow_samples);
+			// blend_factor += 1.0f;
+			offset_coords[blend_factor] = final_coord;
+			int tidx = final_coord.y * resolution.x + final_coord.x;
+			offset_pos[blend_factor] = positions[tidx];
+			// ave_pos += offset_pos[blend_factor];
+			offset_normals[blend_factor] = normals[tidx];
+			// ave_norm += offset_normals[blend_factor];
+			++blend_factor;
 		}
 	}
+	// ave_pos /= (float)blend_factor;
+	// ave_norm /= (float)blend_factor;
 
-	sum_shadow_depth /=(float) shadow_samples;
+	for (int t = 0; t < blend_factor; ++t) {
+		// const vec3 tangent = tex_coord.y == resolution.y ? orig_pos - positions[tidx-resolution.x] : positions[tidx+resolution.x] - orig_pos;
+		sum_shadow_depth += shadow_for_px(offset_coords[t], resolution, offset_pos[t], offset_normals[t], lights, light_count, objs, obj_count, 
+			rand_state, density_grid, n_steps, cone_angle_constant, max_mip, render_aabb, render_aabb_to_local, render_mode, nerf_shadow_intensity, nerf_on_nerf_shadow_threshold, shadow_samples);
+		// sum_shadow_depth += shadow_for_px(tex_coord, resolution, ave_pos, ave_norm, lights, light_count, objs, obj_count, 
+		// 	rand_state, density_grid, n_steps, cone_angle_constant, max_mip, render_aabb, render_aabb_to_local, render_mode, nerf_shadow_intensity, nerf_on_nerf_shadow_threshold, shadow_samples);
+	}
 
-	ambient_occlusion = sqrt(ambient_occlusion / (float)shadow_samples);
-	ambient_occlusion *= ambient_occlusion;
-	sum_shadow_depth = min(sum_shadow_depth, ambient_occlusion);
+	sum_shadow_depth /=(float) blend_factor;
 	sum_shadow_depth = pow(sum_shadow_depth, nerf_shadow_intensity);
 
 	vec4& tmp = rgba[idx];
@@ -2561,16 +2591,16 @@ void Testbed::render_nerf_with_buffers(
 	const dim3 threads = { 16, 8, 1 };
 	const dim3 blocks = { div_round_up((uint32_t)resolution.x, threads.x), div_round_up((uint32_t)resolution.y, threads.y), 1 };
 	// Makes the shadow blob problem worse
-	if (sng_position_kernel_size > 0) {
-		blend_positions_in_buffer<<<blocks, threads, 0, stream>>>(
-			resolution,
-			nerf_positions.data(),
-			render_buffer.frame_buffer,
-			sng_position_kernel_size,
-			sng_position_kernel_threshold,
-			render_mode
-		);
-	}
+	// if (sng_position_kernel_size > 0) {
+	// 	blend_positions_in_buffer<<<blocks, threads, 0, stream>>>(
+	// 		resolution,
+	// 		nerf_positions.data(),
+	// 		render_buffer.frame_buffer,
+	// 		sng_position_kernel_size,
+	// 		sng_position_kernel_threshold,
+	// 		render_mode
+	// 	);
+	// }
 	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
 	write_normals_to_buffer<<<blocks, threads, 0, stream>>>(
 		resolution,

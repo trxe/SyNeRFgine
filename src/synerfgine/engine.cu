@@ -34,6 +34,9 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("show_ui_start")) {
             m_show_ui = cam_conf["show_ui_start"];
         }
+        if (cam_conf.count("end_on_loop")) {
+            m_end_on_loop = cam_conf["end_on_loop"];
+        }
         if (cam_conf.count("vo_scale")) {
             m_relative_vo_scale = cam_conf["vo_scale"];
         }
@@ -158,9 +161,6 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("clear_color")) {
         m_default_clear_color = {m_default_render_settings["clear_color"][0], m_default_render_settings["clear_color"][1], m_default_render_settings["clear_color"][2]};
     }
-    if (m_default_render_settings.count("smooth_kernel_size")) {
-        m_testbed->sng_position_kernel_size = m_default_render_settings["smooth_kernel_size"].get<int>();
-    }
     if (m_default_render_settings.count("smooth_threshold")) {
         m_testbed->sng_position_kernel_threshold = m_default_render_settings["smooth_threshold"].get<float>();
     }
@@ -170,8 +170,17 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("light_samples")) {
         m_raytracer.m_samples = m_default_render_settings["light_samples"];
     }
-    if (m_default_render_settings.count("shadow_samples")) {
-        m_raytracer.m_shadow_iters = m_default_render_settings["shadow_samples"];
+    if (m_default_render_settings.count("nerf_shadow_samples")) {
+        m_testbed->sng_position_kernel_size = m_default_render_settings["nerf_shadow_samples"].get<int>();
+    }
+    if (m_default_render_settings.count("nerf_shadow_intensity")) {
+        m_nerf_shadow_intensity = m_default_render_settings["nerf_shadow_intensity"];
+    }
+    if (m_default_render_settings.count("syn_shadow_samples")) {
+        m_raytracer.m_shadow_iters = m_default_render_settings["syn_shadow_samples"];
+    }
+    if (m_default_render_settings.count("syn_shadow_intensity")) {
+        m_raytracer.m_syn_shadow_factor = m_default_render_settings["syn_shadow_intensity"];
     }
     if (m_default_render_settings.count("attenuation")) {
         m_raytracer.m_attenuation_coeff = m_default_render_settings["attenuation"];
@@ -188,14 +197,8 @@ void Engine::init(int res_width, int res_height, const std::string& frag_fp, Tes
     if (m_default_render_settings.count("max_shadow_variance")) {
         m_testbed->sng_shadow_depth_variance = m_default_render_settings["max_shadow_variance"];
     }
-    if (m_default_render_settings.count("nerf_shadow_intensity")) {
-        m_nerf_shadow_intensity = m_default_render_settings["nerf_shadow_intensity"];
-    }
     if (m_default_render_settings.count("nerf_ao_intensity")) {
         m_nerf_ao_intensity = m_default_render_settings["nerf_ao_intensity"];
-    }
-    if (m_default_render_settings.count("syn_shadow_brightness")) {
-        m_raytracer.m_syn_shadow_factor = m_default_render_settings["syn_shadow_brightness"];
     }
     if (m_default_render_settings.count("shadow_on_virtual_obj")) {
         m_raytracer.m_view_nerf_shadow = m_default_render_settings["shadow_on_virtual_obj"];
@@ -423,6 +426,8 @@ bool Engine::frame() {
     if (has_output()) {
         auto fp = m_output_dest.str();
         return m_display.save_image(fp.c_str());
+    } else if (m_end_on_loop) {
+        return m_display.advance_image_count();
     }
     return m_display.is_alive();
 }

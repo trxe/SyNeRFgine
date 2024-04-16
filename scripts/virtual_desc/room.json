@@ -1,6 +1,8 @@
 {
     "camera" : {
-            "view" : [ 0.6119312, -0.104988195, -0.7839119 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608,
+        "view" : [-0.471,-0.348,0.810],
+        "at" : [0.951,1.081,1.567],
+        "zoom" : 0.388,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "fps" : 24,
@@ -23,21 +25,20 @@
             {"view" : [ 0.16639781, 0.09885956, -0.98109007 ], "at" : [ 0.52499944, 0.6210002, 0.089999914 ], "zoom" : 2.8688}
         ]
     },
-    "output" : { "folder" : "../render/armadillo", "record": false },
     "rendering" : {
         "res_factor" : 8,
         "exposure" : 0.002,
         "path_trace_depth": 2,
         "light_samples": 8,
-        "shadow_samples": 8,
+        "syn_shadow_samples": 2,
+        "nerf_shadow_samples": 4,
         "lens_size" : 0.003,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
-        "smooth_kernel_size" : 4,
-        "smooth_threshold" : 2.0002,
         "show_light_pos" : false,
         "nerf_on_nerf_shadow_threshold" : 0.20,
-        "nerf_shadow_brightness" : 1.00,
+        "nerf_shadow_intensity" : 0.00,
+        "syn_shadow_intensity" : 1.00,
         "max_shadow_variance" : 0.20,
 
         "show_virtual_obj" : true,
@@ -47,7 +48,7 @@
     },
     "lights": [
         {
-            "pos" : [-0.059, 1.044, 2.648],
+            "pos" : [0.499, 0.917, 1.032],
             "size" : 0.02,
             "intensity" : 1.0,
             "type": "point",
@@ -57,7 +58,7 @@
             }
         },
         {
-            "pos" : [0.311, 0.335, 1.612],
+            "pos" : [0.004, 0.858, 1.991],
             "size" : 0.02,
             "intensity" : 1.0,
             "type": "directional"
@@ -66,9 +67,9 @@
     "objfile": [
         {
             "file": "../data/obj/armadillo.obj",
-            "pos" : [ -0.845, 0.667, 1.038 ],
+            "pos" : [ 0.357, 0.590, 2.078 ],
             "rot" : [ -0.039, 0.000, 0.999, 0.000, 1.000, 0.000, -0.999, 0.000, -0.039 ],
-            "scale" : 2.006,
+            "scale" : 0.506,
             "material": 0
         }
     ],
