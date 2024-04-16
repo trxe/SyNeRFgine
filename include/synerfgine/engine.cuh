@@ -26,6 +26,11 @@ public:
     void set_virtual_world(const std::string& config_fp);
     bool frame();
     void redraw_next_frame() { m_is_dirty = true; }
+    void set_syn_samples(uint32_t spp) { m_raytracer.m_shadow_iters = spp; }
+    void set_nerf_samples(uint32_t kernel_size) { 
+        if (!m_testbed) return; 
+        m_testbed->sng_position_kernel_size = kernel_size; 
+    }
 
 private:
     void imgui();
@@ -104,6 +109,7 @@ private:
     bool m_show_ui{false};
     bool m_view_syn_shadow{true};
     bool m_show_nerf{true};
+    bool m_end_on_loop{false};
     int m_relative_vo_scale{4};
     bool m_enable_animations{false};
     bool m_enable_reflections{false};

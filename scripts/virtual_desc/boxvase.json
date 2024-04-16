@@ -37,22 +37,21 @@
         "path_trace_depth": 2,
         "light_samples": 4,
         "background_color" : [0.0, 0.0, 0.0],
-        "lens size" : 0.003,
+        "lens_size" : 0.003,
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
         "lens_angle_constant" : 0.001,
-        "nerf_on_nerf_shadow_threshold" : 0.32,
-        "syn_shadow_samples": 8,
-        "nerf_shadow_samples" : 1,
-        "syn_shadow_intensity" : 2.00,
+        "syn_shadow_samples": 2,
+        "nerf_shadow_samples" : 4,
+        "syn_shadow_intensity" : 0.50,
         "nerf_shadow_intensity" : 1.00,
-        "lens_size" : 0.003,
+        "nerf_on_nerf_shadow_threshold" : 0.32,
         "show_light_pos" : false,
 
-        "show_virtual_obj" : true,
-        "shadow_on_nerf" : true,
+        "show_virtual_obj" : false,
         "show_nerf" : true,
-        "shadow_on_virtual_obj" : true
+        "shadow_on_virtual_obj" : true,
+        "shadow_on_nerf" : true
     },
     "lights": [
         {

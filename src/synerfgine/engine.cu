@@ -34,6 +34,9 @@ void Engine::set_virtual_world(const std::string& config_fp) {
         if (cam_conf.count("show_ui_start")) {
             m_show_ui = cam_conf["show_ui_start"];
         }
+        if (cam_conf.count("end_on_loop")) {
+            m_end_on_loop = cam_conf["end_on_loop"];
+        }
         if (cam_conf.count("vo_scale")) {
             m_relative_vo_scale = cam_conf["vo_scale"];
         }
@@ -423,6 +426,8 @@ bool Engine::frame() {
     if (has_output()) {
         auto fp = m_output_dest.str();
         return m_display.save_image(fp.c_str());
+    } else if (m_end_on_loop) {
+        return m_display.advance_image_count();
     }
     return m_display.is_alive();
 }

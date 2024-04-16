@@ -111,6 +111,20 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"height"},
 	};
 
+	ValueFlag<uint32_t> syn_samples{
+		parser,
+		"SYN_SAMPLES",
+		"Number of samples of light source for shadows on synthetic surfaces",
+		{"sshadows"},
+	};
+
+	ValueFlag<uint32_t> nerf_samples{
+		parser,
+		"NERF_SAMPLES",
+		"Filter kernel size for shadows on NeRF surfaces",
+		{"nshadows"},
+	};
+
 	Flag version_flag{
 		parser,
 		"VERSION",
@@ -193,6 +207,10 @@ int main_func(const std::vector<std::string>& arguments) {
 					height_flag ? get(height_flag) : 720, 
 					fragment_shader_flag ? get(fragment_shader_flag) : "../main.frag",
 					&testbed);
+				if (syn_samples) {
+					engine.set_syn_samples(get(syn_samples));
+					engine.set_nerf_samples(get(nerf_samples));
+				}
 			}
 		}
 

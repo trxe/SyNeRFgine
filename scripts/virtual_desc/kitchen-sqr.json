@@ -1,8 +1,8 @@
 {
     "camera" : {
-        "view" : [0.303,-0.332,0.893],
-        "at" : [0.321,0.814,-0.003],
-        "zoom" : 0.259,
+        "view" : [0.931,-0.340,0.135],
+        "at" : [-0.056,0.877,0.534],
+        "zoom" : 0.540,
         "clear_color" : [1.0, 0.0, 0.0],
         "show_ui": false,
         "total_time_ms" : 2000,
@@ -34,7 +34,7 @@
         "syn_filter" : "Final",
         "nerf_filter" : "Shade",
         "show_light_pos" : false,
-        "nerf_on_nerf_shadow_threshold" : 0.20,
+        "nerf_on_nerf_shadow_threshold" : 0.10,
 
         "show_virtual_obj" : true,
         "shadow_on_nerf" : true,
@@ -43,7 +43,7 @@
     },
     "output": {
         "folder": "../render/kitchen-rocks",
-        "record" : true
+        "record" : false
     },
     "lights": [
         {
@@ -55,7 +55,7 @@
     "objfile": [
         {
             "file": "../data/obj/bunny.obj",
-            "pos" : [ 0.100, 0.561, 0.843 ],
+            "pos" : [ 0.193, 0.569, 0.839 ],
             "rot" : [ -0.296, -0.079, -0.952, -0.048, 0.997, -0.068, 0.954, 0.026, -0.299 ],
             "scale" : 1.174,
             "material": 1
