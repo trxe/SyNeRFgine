@@ -1779,7 +1779,7 @@ __global__ void shade_with_shadow(
 
 	vec4& tmp = rgba[idx];
 	if (render_mode == ERenderMode::ShadowDepth) rgba[idx].rgb() = vec3(sum_shadow_depth);
-	else if (render_mode == ERenderMode::AO) rgba[idx].rgb() = vec3(ambient_occlusion);
+	// else if (render_mode == ERenderMode::AO) rgba[idx].rgb() = vec3(ambient_occlusion);
 	else rgba[idx].rgb() = srgb_to_linear(tmp.rgb()) * sum_shadow_depth;
 
 	// if (render_mode == ERenderMode::ShadowDepth && !allow_shadow) rgba[idx].rgb() = vec3(1.0, 0.0, 0.0);
