@@ -1,6 +1,6 @@
 # SyNeRFgine
 
-<img src="docs/assets_sng/drmf-compare-abm.gif" height="342"/> <img src="docs/assets_readme/kitchen-rocks.gif" height="342"/>
+<img src="docs/assets_sng/dmrf-compare-abm.gif" height="342"/> <img src="docs/assets_sng/kitchen-rocks.gif" height="342"/>
 
 ## Compiling SyNeRFgine
 
