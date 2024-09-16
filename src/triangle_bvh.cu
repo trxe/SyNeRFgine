@@ -142,6 +142,7 @@ __global__ void signed_distance_watertight_kernel(uint32_t n_elements, const vec
 __global__ void signed_distance_raystab_kernel(uint32_t n_elements, const vec3* __restrict__ positions, const TriangleBvhNode* __restrict__ bvhnodes, const Triangle* __restrict__ triangles, float* __restrict__ distances, bool use_existing_distances_as_upper_bounds = false);
 __global__ void unsigned_distance_kernel(uint32_t n_elements, const vec3* __restrict__ positions, const TriangleBvhNode* __restrict__ bvhnodes, const Triangle* __restrict__ triangles, float* __restrict__ distances, bool use_existing_distances_as_upper_bounds = false);
 __global__ void raytrace_kernel(uint32_t n_elements, vec3* __restrict__ positions, vec3* __restrict__ directions, const TriangleBvhNode* __restrict__ nodes, const Triangle* __restrict__ triangles);
+__global__ void raytrace_kernel_full(uint32_t n_elements, vec3* __restrict__ positions, vec3* __restrict__ directions, vec3* __restrict__ normals, float* __restrict__ t, int32_t* __restrict__ mat_idx, bool* alive, int32_t this_mat_idx, const TriangleBvhNode* __restrict__ nodes, const Triangle* __restrict__ triangles);
 
 struct DistAndIdx {
 	float dist;
@@ -257,6 +258,64 @@ __host__ __device__ void sorting_network(T values[N]) {
 		compare_and_swap(values[3], values[4]);
 		compare_and_swap(values[5], values[6]);
 	}
+}
+
+template <uint32_t BRANCHING_FACTOR>
+__host__ __device__ std::pair<int, float> ray_intersect_nodes_f(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles) {
+	FixedIntStack query_stack;
+	query_stack.push(0);
+
+	float mint = MAX_DEPTH();
+	int shortest_idx = -1;
+
+	while (!query_stack.empty()) {
+		int idx = query_stack.pop();
+
+		const TriangleBvhNode& node = bvhnodes[idx];
+
+		if (node.left_idx < 0) {
+			int end = -node.right_idx-1;
+			for (int i = -node.left_idx-1; i < end; ++i) {
+				float t = triangles[i].ray_intersect(ro, rd);
+				if (t < mint) {
+					mint = t;
+					shortest_idx = i;
+				}
+			}
+		} else {
+			DistAndIdx children[BRANCHING_FACTOR];
+
+			uint32_t first_child = node.left_idx;
+
+			NGP_PRAGMA_UNROLL
+			for (uint32_t i = 0; i < BRANCHING_FACTOR; ++i) {
+				children[i] = {bvhnodes[i+first_child].bb.ray_intersect(ro, rd).x, i+first_child};
+			}
+
+			sorting_network<BRANCHING_FACTOR>(children);
+
+			NGP_PRAGMA_UNROLL
+			for (uint32_t i = 0; i < BRANCHING_FACTOR; ++i) {
+				if (children[i].dist < mint) {
+					query_stack.push(children[i].idx);
+				}
+			}
+		}
+	}
+
+	return {shortest_idx, mint};
+}
+
+__host__ __device__ std::pair<int, float> ngp::ray_intersect_nodes(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles) {
+	return ray_intersect_nodes_f<BVH_BRANCH_FACTOR>(ro, rd, bvhnodes, triangles);
+}
+
+__host__ __device__ std::pair<int, float> ray_intersect_nodes(const vec3& ro, const vec3& rd, const float& scale, const vec3& pos, const mat3& rot, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles) {
+	mat3 m_scale = mat3::identity() / scale;
+	mat3 m_rotate = inverse(rot);
+	vec3 oro = m_scale * m_rotate * (ro - pos);
+	vec3 ord = m_scale * m_rotate * rd;
+	return ray_intersect_nodes_f<BVH_BRANCH_FACTOR>(oro, ord, bvhnodes, triangles);
 }
 
 template <uint32_t BRANCHING_FACTOR>
@@ -490,6 +549,22 @@ public:
 		}
 	}
 
+	void ray_trace_gpu(uint32_t n_elements, vec3* gpu_positions, vec3* gpu_directions, vec3* gpu_normals, float* gpu_t, int32_t* gpu_mat_idx, bool* gpu_alive, int32_t this_mat_idx,
+		const Triangle* gpu_triangles, cudaStream_t stream) override {
+		linear_kernel(raytrace_kernel_full, 0, stream,
+			n_elements,
+			gpu_positions,
+			gpu_directions,
+			gpu_normals,
+			gpu_t,
+			gpu_mat_idx,
+			gpu_alive,
+			this_mat_idx,
+			m_nodes_gpu.data(),
+			gpu_triangles
+		);
+	}
+
 	void ray_trace_gpu(uint32_t n_elements, vec3* gpu_positions, vec3* gpu_directions, const Triangle* gpu_triangles, cudaStream_t stream) override {
 #ifdef NGP_OPTIX
 		if (m_optix.available) {
@@ -619,6 +694,26 @@ public:
 
 		m_nodes_gpu.resize_and_copy_from_host(m_nodes);
 
+		// for (size_t i = 0; i < triangles.size(); ++i) {
+		// 	vec3 n = triangles[i].normal();
+		// 	std::cout << i << ":" << triangles[i] << " || normal : " << n[0]<< ", " << n[1] << ", " << n[2] << std::endl;
+		// }
+
+		// for (size_t k = 0; k < m_nodes.size(); ++k) {
+		// 	auto& node = m_nodes[k];
+		// 	std::cout << k << "... " << node.bb << "\n";
+		// 	if (node.left_idx < 0) {
+		// 		for (size_t i = -node.left_idx-1; i < -node.right_idx-1; ++i) {
+		// 			std::cout << "   " << i <<  ": " << triangles[i] << std::endl;
+		// 		}
+		// 	} else {
+		// 		uint32_t first_child = node.left_idx;
+		// 		for (uint32_t i = 0; i < BRANCHING_FACTOR; ++i) {
+		// 			std::cout << "   " << i+ first_child << ": " << m_nodes[i+first_child].bb << std::endl;
+		// 		}
+		// 	}
+		// }
+
 		tlog::success() << "Built TriangleBvh: nodes=" << m_nodes.size();
 	}
 
@@ -653,7 +748,7 @@ private:
 #endif //NGP_OPTIX
 };
 
-using TriangleBvh4 = TriangleBvhWithBranchingFactor<4>;
+using TriangleBvh4 = TriangleBvhWithBranchingFactor<BVH_BRANCH_FACTOR>;
 
 std::unique_ptr<TriangleBvh> TriangleBvh::make() {
 	return std::unique_ptr<TriangleBvh>(new TriangleBvh4());
@@ -717,6 +812,39 @@ __global__ void raytrace_kernel(uint32_t n_elements, vec3* __restrict__ position
 
 	if (p.first >= 0) {
 		directions[i] = triangles[p.first].normal();
+	}
+}
+
+__global__ void raytrace_kernel_full(uint32_t n_elements, 
+	vec3* __restrict__ positions, 
+	vec3* __restrict__ directions, 
+	vec3* __restrict__ normals, 
+	float* __restrict__ t, 
+	int32_t* __restrict__ mat_idx,
+	bool* alive,
+	int32_t this_mat_idx,
+	const TriangleBvhNode* __restrict__ nodes, 
+	const Triangle* __restrict__ triangles
+) {
+	uint32_t i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i >= n_elements) return;
+
+	auto pos = positions[i];
+	auto dir = directions[i];
+	vec3 norm = vec3(0.0);
+
+	auto p = TriangleBvh4::ray_intersect(pos, dir, nodes, triangles);
+	if (p.first >= 0) {
+		t[i] = p.second;
+		positions[i] = pos + p.second * dir;
+		normals[i] = triangles[p.first].normal();
+		mat_idx[i] = this_mat_idx;
+		alive[i] = true;
+	} else {
+		t[i] = MAX_DEPTH();
+		normals[i] = vec3(0.0);
+		mat_idx[i] = -1;
+		alive[i] = false;
 	}
 }
 

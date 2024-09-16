@@ -1,0 +1,79 @@
+{
+    "camera" : {
+        "view" : [-0.668,-0.359,-0.652],
+        "at" : [0.660,0.589,0.335],
+        "zoom" : 1.217,
+        "animation_speed" : 0.0,
+        "clear_color" : [1.0, 0.0, 0.0],
+        "attenuation" : 1.0,
+        "show_ui": false,
+        "fps" : 24
+    },
+    "output" : { 
+        "folder" : "../render/desk-low-poly-room",
+        "img_count" : 100,
+        "record" : false
+    },
+    "rendering" : {
+        "res_factor" : 8,
+        "exposure" : 0.702,
+        "path_trace_depth": 2,
+        "lens_size" : 0.003,
+        "light_samples": 4,
+        "syn_shadow_samples": 2,
+        "nerf_shadow_samples" : 4,
+        "syn_shadow_intensity" : 0.50,
+        "nerf_shadow_intensity" : 1.00,
+        "syn_filter" : "Final",
+        "nerf_filter" : "Shade",
+        "show_light_pos" : true,
+        "nerf_on_nerf_shadow_threshold" : 0.172,
+        "nerf_ao_intensity" : 0.150,
+        "depth_offset" : 0.100,
+
+        "show_virtual_obj" : true,
+        "shadow_on_nerf" : true,
+        "show_nerf" : true,
+        "shadow_on_virtual_obj" : true
+    },
+    "lights": [
+        {
+            "pos" : [1.463, 1.401, 1.214],
+            "size" : 0.06,
+            "intensity" : 1.0
+        }
+        
+    ],
+    "objfile": [
+        {
+            "file": "../data/obj/rock.obj",
+            "pos" : [ 0.705, 0.591, 0.850 ],
+            "rot" : [ 1.000, 0.000, 0.000, 0.000, 1.000, 0.000, 0.000, 0.000, 1.000 ],
+            "scale" : 0.137,
+            "material": 0
+        },
+        {
+            "file": "../data/obj/armadillo.obj",
+            "pos" : [ 1.321, 0.931, 0.739 ],
+            "rot" : [ 0.208, 0.352, 0.913, -0.000, 0.933, -0.360, -0.978, 0.075, 0.194 ],
+            "scale" : 0.555,
+            "material": 1
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "n": 64.0,
+            "kd": [ 0.3, 0.1, 0.7 ],
+            "rg": 0.5
+        },
+        {
+            "id": 1,
+            "type": "lambertian",
+            "n": 28.0,
+            "kd": [ 0.7, 0.2, 0.3 ],
+            "rg": 0.5
+        }
+    ]
+}

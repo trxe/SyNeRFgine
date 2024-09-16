@@ -62,10 +62,11 @@ enum class ERenderMode : int {
 	Distortion,
 	Cost,
 	Slice,
+	ShadowDepth,
 	NumRenderModes,
 	EncodingVis, // EncodingVis exists outside of the standard render modes
 };
-static constexpr const char* RenderModeStr = "AO\0Shade\0Normals\0Positions\0Depth\0Distortion\0Cost\0Slice\0\0";
+static constexpr const char* RenderModeStr = "AO\0Shade\0Normals\0Positions\0Depth\0Distortion\0Cost\0Slice\0Shadow Depth\0\0";
 
 enum class ERandomMode : int {
 	Random,

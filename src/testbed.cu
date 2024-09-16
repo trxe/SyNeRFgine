@@ -670,6 +670,8 @@ void Testbed::imgui() {
 	//   ImGui::OpenPopup("Error");
 	static std::string imgui_error_string = "";
 
+	// DO NOT USE THE CAMERA PATH PROVIDED
+	/*
 	m_picture_in_picture_res = 0;
 	if (ImGui::Begin("Camera path", 0, ImGuiWindowFlags_NoScrollbar)) {
 		if (ImGui::CollapsingHeader("Path manipulation", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -782,6 +784,7 @@ void Testbed::imgui() {
 		}
 	}
 	ImGui::End();
+	*/
 
 
 	bool train_extra_dims = m_nerf.training.dataset.n_extra_learnable_dims > 0;
@@ -907,7 +910,6 @@ void Testbed::imgui() {
 	if (m_dlss_provider) {
 		n_bytes += m_dlss_provider->allocated_bytes();
 	}
-
 	ImGui::Text("Frame: %.2f ms (%.1f FPS); Mem: %s", m_frame_ms.ema_val(), 1000.0f / m_frame_ms.ema_val(), bytes_to_string(n_bytes).c_str());
 	bool accum_reset = false;
 
@@ -1481,13 +1483,13 @@ void Testbed::imgui() {
 			vec3 u = m_up_dir;
 			vec4 b = m_background_color;
 			snprintf(buf, sizeof(buf),
-				"testbed.background_color = [%0.3f, %0.3f, %0.3f, %0.3f]\n"
-				"testbed.exposure = %0.3f\n"
-				"testbed.sun_dir = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.up_dir = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.view_dir = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.look_at = [%0.3f,%0.3f,%0.3f]\n"
-				"testbed.scale = %0.3f\n"
+				"\"background_color\" : [%0.3f, %0.3f, %0.3f, %0.3f],\n"
+				"\"exposure\" : %0.3f,\n"
+				"\"sun\" : [%0.3f,%0.3f,%0.3f],\n"
+				"\"up\" : [%0.3f,%0.3f,%0.3f],\n"
+				"\"view\" : [%0.3f,%0.3f,%0.3f],\n"
+				"\"at\" : [%0.3f,%0.3f,%0.3f],\n"
+				"\"zoom\" : %0.3f,\n"
 				"testbed.fov,testbed.aperture_size,testbed.slice_plane_z = %0.3f,%0.3f,%0.3f\n"
 				"testbed.autofocus_target = [%0.3f,%0.3f,%0.3f]\n"
 				"testbed.autofocus = %s\n\n"
@@ -1763,7 +1765,7 @@ void Testbed::visualize_nerf_cameras(ImDrawList* list, const mat4& world2proj) {
 
 }
 
-void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix) {
+void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix, vec3* pos_to_translate, mat3* rotate, float* scale, bool* dirty_marker) {
 	mat4 view2world = camera_matrix;
 	mat4 world2view = inverse(view2world);
 
@@ -1846,6 +1848,62 @@ void Testbed::draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix)
 				m_render_aabb.max += new_cen - old_cen;
 			}
 
+			reset_accumulation();
+		}
+	}
+
+	if (pos_to_translate) {
+		// if (m_testbed_mode == ETestbedMode::Nerf || m_testbed_mode == ETestbedMode::Volume) {
+		// 	visualize_cube(list, world2proj, m_render_aabb.min, m_render_aabb.max, m_render_aabb_to_local);
+		// }
+
+		ImGuiIO& io = ImGui::GetIO();
+		// float flx = focal.x;
+		float fly = focal.y;
+		float zfar = m_ndc_zfar;
+		float znear = m_ndc_znear;
+		mat4 view2proj_guizmo = transpose(mat4{
+			fly * 2.0f / aspect, 0.0f,       0.0f,                            0.0f,
+			0.0f,                -fly * 2.f, 0.0f,                            0.0f,
+			0.0f,                0.0f,       (zfar + znear) / (zfar - znear), -(2.0f * zfar * znear) / (zfar - znear),
+			0.0f,                0.0f,       1.0f,                            0.0f,
+		});
+
+		ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+		static mat4 matrix_pos = mat4::identity();
+		static mat4 world2view_guizmo_pos = mat4::identity();
+
+		vec3 cen = transpose(m_render_aabb_to_local) * m_render_aabb.center();
+		if (!ImGuizmo::IsUsing()) {
+			// The the guizmo is being used, it handles updating its matrix on its own.
+			// Outside interference can only lead to trouble.
+			if (rotate) {
+				matrix_pos = mat4 {
+					(*rotate)[0][0], (*rotate)[1][0], (*rotate)[2][0], 0.0f,
+					(*rotate)[0][1], (*rotate)[1][1], (*rotate)[2][1], 0.0f,
+					(*rotate)[0][2], (*rotate)[1][2], (*rotate)[2][2], 0.0f,
+					0.0f        , 0.0f        , 0.0f        , 1.0f
+				};
+			}
+			if (pos_to_translate) matrix_pos[3].rgb() = *pos_to_translate;
+
+			// Additionally, the world2view transform must stay fixed, else the guizmo will incorrectly
+			// interpret the state from past frames. Special handling is necessary here, because below
+			// we emulate world translation and rotation through (inverse) camera movement.
+			world2view_guizmo_pos = world2view;
+		}
+
+		// auto prev_matrix = matrix_pos;
+
+		if (ImGuizmo::Manipulate((const float*)&world2view_guizmo_pos, (const float*)&view2proj_guizmo, m_camera_path.m_gizmo_op, ImGuizmo::LOCAL, (float*)&matrix_pos, NULL, NULL)) {
+			if (pos_to_translate) {
+				*pos_to_translate = matrix_pos[3].rgb();
+			}
+			if (rotate) {
+				*rotate = transpose(mat3(matrix_pos));
+			}
+			if (dirty_marker) *dirty_marker = true;
 			reset_accumulation();
 		}
 	}
@@ -2044,6 +2102,8 @@ void Testbed::mouse_wheel() {
 		return;
 	}
 
+	m_syn_camera_reset = true;
+	m_render_skip_due_to_lack_of_camera_movement_counter = false;
 	float scale_factor = pow(1.1f, -delta);
 	set_scale(m_scale * scale_factor);
 
@@ -2099,6 +2159,8 @@ void Testbed::mouse_drag() {
 
 			reset_accumulation(true);
 		}
+		m_syn_camera_reset = true;
+		m_render_skip_due_to_lack_of_camera_movement_counter = true;
 	}
 
 	// Right held
@@ -2110,6 +2172,8 @@ void Testbed::mouse_drag() {
 
 		m_slice_plane_z += -rel.y * m_bounding_radius;
 		reset_accumulation();
+		m_render_skip_due_to_lack_of_camera_movement_counter = true;
+		m_syn_camera_reset = true;
 	}
 
 	// Middle pressed
@@ -2128,12 +2192,14 @@ void Testbed::mouse_drag() {
 		}
 
 		translate_camera(translation, mat3(m_camera));
+		m_render_skip_due_to_lack_of_camera_movement_counter = true;
+		m_syn_camera_reset = true;
 	}
 }
 
 bool Testbed::begin_frame() {
 	if (glfwWindowShouldClose(m_glfw_window) || ImGui::IsKeyPressed(GLFW_KEY_ESCAPE) || ImGui::IsKeyPressed(GLFW_KEY_Q)) {
-		destroy_window();
+		if (m_render_window) destroy_window();
 		return false;
 	}
 
@@ -3236,11 +3302,13 @@ void Testbed::destroy_window() {
 	m_dlss = false;
 	m_dlss_provider.reset();
 
-	ImGui_ImplOpenGL3_Shutdown();
-	ImGui_ImplGlfw_Shutdown();
-	ImGui::DestroyContext();
-	glfwDestroyWindow(m_glfw_window);
-	glfwTerminate();
+	if (m_glfw_window) {
+		ImGui_ImplOpenGL3_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
+		glfwDestroyWindow(m_glfw_window);
+		glfwTerminate();
+	}
 
 	m_blit_program = 0;
 	m_blit_vao = 0;
@@ -4280,6 +4348,59 @@ __global__ void vr_overlay_hands_kernel(
 	}
 
 	surf2Dwrite(to_float4(color), surface, x * sizeof(float4), y);
+}
+
+void Testbed::render(
+	cudaStream_t stream,
+	Testbed::View& view,
+	vec4* syn_rgba,
+	float* syn_depth,
+	size_t syn_px_scale,
+	const GPUMemory<sng::ObjectTransform>& world_objects,
+	const GPUMemory<sng::Light>& world_lights,
+	const GPUMemory<sng::Material>& world_materials,
+	GPUMemory<curandState_t>& rand_states,
+	GPUMemory<vec3>& nerf_normals,
+	GPUMemory<vec3>& nerf_positions,
+	bool show_shadow,
+	float nerf_shadow_intensity,
+	float nerf_ao_intensity,
+	float nerf_on_nerf_shadow_threshold,
+	const size_t& shadow_samples
+) {
+	if (!m_network) {
+		return;
+	}
+
+	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+	if (!m_render_skip_due_to_lack_of_camera_movement_counter) {
+		reset_accumulation(false);
+		view.render_buffer->clear_frame(stream);
+		m_render_skip_due_to_lack_of_camera_movement_counter = true;
+	}
+	assert(
+		view.device == &primary_device()
+	);
+
+	view.render_buffer->set_color_space(m_color_space);
+	view.render_buffer->set_tonemap_curve(m_tonemap_curve);
+
+	vec2 focal_length = calc_focal_length(view.render_buffer->in_resolution(), m_relative_focal_length, m_fov_axis, m_zoom);
+	vec2 screen_center = render_screen_center(view.screen_center);
+
+	if (!m_render_ground_truth && m_testbed_mode == ETestbedMode::Nerf) {
+		render_nerf_with_buffers(stream, *view.device, view.render_buffer->view(), syn_rgba, syn_depth, nerf_normals, 
+			nerf_positions, syn_px_scale, m_nerf_network, m_nerf.density_grid_bitfield.data(), focal_length, 
+			view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
+		if (show_shadow) {
+			shade_nerf_shadows(stream, *view.device, view.camera0, view.render_buffer->view(), nerf_normals, nerf_positions,  world_objects, world_lights, 
+				world_materials, rand_states, nerf_shadow_intensity, nerf_ao_intensity, nerf_on_nerf_shadow_threshold, shadow_samples);
+		}
+		// render_nerf(stream, *view.device, view.render_buffer->view(), m_nerf_network, m_nerf.density_grid_bitfield.data(), 
+		// 	focal_length, view.camera0, view.camera1, view.rolling_shutter, screen_center, view.foveation, view.visualized_dimension);
+	}
+	CUDA_CHECK_THROW(cudaStreamSynchronize(stream));
+	render_frame_epilogue(stream, view.camera0, view.prev_camera, m_screen_center, m_relative_focal_length, view.foveation, view.prev_foveation, *view.render_buffer.get(), true);
 }
 
 void Testbed::render_frame(

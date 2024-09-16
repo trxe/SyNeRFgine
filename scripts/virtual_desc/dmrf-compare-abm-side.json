@@ -1,0 +1,110 @@
+{
+    "camera" : {
+        "view" : [0.811,-0.429,-0.398],
+        "at" : [0.426,0.610,0.460],
+        "zoom" : 0.537,
+        "clear_color" : [1.0, 0.0, 0.0],
+        "show_ui": true,
+        "fps" : 24,
+        "animation_speed" : 0.0,
+        "total_time_ms" : 4000,
+        "move_on_start" : false,
+        "path" : [
+            {"view" : [ 0.6119312, -0.104988195, -0.7839119 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
+            {"view" : [ 0.36336237, -0.122328155, -0.923582 ], "at" : [ 0.525, 0.62100005, 0.09000015 ], "zoom" : 2.608},
+            {"view" : [ -0.043224417, -0.19126277, -0.9805869 ], "at" : [ 0.525, 0.6210001, 0.09000015 ], "zoom" : 1.9594287},
+            {"view" : [ -0.29449606, -0.20836385, -0.93266124 ], "at" : [ 0.525, 0.6210002, 0.09000015 ], "zoom" : 1.9594287},
+            {"view" : [ 0.34421092, -0.7434542, -0.57340676 ], "at" : [ 0.42162585, 0.40618336, 0.30646777 ], "zoom" : 1.9594287}
+        ]
+    },
+    "output" : { "folder" : "../render/garden-box-light", "record": false },
+    "rendering" : {
+        "res_factor" : 8,
+        "exposure" : 0.002,
+        "path_trace_depth": 2,
+        "lens_size" : 0.003,
+        "light_samples": 4,
+        "syn_shadow_samples": 2,
+        "nerf_shadow_samples": 4,
+        "syn_filter" : "Final",
+        "nerf_filter" : "Shade",
+        "show_light_pos" : true,
+        "nerf_on_nerf_shadow_threshold" : 0.010,
+        "nerf_shadow_intensity" : 0.60,
+        "syn_shadow_intensity" : 1.00,
+
+        "show_virtual_obj" : true,
+        "shadow_on_nerf" : true,
+        "show_nerf" : true,
+        "shadow_on_virtual_obj" : true
+    },
+    "lights": [
+        {
+            "pos" : [-1.700, 5.0, -0.700],
+            "size" : 0.20,
+            "intensity" : 1.0,
+            "type": "point",
+            "anim" : {
+                "end" : [-1.700, 0.548, -0.700],
+                "step" : 0.020
+            }
+        },
+        {
+            "pos" : [2.430, 1.465, 0.700],
+            "size" : 0.3,
+            "intensity" : 0.545,
+            "type": "directional"
+        }
+    ],
+    "objfile": [
+        {
+            "file": "../data/obj/armadillo.obj",
+            "pos" : [ 0.390, 0.615, 0.675 ],
+"rot" : [ 0.996, 0.000, -0.087, 0.000, 1.000, 0.000, 0.087, 0.000, 0.996 ],
+"scale" : 0.500,
+            "material": 0
+        },
+        {
+            "file": "../data/obj/bunny.obj",
+            "pos" : [ 0.633, 0.583, 0.352 ],
+"rot" : [ 1.000, 0.000, 0.008, 0.000, 1.000, 0.000, -0.008, 0.000, 1.000 ],
+"scale" : 0.603,
+            "material": 1
+        },
+        {
+            "file": "../data/obj/monkey.obj",
+            "pos" : [ 0.866, 0.581, 0.525 ],
+"rot" : [ -0.067, 0.000, -0.998, 0.000, 1.000, 0.000, 0.998, 0.000, -0.067 ],
+"scale" : 0.035,
+            "material": 0
+        },
+        {
+            "file": "../data/obj/shortbox.obj",
+            "pos" : [ 0.409, 0.674, 0.364 ],
+"rot" : [ -0.033, -0.599, -0.800, 0.025, 0.799, -0.600, 0.999, -0.040, -0.012 ],
+"scale" : 1.000,
+            "material": 1
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "n": 64.0,
+            "rg": 0.5,
+            "kd": [ 0.95, 0.3176, 0.1176 ]
+        },
+        {
+            "id": 1,
+            "type": "glossy",
+            "n": 28.0,
+            "rg": 0.2,
+            "spec_angle": 0.001,
+            "kd": [
+                0.0,
+                1.0,
+                0.8
+            ]
+        }
+    ]
+}

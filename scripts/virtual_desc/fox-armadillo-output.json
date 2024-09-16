@@ -1,0 +1,44 @@
+{
+    "camera" : {
+        "view" : [0.162,-0.098,-0.982],
+        "at" : [0.221,1.293,1.452],
+        "zoom" : 2.853,
+        "clear_color" : [0.0, 0.0, 0.0],
+        "show_ui_start" : true,
+        "vo_scale" : 6.0, 
+        "attenuation": 0.99
+    },
+    "output" : {
+        "folder" : "../render/fox-armadillo",
+        "img_count" : 10,
+        "res_factor" : 5
+    },
+    "shader" : {
+        "nerf_blur_kernel_size": 0,
+        "syn_blur_kernel_size": 0
+    },
+    "lights": [
+        {
+            "pos" : [0.061, 1.409, 3.699],
+            "size" : 0.04,
+            "intensity" : 1.0
+        }
+    ],
+    "objfile": [
+        {
+            "file": "../data/obj/bunny.obj",
+            "pos" : [ -0.101, 1.070, 1.738 ],
+            "rot" : [ -0.048, 0.000, 0.999, 0.000, 1.000, 0.000, -0.999, 0.000, -0.048 ],
+            "scale" : 4.000,
+            "material": 0
+        }
+    ],
+    "materials": [
+        {
+            "id": 0,
+            "type": "lambertian",
+            "n": 64.0,
+            "kd": [ 0.8, 0.0, 0.5 ]
+        }
+    ]
+}

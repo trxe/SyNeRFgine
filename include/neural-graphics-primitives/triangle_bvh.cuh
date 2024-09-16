@@ -22,6 +22,7 @@
 #include <tiny-cuda-nn/gpu_memory.h>
 
 #include <memory>
+#define BVH_BRANCH_FACTOR 2 
 
 namespace ngp {
 
@@ -56,13 +57,17 @@ private:
 
 using FixedIntStack = FixedStack<int>;
 
+template <uint32_t N, typename T>
+__host__ __device__ void sorting_network(T values[N]);
 
-__host__ __device__ std::pair<int, float> trianglebvh_ray_intersect(const vec3& ro, const vec3& rd, const TriangleBvhNode* __restrict__ bvhnodes, const Triangle* __restrict__ triangles);
+__host__ __device__ std::pair<int, float> ray_intersect_nodes(const vec3& ro, const vec3& rd, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles);
+__host__ __device__ std::pair<int, float> ray_intersect_nodes(const vec3& ro, const vec3& rd, const float& scale, const vec3& pos, const mat3& rot, TriangleBvhNode* __restrict__ bvhnodes, Triangle* __restrict__ triangles);
 
 class TriangleBvh {
 public:
 	virtual void signed_distance_gpu(uint32_t n_elements, EMeshSdfMode mode, const vec3* gpu_positions, float* gpu_distances, const Triangle* gpu_triangles, bool use_existing_distances_as_upper_bounds, cudaStream_t stream) = 0;
 	virtual void ray_trace_gpu(uint32_t n_elements, vec3* gpu_positions, vec3* gpu_directions, const Triangle* gpu_triangles, cudaStream_t stream) = 0;
+	virtual void ray_trace_gpu(uint32_t n_elements, vec3* gpu_positions, vec3* gpu_directions, vec3* gpu_normals, float* gpu_t, int32_t* gpu_mat_idx, bool* gpu_alive, int32_t this_mat_idx, const Triangle* gpu_triangles, cudaStream_t stream) = 0;
 	virtual bool touches_triangle(const BoundingBox& bb, const Triangle* __restrict__ triangles) const = 0;
 	virtual void build(std::vector<Triangle>& triangles, uint32_t n_primitives_per_leaf) = 0;
 	virtual void build_optix(const GPUMemory<Triangle>& triangles, cudaStream_t stream) = 0;

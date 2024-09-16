@@ -19,6 +19,7 @@
 #include <neural-graphics-primitives/common_device.cuh>
 
 #include <tiny-cuda-nn/common.h>
+#include <curand_kernel.h>
 
 namespace ngp {
 
@@ -158,6 +159,22 @@ struct Triangle {
 		v[0] = a;
 		v[1] = b;
 		v[2] = c;
+	}
+
+	NGP_HOST_DEVICE mat3 get_perturb_matrix() const {
+		vec3 N = normal();
+		vec3 T = normalize(centroid() - a);
+		vec3 B = cross(T, N);
+		return {T, B, N};
+	}
+
+	__device__ vec3 scatter(const vec3& orig, const float& max_angle, curandState_t& rand_state) const {
+		if (max_angle == 0.0) return orig;
+		mat3 perturb = get_perturb_matrix();
+		float longi = fractf(curand_uniform(&rand_state)) * max_angle;
+		float latid = fractf(curand_uniform(&rand_state)) * max_angle;
+		vec3 offset = {cos(longi), sin(longi), cos(latid)};
+		return normalize(orig + perturb * offset);
 	}
 
 	vec3 a, b, c;

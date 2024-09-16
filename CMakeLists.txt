@@ -52,19 +52,19 @@ endif()
 
 if (MSVC)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /D_CRT_SECURE_NO_WARNINGS")
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP24")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP8")
 else()
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 endif()
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 ###############################################################################
 # CUDA compiler setup
 ###############################################################################
 
-set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_EXTENSIONS OFF)
 set(CUDA_LINK_LIBRARIES_KEYWORD PUBLIC)
@@ -271,6 +271,12 @@ list(APPEND NGP_SOURCES
 	src/tinyexr_wrapper.cu
 	src/tinyobj_loader_wrapper.cu
 	src/triangle_bvh.cu
+	src/synerfgine/common.cu
+	src/synerfgine/display.cu
+	src/synerfgine/engine.cu
+	src/synerfgine/probe.cu
+	src/synerfgine/raytracer.cu
+	src/synerfgine/virtual_object.cu
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
@@ -370,6 +376,10 @@ if (NGP_BUILD_EXECUTABLE)
 		endif()
 	else()
 		add_custom_command(TARGET instant-ngp POST_BUILD COMMAND ${CMAKE_COMMAND} -E create_symlink $<TARGET_FILE:instant-ngp> "${NGP_BINARY_FILE}")
+
+		if (NGP_VULKAN)
+			add_custom_command(TARGET instant-ngp POST_BUILD COMMAND "ln" -s -f "${NGX_SHARED_LIB}" "${CMAKE_CURRENT_SOURCE_DIR}/")
+		endif()
 	endif()
 endif(NGP_BUILD_EXECUTABLE)
 

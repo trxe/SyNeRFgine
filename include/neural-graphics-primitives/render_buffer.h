@@ -112,6 +112,14 @@ public:
 
 	void load(const uint8_t* data, ivec2 new_size, int n_channels);
 
+	void load(const vec4* data, ivec2 new_size);
+
+	void load_gpu(const float* data, ivec2 new_size, int n_channels, std::vector<float>& cpu);
+
+	void load_gpu(const uint8_t* data, ivec2 new_size, int n_channels, std::vector<uint8_t>& cpu);
+
+	void load_gpu(const vec4* data, ivec2 new_size, std::vector<vec4>& cpu);
+
 	void resize(const ivec2& new_size, int n_channels, bool is_8bit);
 
 	void resize(const ivec2& new_size, int n_channels) override {

@@ -32,6 +32,7 @@
 
 #include <tiny-cuda-nn/multi_stream.h>
 #include <tiny-cuda-nn/random.h>
+#include <curand_kernel.h>
 
 #include <json/json.hpp>
 
@@ -41,6 +42,9 @@
 #endif
 
 #include <thread>
+#include <synerfgine/common.cuh>
+#include <synerfgine/light.cuh>
+#include <synerfgine/material.cuh>
 
 struct GLFWwindow;
 
@@ -53,6 +57,13 @@ template <typename T, typename PARAMS_T, typename COMPUTE_T> class Trainer;
 template <uint32_t N_DIMS, uint32_t RANK, typename T> class TrainableBuffer;
 }
 
+namespace sng {
+class Engine;
+class LightProbe;
+class CamPath;
+class CamKeyframe;
+}
+
 namespace ngp {
 
 template <typename T> class NerfNetwork;
@@ -63,6 +74,9 @@ class GLTexture;
 
 class Testbed {
 public:
+	friend class sng::Engine;
+	friend class sng::CamKeyframe;
+	struct View;
 	Testbed(ETestbedMode mode = ETestbedMode::None);
 	~Testbed();
 
@@ -176,6 +190,34 @@ public:
 			cudaStream_t stream
 		);
 
+		uint32_t trace_alt(
+			const std::shared_ptr<NerfNetwork<network_precision_t>>& network,
+			const BoundingBox& render_aabb,
+			const mat3& render_aabb_to_local,
+			const BoundingBox& train_aabb,
+			const vec2& focal_length,
+			float cone_angle_constant,
+			const uint8_t* grid,
+			ERenderMode render_mode,
+			const mat4x3 &camera_matrix,
+			float depth_scale,
+			int visualized_layer,
+			int visualized_dim,
+			ENerfActivation rgb_activation,
+			ENerfActivation density_activation,
+			int show_accel,
+			uint32_t max_mip,
+			float min_transmittance,
+			float glow_y_cutoff,
+			int glow_mode,
+			const float* extra_dims_gpu,
+			vec4* syn_rgba,
+			float* syn_depth,
+			const ivec2& resolution,
+			const size_t& syn_px_scale,
+			cudaStream_t stream
+		);
+
 		uint32_t trace(
 			const std::shared_ptr<NerfNetwork<network_precision_t>>& network,
 			const BoundingBox& render_aabb,
@@ -205,7 +247,7 @@ public:
 		RaysNerfSoa& rays_init() { return m_rays[0]; }
 		uint32_t n_rays_initialized() const { return m_n_rays_initialized; }
 
-	private:
+	protected:
 		RaysNerfSoa m_rays[2];
 		RaysNerfSoa m_rays_hit;
 		network_precision_t* m_network_output;
@@ -278,6 +320,41 @@ public:
 
 	class CudaDevice;
 
+	void shade_nerf_shadows(
+		cudaStream_t stream,
+		CudaDevice& device,
+		const mat4x3& camera_matrix,
+		const CudaRenderBufferView& render_buffer,
+		GPUMemory<vec3>& nerf_normals,
+		GPUMemory<vec3>& nerf_positions,
+		const GPUMemory<sng::ObjectTransform>& world_objects,
+		const GPUMemory<sng::Light>& world_light,
+		const GPUMemory<sng::Material>& world_materials,
+		GPUMemory<curandState_t>& rand_states,
+		const float& nerf_shadow_intensity,
+		const float& nerf_ao_intensity,
+		const float& nerf_on_nerf_shadow_threshold,
+		const size_t& shadow_samples
+	);
+	void render_nerf_with_buffers(
+		cudaStream_t stream,
+		CudaDevice& device,
+		const CudaRenderBufferView& render_buffer,
+		vec4* syn_rgba,
+		float* syn_depth,
+		GPUMemory<vec3>& nerf_normals,
+		GPUMemory<vec3>& nerf_positions,
+		size_t syn_px_scale,  
+		const std::shared_ptr<NerfNetwork<network_precision_t>>& nerf_network,
+		const uint8_t* density_grid_bitfield,
+		const vec2& focal_length,
+		const mat4x3& camera_matrix0,
+		const mat4x3& camera_matrix1,
+		const vec4& rolling_shutter,
+		const vec2& screen_center,
+		const Foveation& foveation,
+		int visualized_dimension
+	);
 	void render_nerf(
 		cudaStream_t stream,
 		CudaDevice& device,
@@ -319,6 +396,25 @@ public:
 		const mat4x3& camera_matrix,
 		const vec2& screen_center,
 		const Foveation& foveation
+	);
+
+	void render(
+		cudaStream_t stream,
+		Testbed::View& view,
+		vec4* syn_rgba,
+		float* syn_depth,
+		size_t syn_px_scale,
+		const GPUMemory<sng::ObjectTransform>& world_objects,
+		const GPUMemory<sng::Light>& world_light,
+		const GPUMemory<sng::Material>& world_materials,
+		GPUMemory<curandState_t>& rand_states,
+		GPUMemory<vec3>& nerf_normals,
+		GPUMemory<vec3>& nerf_positions,
+		bool show_shadow,
+		float nerf_shadow_intensity,
+		float nerf_ao_intensity,
+		float nerf_on_nerf_shadow_threshold,
+		const size_t& shadow_samples
 	);
 
 	void render_frame(
@@ -459,7 +555,7 @@ public:
 #endif
 
 	double calculate_iou(uint32_t n_samples=128*1024*1024, float scale_existing_results_factor=0.0, bool blocking=true, bool force_use_octree = true);
-	void draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix);
+	void draw_visualizations(ImDrawList* list, const mat4x3& camera_matrix, vec3* pos_to_translate=nullptr, mat3* rotate=nullptr, float* scale=nullptr, bool* dirty_marker=nullptr);
 	void train_and_render(bool skip_rendering);
 	fs::path training_data_path() const;
 	void init_window(int resw, int resh, bool hidden = false, bool second_window = false);
@@ -557,7 +653,7 @@ public:
 	ivec2 m_window_res = ivec2(0);
 	bool m_dynamic_res = true;
 	float m_dynamic_res_target_fps = 20.0f;
-	int m_fixed_res_factor = 8;
+	int m_fixed_res_factor = 64;
 	float m_scale = 1.0;
 	float m_aperture_size = 0.0f;
 	vec2 m_relative_focal_length = vec2(1.0f);
@@ -571,6 +667,7 @@ public:
 	mat4x3 m_camera = mat4x3::identity();
 	mat4x3 m_smoothed_camera = mat4x3::identity();
 	size_t m_render_skip_due_to_lack_of_camera_movement_counter = 0;
+	bool m_syn_camera_reset = true;
 
 	bool m_fps_camera = false;
 	bool m_camera_smoothing = false;
@@ -586,6 +683,10 @@ public:
 
 	ERenderMode m_render_mode = ERenderMode::Shade;
 	EMeshRenderMode m_mesh_render_mode = EMeshRenderMode::VertexNormals;
+	int sng_position_kernel_size = 1;
+	float sng_position_kernel_threshold = 1.0f;
+	float sng_shadow_depth_variance = 0.0f;
+	bool sng_use_default=false;
 
 	uint32_t m_seed = 1337;
 
@@ -936,8 +1037,23 @@ public:
 
 		vec2 relative_focal_length;
 		vec2 screen_center;
+		
+		// optional stuff
+		vec4 rolling_shutter = vec4(vec3(0.0), 1.0);
+		BoundingBox render_aabb;
+		mat4x3 render_aabb_to_local;
+		uint32_t min_mip = 0; 
+		uint32_t max_mip = 10; 
+		float cone_angle_constant = 1.0f;
+
 
 		CudaDevice* device = nullptr;
+		void resize(const ivec2& size) {
+			if (full_resolution == size) return;
+			full_resolution = size;
+			if (device) device->device_guard();
+			render_buffer->resize(size);
+		}
 	};
 
 	std::vector<View> m_views;

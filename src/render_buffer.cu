@@ -143,11 +143,51 @@ void GLTexture::load(const float* data, ivec2 new_size, int n_channels) {
 	glTexImage2D(GL_TEXTURE_2D, 0, m_internal_format, new_size.x, new_size.y, 0, m_format, GL_FLOAT, data);
 }
 
+void GLTexture::load(const vec4* data, ivec2 new_size) {
+	resize(new_size, 4, false);
+
+	glBindTexture(GL_TEXTURE_2D, m_texture_id);
+	glTexImage2D(GL_TEXTURE_2D, 0, m_internal_format, new_size.x, new_size.y, 0, m_format, GL_FLOAT, data);
+}
+
 void GLTexture::load(const uint8_t* data, ivec2 new_size, int n_channels) {
 	resize(new_size, n_channels, true);
 
 	glBindTexture(GL_TEXTURE_2D, m_texture_id);
 	glTexImage2D(GL_TEXTURE_2D, 0, m_internal_format, new_size.x, new_size.y, 0, m_format, GL_UNSIGNED_BYTE, data);
+}
+
+void GLTexture::load_gpu(const float* data, ivec2 new_size, int n_channels, std::vector<float>& cpu) {
+	resize(new_size, n_channels, false);
+	uint32_t n_elements = product(new_size) * n_channels;
+	cpu.resize(n_elements);
+	CUDA_CHECK_THROW(cudaMemcpy(cpu.data(), data, n_elements * sizeof(float), cudaMemcpyDeviceToHost));
+	CUDA_CHECK_THROW(cudaDeviceSynchronize());
+
+	glBindTexture(GL_TEXTURE_2D, m_texture_id);
+	glTexImage2D(GL_TEXTURE_2D, 0, m_internal_format, new_size.x, new_size.y, 0, m_format, GL_FLOAT, cpu.data());
+}
+
+void GLTexture::load_gpu(const vec4* data, ivec2 new_size, std::vector<vec4>& cpu) {
+	resize(new_size, 4, false);
+	uint32_t n_elements = product(new_size);
+	cpu.resize(n_elements);
+	CUDA_CHECK_THROW(cudaMemcpy(cpu.data(), data, n_elements * sizeof(vec4), cudaMemcpyDeviceToHost));
+	CUDA_CHECK_THROW(cudaDeviceSynchronize());
+
+	glBindTexture(GL_TEXTURE_2D, m_texture_id);
+	glTexImage2D(GL_TEXTURE_2D, 0, m_internal_format, new_size.x, new_size.y, 0, m_format, GL_FLOAT, cpu.data());
+}
+
+void GLTexture::load_gpu(const uint8_t* data, ivec2 new_size, int n_channels, std::vector<uint8_t>& cpu) {
+	resize(new_size, n_channels, true);
+	uint32_t n_elements = product(new_size);
+	cpu.resize(n_elements);
+	CUDA_CHECK_THROW(cudaMemcpy(cpu.data(), data, n_elements * sizeof(uint8_t), cudaMemcpyDeviceToHost));
+	CUDA_CHECK_THROW(cudaDeviceSynchronize());
+
+	glBindTexture(GL_TEXTURE_2D, m_texture_id);
+	glTexImage2D(GL_TEXTURE_2D, 0, m_internal_format, new_size.x, new_size.y, 0, m_format, GL_UNSIGNED_BYTE, cpu.data());
 }
 
 void GLTexture::resize(const ivec2& new_size, int n_channels, bool is_8bit) {
@@ -688,9 +728,10 @@ void CudaRenderBuffer::tonemap(float exposure, const vec4& background_color, ECo
 		dlss_splat_kernel<<<out_blocks, threads, 0, stream>>>(out_res, m_dlss->output(), surface());
 	}
 
-	if (m_depth_target) {
-		depth_splat_kernel<<<blocks, threads, 0, stream>>>(res, znear, zfar, depth_buffer(), m_depth_target->surface());
-	}
+	// REMOVED FOR ACCURATE DEPTH VALUE
+	// if (m_depth_target) {
+	// 	depth_splat_kernel<<<blocks, threads, 0, stream>>>(res, znear, zfar, depth_buffer(), m_depth_target->surface());
+	// }
 }
 
 void CudaRenderBuffer::overlay_image(

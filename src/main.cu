@@ -13,6 +13,7 @@
  */
 
 #include <neural-graphics-primitives/testbed.h>
+#include <synerfgine/engine.cuh>
 
 #include <tiny-cuda-nn/common.h>
 
@@ -40,13 +41,6 @@ int main_func(const std::vector<std::string>& arguments) {
 		{'h', "help"},
 	};
 
-	ValueFlag<string> mode_flag{
-		parser,
-		"MODE",
-		"Deprecated. Do not use.",
-		{'m', "mode"},
-	};
-
 	ValueFlag<string> network_config_flag{
 		parser,
 		"CONFIG",
@@ -68,11 +62,11 @@ int main_func(const std::vector<std::string>& arguments) {
 		{"vr"}
 	};
 
-	Flag no_train_flag{
+	Flag train_flag{
 		parser,
-		"NO_TRAIN",
-		"Disables training on startup.",
-		{"no-train"},
+		"TRAIN",
+		"Enables training on startup.",
+		{"train"},
 	};
 
 	ValueFlag<string> scene_flag{
@@ -80,6 +74,20 @@ int main_func(const std::vector<std::string>& arguments) {
 		"SCENE",
 		"The scene to load. Can be NeRF dataset, a *.obj/*.stl mesh for training a SDF, an image, or a *.nvdb volume.",
 		{'s', "scene"},
+	};
+
+	ValueFlag<string> virtual_flag{
+		parser,
+		"VIRTUAL",
+		"Path to the virtual scene config. None if unspecified.",
+		{"rt", "virtual"},
+	};
+
+	ValueFlag<string> fragment_shader_flag{
+		parser,
+		"FRAG",
+		"Path to the fragment shader. \"main.frag\" if unspecified.",
+		{"frag"},
 	};
 
 	ValueFlag<string> snapshot_flag{
@@ -101,6 +109,20 @@ int main_func(const std::vector<std::string>& arguments) {
 		"HEIGHT",
 		"Resolution height of the GUI.",
 		{"height"},
+	};
+
+	ValueFlag<uint32_t> syn_samples{
+		parser,
+		"SYN_SAMPLES",
+		"Number of samples of light source for shadows on synthetic surfaces",
+		{"sshadows"},
+	};
+
+	ValueFlag<uint32_t> nerf_samples{
+		parser,
+		"NERF_SAMPLES",
+		"Filter kernel size for shadows on NeRF surfaces",
+		{"nshadows"},
 	};
 
 	Flag version_flag{
@@ -144,11 +166,8 @@ int main_func(const std::vector<std::string>& arguments) {
 		return 0;
 	}
 
-	if (mode_flag) {
-		tlog::warning() << "The '--mode' argument is no longer in use. It has no effect. The mode is automatically chosen based on the scene.";
-	}
-
 	Testbed testbed;
+	sng::Engine engine;
 
 	for (auto file : get(files)) {
 		testbed.load_file(file);
@@ -164,7 +183,12 @@ int main_func(const std::vector<std::string>& arguments) {
 		testbed.reload_network_from_file(get(network_config_flag));
 	}
 
-	testbed.m_train = !no_train_flag;
+	if (virtual_flag) {
+		engine.set_virtual_world(get(virtual_flag));
+	}
+
+	const bool testbed_mode = train_flag;
+	testbed.m_dynamic_res = false;
 
 #ifdef NGP_GUI
 	bool gui = !no_gui_flag;
@@ -172,19 +196,34 @@ int main_func(const std::vector<std::string>& arguments) {
 	bool gui = false;
 #endif
 
-	if (gui) {
-		testbed.init_window(width_flag ? get(width_flag) : 1920, height_flag ? get(height_flag) : 1080);
-	}
-
-	if (vr_flag) {
-		testbed.init_vr();
-	}
-
-	// Render/training loop
-	while (testbed.frame()) {
-		if (!gui) {
-			tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
+	try {
+		if (gui) {
+			fs::path p = fs::path::getcwd();
+			if (testbed_mode) {
+				testbed.init_window(width_flag ? get(width_flag) : 1280, height_flag ? get(height_flag) : 720);
+			} else {
+				engine.init(
+					width_flag ? get(width_flag) : 1280, 
+					height_flag ? get(height_flag) : 720, 
+					fragment_shader_flag ? get(fragment_shader_flag) : "../main.frag",
+					&testbed);
+				if (syn_samples) {
+					engine.set_syn_samples(get(syn_samples));
+					engine.set_nerf_samples(get(nerf_samples));
+				}
+			}
 		}
+
+		// Render/training loop
+		while (true) {
+			bool go_next_frame = testbed_mode ? testbed.frame() : engine.frame();
+			if (!gui) {
+				tlog::info() << "iteration=" << testbed.m_training_step << " loss=" << testbed.m_loss_scalar.val();
+			}
+			if (!go_next_frame) break;
+		}
+	} catch (const std::runtime_error& e) {
+		tlog::error(e.what());
 	}
 
 	return 0;

@@ -1,14 +1,15 @@
-/.vscode
 /.vs
 /build*
 /external
 /figures
 /out
 /results
+/render
 /tmp
 /venv
 /video
 /instant-ngp
+/extra_data
 /*.dll
 /*.exe
 /*.json
